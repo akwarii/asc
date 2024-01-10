@@ -1,0 +1,8 @@
+name: cegann
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python >=3.8,<3.12
+  - lightning >=2.0.0
+  - pymatgen >=2021.3.4
