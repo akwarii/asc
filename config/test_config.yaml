@@ -13,10 +13,10 @@ n_conv_edge: 2
 neighbors: 12
 num_workers: 1
 pin_memory: true
-rcut: 6
+rcut: 4
 resume: false
-search_delta: 20
-search_type: global
+search_delta: 1
+search_type: local
 step_size: 100
 test_ratio: 0.0
 train_ratio: 0.8
