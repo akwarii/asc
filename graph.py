@@ -2,11 +2,13 @@ from datetime import timedelta
 from functools import partial
 import logging
 from multiprocessing import Pool
+import sys
 from time import perf_counter
 from typing import Optional
 
 import numpy as np
 import torch
+from pymatgen.core import IStructure
 from pymatgen.core.periodic_table import Element
 from sklearn.preprocessing import LabelBinarizer
 from torch.utils.data import Dataset
@@ -24,76 +26,54 @@ class Graph:
 
     def __init__(
         self,
-        neighbors=12,
-        rcut=0,
-        delta=1,
+        neighbors: int = 12,
+        rcut: int = 0,
+        delta: int = 1,
     ):
-        self.neighbors = neighbors
+        self.n_neighbors = neighbors
         self.rcut = rcut
         self.delta = delta
         self.bond = []
         self.neighbor = []
         self.angle_cosines = []
 
-    def set_features(self, structure):
-        if self.rcut > 0:
-            pass
-        else:
+    def set_features(self, structure: IStructure):
+        if self.rcut <= 0:
             species = [site.specie.symbol for site in structure.sites]
             self.rcut = max([Element(elm).atomic_radius * 3 for elm in species])
 
+        # TODO: change to get_neighbor_list for better performances
         all_neighbors = structure.get_all_neighbors(self.rcut, include_index=True)
-
         len_neighbors = np.array([len(neighbor) for neighbor in all_neighbors])
-        
-        indexes = np.where((len_neighbors < self.neighbors))[0]
+        missing_neighbors_idx = np.where((len_neighbors < self.n_neighbors))[0]
 
-        for i in indexes:
-            cut = self.rcut
-            curr_N = len(all_neighbors[i])
-            while curr_N < self.neighbors:
-                cut += self.delta
-                neighbor = structure.get_neighbors(structure[i], cut)
-                curr_N = len(neighbor)
+        for i in missing_neighbors_idx:
+            rcut = self.rcut
+            n_neighbors = len(all_neighbors[i])
+            while n_neighbors < self.n_neighbors:
+                rcut += self.delta
+                neighbor = structure.get_neighbors(structure[i], rcut)
+                n_neighbors = len(neighbor)
             all_neighbors[i] = neighbor
 
-        all_neighbors = [
-            sorted(neighbors, key=lambda x: x[1]) for neighbors in all_neighbors
+        all_neighbors_sorted = [
+            sorted(neighbors, key=lambda x: x[1])[:self.n_neighbors] for neighbors in all_neighbors
         ]
 
-        self.neighbor = torch.LongTensor(
-            [
-                list(map(lambda x: x[2], neighbors[: self.neighbors]))
-                for neighbors in all_neighbors
-            ]
-        )
-        self.bond = torch.Tensor(
-            [
-                list(map(lambda x: x[1], neighbors[: self.neighbors]))
-                for neighbors in all_neighbors
-            ]
-        )
+        atom_neighbor_fea = torch.from_numpy(np.array([[x[0].coords for x in neighbors] for neighbors in all_neighbors_sorted], dtype=np.float32))
+        self.bond = torch.from_numpy(np.array([[x[1] for x in neighbors] for neighbors in all_neighbors_sorted], dtype=np.float32))
+        self.neighbor = torch.from_numpy(np.array([[x[2] for x in neighbors] for neighbors in all_neighbors_sorted], dtype=np.int32))
 
-        cart_coords = torch.Tensor(
-            np.array([structure[i].coords for i in range(len(structure))])
-        )
-        atom_neighbor_fea = torch.Tensor(
-            np.array(
-                [
-                    list(map(lambda x: x[0].coords, neighbors[: self.neighbors]))
-                    for neighbors in all_neighbors
-                ]
-            )
-        )
-        centre_coords = cart_coords.unsqueeze(1).expand(
-            len(structure), self.neighbors, 3
+        cartesian_coords = torch.from_numpy(structure.cart_coords).float()
+        centre_coords = cartesian_coords.unsqueeze(1).expand(
+            len(structure), self.n_neighbors, 3
         )
         dxyz = atom_neighbor_fea - centre_coords
         r = self.bond.unsqueeze(2)
         self.angle_cosines = torch.matmul(
             dxyz, torch.swapaxes(dxyz, 1, 2)
         ) / torch.matmul(r, torch.swapaxes(r, 1, 2))
-
+    
 
 def load_graphs_targets(data, neighbors=12, rcut=0, delta=1):
     """
@@ -213,3 +193,11 @@ class CrystalGraphDataset(Dataset):
         target = self.targets[idx]
 
         return (bond_feature, neighbor_idx, angular_feature), target
+
+
+if __name__ == "__main__":
+    from utils import load_settings, load_dataset
+    
+    dataset_path = "example/train"
+    settings = load_settings("config/test_config.yaml")
+    graphs = load_dataset(dataset_path, settings)
