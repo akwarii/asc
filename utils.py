@@ -9,6 +9,7 @@ from typing import Optional
 import numpy as np
 import torch
 from pymatgen.io.vasp.inputs import Poscar
+from pymatgen.core.structure import IStructure
 from tqdm import tqdm
 from yaml import full_load
 
@@ -80,7 +81,7 @@ def load_settings(config_file: Optional[str | Path] = "custom_config.yaml") -> S
 
     return settings
 
-def process_poscar(poscar_path, allow_unknown):
+def process_poscar(poscar_path: str | Path, allow_unknown: bool) -> dict[str, np.ndarray | IStructure]:
     poscar = Poscar.from_file(poscar_path)
 
     try:
@@ -151,7 +152,6 @@ def save_checkpoint(
     model: torch.nn.Module,
     optimizer: torch.optim.Optimizer,
     scheduler: torch.optim.lr_scheduler._LRScheduler,
-    trainer: "Engine",
     best_val_accuracy: float,
     epoch: int,
     is_best: bool,
@@ -165,7 +165,6 @@ def save_checkpoint(
         model (nn.Module): The model being trained.
         optimizer (torch.optim.Optimizer): The optimizer used for training.
         scheduler (torch.optim.lr_scheduler._LRScheduler): The learning rate scheduler used for training.
-        trainer (Engine): The training engine.
         best_val_accuracy (float): The best validation accuracy achieved during training.
         epoch (int): The current epoch number.
         is_best (bool): Whether the current checkpoint is the best one.
@@ -185,7 +184,6 @@ def save_checkpoint(
             "model": model.state_dict(),
             "optimizer": optimizer.state_dict(),
             "lr_scheduler": scheduler.state_dict(),
-            "trainer": trainer.state_dict(),
             "best_accuracy": best_val_accuracy,
         },
         fname,

@@ -4,7 +4,7 @@ import logging
 from multiprocessing import Pool
 import sys
 from time import perf_counter
-from typing import Optional
+from typing import Callable, Iterable, Optional
 
 import numpy as np
 import torch
@@ -27,8 +27,8 @@ class Graph:
     def __init__(
         self,
         neighbors: int = 12,
-        rcut: int = 0,
-        delta: int = 1,
+        rcut: float = 0,
+        delta: float = 1,
     ):
         self.n_neighbors = neighbors
         self.rcut = rcut
@@ -42,7 +42,6 @@ class Graph:
             species = [site.specie.symbol for site in structure.sites]
             self.rcut = max([Element(elm).atomic_radius * 3 for elm in species])
 
-        # TODO: change to get_neighbor_list for better performances
         all_neighbors = structure.get_all_neighbors(self.rcut, include_index=True)
         len_neighbors = np.array([len(neighbor) for neighbor in all_neighbors])
         missing_neighbors_idx = np.where((len_neighbors < self.n_neighbors))[0]
@@ -91,7 +90,7 @@ def load_graphs_targets(data, neighbors=12, rcut=0, delta=1):
     return (graph, target)
 
 
-def process(func, tasks, mp_load: bool = False, n_proc: Optional[int] = None):
+def process(func: Callable, tasks: Iterable, mp_load: bool = False, n_proc: Optional[int] = None) -> list:
     if mp_load:
         with Pool(n_proc) as mp_pool:
             results = []
@@ -107,55 +106,67 @@ def process(func, tasks, mp_load: bool = False, n_proc: Optional[int] = None):
 
 
 class CrystalGraphDataset(Dataset):
+    """
+    Dataset class for crystal graph data.
+
+    Args:
+        dataset (list[dict[str, np.ndarray | IStructure]]): List of dictionaries containing the dataset.
+        neighbors (int, optional): Number of neighbors to consider. Defaults to 12.
+        rcut (float, optional): Cutoff radius. Defaults to 0.
+        delta (float, optional): Delta value. Defaults to 1.
+        mp_load (bool, optional): Whether to use multiprocessing for loading graphs. Defaults to False.
+        mp_cpu_count (Optional[int], optional): Number of CPUs to use for multiprocessing. Defaults to None.
+
+    Attributes:
+        graphs (list): List of loaded graphs.
+        targets (list): List of targets.
+        num_classes (int): Number of classes.
+        size (int): Size of the dataset.
+
+    Methods:
+        collate: Collates the data.
+        __getitem__: Retrieves an item from the dataset.
+    """
+
     def __init__(
-            self,
+        self,
+        dataset: list[dict[str, np.ndarray | IStructure]],
+        neighbors: int = 12,
+        rcut: float = 0,
+        delta: float = 1,
+        mp_load: bool = False,
+        mp_cpu_count: Optional[int] = None,
+    ) -> None:
+        if len(dataset) == 0:
+            raise ValueError("Dataset is empty")
+        
+        logging.info(f"Loading {len(dataset)} graphs ...")
+
+        t1 = perf_counter()
+
+        results = process(
+            partial(load_graphs_targets, neighbors=neighbors, rcut=rcut, delta=delta),
             dataset,
-            neighbors=12,
-            rcut=0,
-            delta=1,
-            mp_load=False,
-            mp_cpu_count=None,
-            **kwargs,
-        ):
-            """
-            Initialize the Graph object.
+            mp_load=mp_load,
+            n_proc=mp_cpu_count,
+        )
 
-            Args:
-                dataset: The dataset containing the graphs.
-                neighbors: The number of neighbors to consider for each node (default: 12).
-                rcut: The radius cutoff for the neighbor search (default: 0).
-                delta: The delta parameter for the neighbor search (default: 1).
-                mp_load: Whether to use multiprocessing for loading graphs (default: False).
-                mp_cpu_count: The number of CPUs to use for multiprocessing (default: None).
-                **kwargs: Additional keyword arguments.
-            """
-            logging.info(f"Loading {len(dataset)} graphs ...")
-            print(f"Loading {len(dataset)} graphs ...")
+        self.graphs = [res[0] for res in results if res is not None]
 
-            t1 = perf_counter()
+        self.targets = [torch.LongTensor(res[1]) for res in results if res is not None]
 
-            results = process(
-                partial(load_graphs_targets, neighbors=neighbors, rcut=rcut, delta=delta),
-                dataset,
-                mp_load=mp_load,
-                n_proc=mp_cpu_count,
-            )
+        binarizer = LabelBinarizer()
+        binarizer.fit(torch.cat(self.targets))
+        self.num_classes = len(binarizer.classes_)
 
-            self.graphs = [res[0] for res in results if res is not None]
-
-            self.targets = [torch.LongTensor(res[1]) for res in results if res is not None]
-
-            self.binarizer = LabelBinarizer()
-            self.binarizer.fit(torch.cat(self.targets))
-            self.num_classes = len(self.binarizer.classes_)
-
-            t2 = perf_counter()
-            logging.info(f"Graphs loaded in {timedelta(seconds=t2-t1)}s")
-            print(f"Graphs loaded in {timedelta(seconds=t2-t1)}s")
-
-            self.size = len(self.targets)
-
-    def collate(self, datalist):
+        t2 = perf_counter()
+        logging.info(f"Graphs loaded in {timedelta(seconds=t2-t1)}s")
+        
+    @property
+    def size(self) -> int:
+        return len(self.graphs)
+    
+    def collate(self, datalist) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         bond_feature, neighbor_idx, angular_feature, crystal_idx, targets = (
             [],
             [],
@@ -185,7 +196,7 @@ class CrystalGraphDataset(Dataset):
             torch.cat(targets, dim=0),
         )
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int):
         graph = self.graphs[idx]
         bond_feature = graph.bond
         neighbor_idx = graph.neighbor
