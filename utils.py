@@ -8,7 +8,6 @@ from typing import Optional
 
 import numpy as np
 import torch
-from ignite.engine import Engine
 from pymatgen.io.vasp.inputs import Poscar
 from tqdm import tqdm
 from yaml import full_load
@@ -152,7 +151,7 @@ def save_checkpoint(
     model: torch.nn.Module,
     optimizer: torch.optim.Optimizer,
     scheduler: torch.optim.lr_scheduler._LRScheduler,
-    trainer: Engine,
+    trainer: "Engine",
     best_val_accuracy: float,
     epoch: int,
     is_best: bool,
