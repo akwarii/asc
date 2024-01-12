@@ -43,92 +43,6 @@ class GBFExpansion(nn.Module):
         return torch.exp(-((data.unsqueeze(dim) - self.filters) ** 2) / self.gamma**2)
 
 
-class GraphAttentionLayer(nn.Module):
-    def __init__(
-        self,
-        in_features: int,
-        out_features: int,
-        n_heads: int,
-        is_concat: bool = True,
-        dropout: float = 0.6,
-        leaky_relu_negative_slope: float = 0.2
-    ) -> None:
-        """
-        Graph Attention Layer module.
-        
-        Args:
-            in_features (int): Number of input features.
-            out_features (int): Number of output features.
-            n_heads (int): Number of attention heads.
-            is_concat (bool, optional): Whether to concatenate the attention heads or take their mean. 
-                Defaults to True.
-            dropout (float, optional): Dropout rate. Defaults to 0.6.
-            leaky_relu_negative_slope (float, optional): Negative slope of the LeakyReLU activation function. 
-                Defaults to 0.2.
-        """
-        super().__init__()
-        
-        self.is_concat = is_concat
-        self.n_heads = n_heads
-        
-        if self.is_concat:
-            assert out_features % self.n_heads == 0, "out_features must be divisible by n_heads"
-            self.n_hidden = out_features // self.n_heads
-        else:
-            self.n_hidden = out_features
-            
-        self.linear = nn.Linear(in_features, self.n_hidden * self.n_heads, bias=False)
-        self.attention = nn.Linear(2 * self.n_hidden, 1, bias=False)
-        self.activation = nn.LeakyReLU(negative_slope=leaky_relu_negative_slope)
-        self.softmax = nn.Softmax(dim=1)
-        self.dropout = nn.Dropout(dropout)
-        
-    def forward(self, h: torch.Tensor, adj_mat: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass of the Graph Attention Layer.
-        
-        Args:
-            h (torch.Tensor): Input tensor of shape (n_nodes, in_features).
-            adj_mat (torch.Tensor): Adjacency matrix tensor of shape (n_nodes, n_nodes, n_heads).
-        
-        Returns:
-            torch.Tensor: Output tensor of shape (n_nodes, out_features) if is_concat is True, 
-                or (n_nodes, out_features // n_heads) if is_concat is False.
-        """
-        n_nodes = h.shape[0]
-        
-        # Initial transformation for each head
-        g = self.linear(h).view(n_nodes, self.n_heads, self.n_hidden)
-        
-        # Compute attention scores
-        g_repeat = g.repeat(n_nodes, 1, 1)
-        g_repeat_interleave = g.repeat_interleave(n_nodes, dim=0)
-        g_concat = torch.cat([g_repeat_interleave, g_repeat], dim=-1)
-        g_concat = g_concat.view(n_nodes, n_nodes, self.n_heads, 2 * self.n_hidden)
-        
-        e = self.activation(self.attention(g_concat))
-        e = e.squeeze(-1)
-
-        assert adj_mat.shape[0] == 1 or adj_mat.shape[0] == n_nodes
-        assert adj_mat.shape[1] == 1 or adj_mat.shape[1] == n_nodes
-        assert adj_mat.shape[2] == 1 or adj_mat.shape[2] == self.n_heads
-
-        # Mask attention scores
-        e = e.masked_fill(adj_mat == 0, float('-inf'))
-        
-        # Normalize attention scores
-        a = self.softmax(e)
-        a = self.dropout(a)
-        
-        # Compute final output for each head
-        attn_res = torch.einsum('ijh,jhf->ihf', a, g)
-        
-        if self.is_concat:
-            return attn_res.reshape(n_nodes, self.n_heads * self.n_hidden)
-        else:
-            return attn_res.mean(dim=1)
-
-
 class GraphAttentionV2Layer(nn.Module):
     def __init__(
         self,
@@ -138,6 +52,7 @@ class GraphAttentionV2Layer(nn.Module):
         is_concat: bool = True,
         dropout: float = 0.6,
         leaky_relu_negative_slope: float = 0.2,
+        bias: bool = True,
         share_weights: bool = False
     ) -> None:
         super.__init__()
@@ -152,14 +67,14 @@ class GraphAttentionV2Layer(nn.Module):
         else:
             self.n_hidden = out_features
         
-        self.linear_l = nn.Linear(in_features, self.n_hidden * n_heads, bias=False)
+        self.linear_l = nn.Linear(in_features, self.n_hidden * n_heads, bias=bias)
         
         if self.share_weights:
             self.linear_r = self.linear_l
         else:
-            self.linear_r = nn.Linear(in_features, self.n_hidden * n_heads, bias=False)
+            self.linear_r = nn.Linear(in_features, self.n_hidden * n_heads, bias=bias)
             
-        self.attention = nn.Linear(self.n_hidden, 1, bias=False)
+        self.attention = nn.Linear(self.n_hidden, 1, bias=bias)
         self.activation = nn.LeakyReLU(negative_slope=leaky_relu_negative_slope)
         self.softmax = nn.Softmax(dim=1)
         self.dropout = nn.Dropout(dropout)
