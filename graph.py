@@ -3,7 +3,7 @@ from datetime import timedelta
 from functools import partial
 from multiprocessing import Pool
 from time import perf_counter
-from typing import Callable, Iterable, Optional
+from typing import Any, Callable, Iterable, Optional
 
 import numpy as np
 import torch
@@ -17,10 +17,11 @@ logging.getLogger(__name__)
 
 torch.set_default_dtype(torch.float32)
 
-
+#TODO use Deep Graph Library (DGL) to create the graphs may be faster and cleaner
+#TODO we may be intered in the sparse matrix representation of the graph
 class Graph:
     """
-    Graph object fro creation of atomic graphs with bond and node attributes from pymatgen structure
+    Graph object for creation of atomic graphs with bond and node attributes from pymatgen structure
     """
 
     def __init__(
@@ -73,7 +74,7 @@ class Graph:
         ) / torch.matmul(r, torch.swapaxes(r, 1, 2))
     
 
-def load_graphs_targets(data, neighbors=12, rcut=0, delta=1):
+def load_graphs_targets(data: dict[str, Any], neighbors: int = 12, rcut: float = 0, delta: float = 1) -> tuple[Graph, torch.Tensor]:
     """
     data should be in dict format
         structure:{pymatgen structure},
@@ -139,10 +140,6 @@ class CrystalGraphDataset(Dataset):
         if len(dataset) == 0:
             raise ValueError("Dataset is empty")
         
-        logging.info(f"Loading {len(dataset)} graphs ...")
-
-        t1 = perf_counter()
-
         results = process(
             partial(load_graphs_targets, neighbors=neighbors, rcut=rcut, delta=delta),
             dataset,
@@ -150,17 +147,18 @@ class CrystalGraphDataset(Dataset):
             n_proc=mp_cpu_count,
         )
 
-        self.graphs = [res[0] for res in results if res is not None]
+        self.graphs: list[Graph] = [res[0] for res in results if res is not None]
 
+        #TODO: pretty sure a long tensor is not what we want here, a short tensor is probably better as
+        # the target is only the class label (still check if it's really the class label)
         self.targets = [torch.LongTensor(res[1]) for res in results if res is not None]
 
+        #TODO: look into this, I think the one-hot encoding is never used but maybe it behaves differently
+        # and assigns the values directly to the tensor
         binarizer = LabelBinarizer()
         binarizer.fit(torch.cat(self.targets))
         self.num_classes = len(binarizer.classes_)
 
-        t2 = perf_counter()
-        logging.info(f"Graphs loaded in {timedelta(seconds=t2-t1)}s")
-        
     @property
     def size(self) -> int:
         return len(self.graphs)
