@@ -1,8 +1,7 @@
+import logging
 from datetime import timedelta
 from functools import partial
-import logging
 from multiprocessing import Pool
-import sys
 from time import perf_counter
 from typing import Callable, Iterable, Optional
 
@@ -207,7 +206,7 @@ class CrystalGraphDataset(Dataset):
 
 
 if __name__ == "__main__":
-    from utils import load_settings, load_dataset
+    from utils import load_dataset, load_settings
     
     dataset_path = "example/train"
     settings = load_settings("config/test_config.yaml")

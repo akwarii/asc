@@ -14,7 +14,7 @@ from torch.optim.lr_scheduler import StepLR
 
 from dataloader import get_train_val_test_loader
 from logger import set_log_handles
-from model import CEGANN
+from src.models.components.cegann import CEGANN
 from utils import (load_dataset, load_settings, prepare_batch_fn,
                    resume_training, save_checkpoint)
 

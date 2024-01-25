@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from model import CEGANN
+from src.models.components.cegann import CEGANN
 from utils import load_dataset, load_settings, prepare_batch_fn
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
