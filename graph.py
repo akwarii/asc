@@ -1,211 +1,66 @@
-import logging
-from datetime import timedelta
-from functools import partial
-from multiprocessing import Pool
-from time import perf_counter
-from typing import Any, Callable, Iterable, Optional
-
+import sys
+import dgl
 import numpy as np
 import torch
-from pymatgen.core import IStructure
+from pymatgen.core import Structure
 from pymatgen.core.periodic_table import Element
-from sklearn.preprocessing import LabelBinarizer
-from torch.utils.data import Dataset
-from tqdm import tqdm
+from src.utils.bonds import compute_bond_cosines
+from src.utils.neighbors import find_knn_in_shell
 
-logging.getLogger(__name__)
+# source = [0, 1, 2, 3, 4, 5]
+# destination = [1, 2, 3, 4, 5, 6]
+# graph = dgl.graph((source, destination))
+# print(graph.adj_external().to_dense())
 
-torch.set_default_dtype(torch.float32)
+# struct = Structure.from_file('example/train/0.POSCAR')
+# struct_graph = StructureGraph.with_empty_graph(struct)
 
-#TODO use Deep Graph Library (DGL) to create the graphs may be faster and cleaner
-#TODO we may be intered in the sparse matrix representation of the graph
 class Graph:
-    """
-    Graph object for creation of atomic graphs with bond and node attributes from pymatgen structure
-    """
-
-    def __init__(
-        self,
-        neighbors: int = 12,
-        rcut: float = 0,
-        delta: float = 1,
-    ):
+    def __init__(self, neighbors: int = 12, rcut: float = 0, delta: float = 1, self_loop: bool = True) -> None:
         self.n_neighbors = neighbors
         self.rcut = rcut
         self.delta = delta
-        self.bond = []
-        self.neighbor = []
-        self.angle_cosines = []
+        self.self_loop = self_loop
 
-    def set_features(self, structure: IStructure):
-        if self.rcut <= 0:
-            species = [site.specie.symbol for site in structure.sites]
-            self.rcut = max([Element(elm).atomic_radius * 3 for elm in species])
-
-        all_neighbors = structure.get_all_neighbors(self.rcut, include_index=True)
-        len_neighbors = np.array([len(neighbor) for neighbor in all_neighbors])
-        missing_neighbors_idx = np.where((len_neighbors < self.n_neighbors))[0]
-
-        for i in missing_neighbors_idx:
-            rcut = self.rcut
-            n_neighbors = len(all_neighbors[i])
-            while n_neighbors < self.n_neighbors:
-                rcut += self.delta
-                neighbor = structure.get_neighbors(structure[i], rcut)
-                n_neighbors = len(neighbor)
-            all_neighbors[i] = neighbor
-
-        all_neighbors_sorted = [
-            sorted(neighbors, key=lambda x: x[1])[:self.n_neighbors] for neighbors in all_neighbors
-        ]
-
-        atom_neighbor_fea = torch.from_numpy(np.array([[x[0].coords for x in neighbors] for neighbors in all_neighbors_sorted], dtype=np.float32))
-        self.bond = torch.from_numpy(np.array([[x[1] for x in neighbors] for neighbors in all_neighbors_sorted], dtype=np.float32))
-        self.neighbor = torch.from_numpy(np.array([[x[2] for x in neighbors] for neighbors in all_neighbors_sorted], dtype=np.int32))
-
-        cartesian_coords = torch.from_numpy(structure.cart_coords).float()
-        centre_coords = cartesian_coords.unsqueeze(1).expand(
-            len(structure), self.n_neighbors, 3
-        )
-        dxyz = atom_neighbor_fea - centre_coords
-        r = self.bond.unsqueeze(2)
-        self.angle_cosines = torch.matmul(
-            dxyz, torch.swapaxes(dxyz, 1, 2)
-        ) / torch.matmul(r, torch.swapaxes(r, 1, 2))
-    
-
-def load_graphs_targets(data: dict[str, Any], neighbors: int = 12, rcut: float = 0, delta: float = 1) -> tuple[Graph, torch.Tensor]:
-    """
-    data should be in dict format
-        structure:{pymatgen structure},
-        property:{}
-        formula: None or formula
-    if not from database
-    """
-    structure = data["structure"]
-    target = data["target"]
-
-    graph = Graph(neighbors=neighbors, rcut=rcut, delta=delta)
-    graph.set_features(structure)
-    return (graph, target)
-
-
-def process(func: Callable, tasks: Iterable, mp_load: bool = False, n_proc: Optional[int] = None) -> list:
-    if mp_load:
-        with Pool(n_proc) as mp_pool:
-            results = []
-            chunks = [tasks[i : i + n_proc] for i in range(0, len(tasks), n_proc)]
-            for chunk in chunks:
-                r = mp_pool.map_async(func, chunk, callback=results.append)
-                r.wait()
-            mp_pool.close()
-            mp_pool.join()
-        return results[0]
-    else:
-        return [func(task) for task in tqdm(tasks, desc="Building graphs")]
-
-
-class CrystalGraphDataset(Dataset):
-    """
-    Dataset class for crystal graph data.
-
-    Args:
-        dataset (list[dict[str, np.ndarray | IStructure]]): List of dictionaries containing the dataset.
-        neighbors (int, optional): Number of neighbors to consider. Defaults to 12.
-        rcut (float, optional): Cutoff radius. Defaults to 0.
-        delta (float, optional): Delta value. Defaults to 1.
-        mp_load (bool, optional): Whether to use multiprocessing for loading graphs. Defaults to False.
-        mp_cpu_count (Optional[int], optional): Number of CPUs to use for multiprocessing. Defaults to None.
-
-    Attributes:
-        graphs (list): List of loaded graphs.
-        targets (list): List of targets.
-        num_classes (int): Number of classes.
-        size (int): Size of the dataset.
-
-    Methods:
-        collate: Collates the data.
-        __getitem__: Retrieves an item from the dataset.
-    """
-
-    def __init__(
-        self,
-        dataset: list[dict[str, np.ndarray | IStructure]],
-        neighbors: int = 12,
-        rcut: float = 0,
-        delta: float = 1,
-        mp_load: bool = False,
-        mp_cpu_count: Optional[int] = None,
-    ) -> None:
-        if len(dataset) == 0:
-            raise ValueError("Dataset is empty")
+    def set_features(self, structure: Structure) -> None:
+        """
+        Generate the graph from a pymatgen structure. Note that the graph is
+        constructed from the whole structure and the neighbor list is just a
+        way to efficiently grep the subgraph of each node.
+        """
+        all_neighbors_sorted = find_knn_in_shell(structure, self.rcut, self.n_neighbors, self.delta)
         
-        results = process(
-            partial(load_graphs_targets, neighbors=neighbors, rcut=rcut, delta=delta),
-            dataset,
-            mp_load=mp_load,
-            n_proc=mp_cpu_count,
-        )
+        # Create U, V arrays for the graph
+        u, v = [], []
+        for i, neighbors in enumerate(all_neighbors_sorted):
+            for neighbor in neighbors:
+                u.append(i)
+                v.append(neighbor.index)
+                
+        self.g = dgl.graph((u, v), num_nodes=len(structure.sites), idtype=torch.int32)
 
-        self.graphs: list[Graph] = [res[0] for res in results if res is not None]
+        # Set node and edge features
+        self.g.ndata["coords"] = torch.from_numpy(structure.cart_coords).float()
+        #FIXME: shape is (n_nodes, 1) instead of (n_nodes, n_neighbors)
+        self.g.ndata["neighbors"] = torch.from_numpy(np.array([x[2] for neighbors in all_neighbors_sorted for x in neighbors], dtype=np.int32))
+        #FIXME: shape is (n_edges, 1) instead of (n_edges, n_neighbors)
+        self.g.edata["r"] = torch.from_numpy(np.array([x[1] for neighbors in all_neighbors_sorted for x in neighbors], dtype=np.float32))
 
-        #TODO: pretty sure a long tensor is not what we want here, a short tensor is probably better as
-        # the target is only the class label (still check if it's really the class label)
-        self.targets = [torch.LongTensor(res[1]) for res in results if res is not None]
-
-        #TODO: look into this, I think the one-hot encoding is never used but maybe it behaves differently
-        # and assigns the values directly to the tensor
-        binarizer = LabelBinarizer()
-        binarizer.fit(torch.cat(self.targets))
-        self.num_classes = len(binarizer.classes_)
-
-    @property
-    def size(self) -> int:
-        return len(self.graphs)
-    
-    def collate(self, datalist) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        bond_feature, neighbor_idx, angular_feature, crystal_idx, targets = (
-            [],
-            [],
-            [],
-            [],
-            [],
-        )
-
-        index = 0
-
-        for (bond_fea, idx, angular_fea), targ in datalist:
-            natoms = bond_fea.shape[0]
-
-            bond_feature.append(bond_fea)
-            angular_feature.append(angular_fea)
-
-            neighbor_idx.append(idx + index)
-            crystal_idx.append([index, index + natoms])
-            targets.append(targ)
-            index += natoms
-
-        return (
-            torch.cat(bond_feature, dim=0),
-            torch.cat(angular_feature, dim=0),
-            torch.cat(neighbor_idx, dim=0),
-            torch.LongTensor(crystal_idx),
-            torch.cat(targets, dim=0),
-        )
-
-    def __getitem__(self, idx: int):
-        graph = self.graphs[idx]
-        bond_feature = graph.bond
-        neighbor_idx = graph.neighbor
-        angular_feature = graph.angle_cosines
-        target = self.targets[idx]
-
-        return (bond_feature, neighbor_idx, angular_feature), target
+        # Add self loops
+        if self.self_loop:        
+            self.g.add_edges(self.g.nodes(), self.g.nodes())
+            
+        self.lg = dgl.line_graph(self.g, shared=True)
+        self.lg.apply_edges(compute_bond_cosines)
 
 
 if __name__ == "__main__":
-    from utils import load_dataset, load_settings
-    
-    dataset_path = "example/train"
-    settings = load_settings("config/test_config.yaml")
-    graphs = load_dataset(dataset_path, settings)
+    torch.set_printoptions(profile="full", linewidth=500)
+    struct = Structure.from_file('example/train/0.POSCAR')
+    graph = Graph()
+    graph.set_features(struct)
+    print(graph.g.num_nodes())
+    print(graph.g.num_edges())
+    # neighbor list of node 0 (note that node 0 is included because of the self loop)
+    print(graph.g)
+    print(graph.lg)
