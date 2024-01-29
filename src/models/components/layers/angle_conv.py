@@ -20,7 +20,7 @@ class AngleConvLayer(nn.Module):
             nn.Linear(angle_input_dim, 1),
             nn.LeakyReLU(negative_slope=0.01),
         )
-        self.normalized_activation = nn.Sequential(
+        self.normalized_activation = nn.Sequential( # TODO: Change to GraphNorm
             nn.LayerNorm(self.angle_fea_len),
             nn.Softplus(),
         )

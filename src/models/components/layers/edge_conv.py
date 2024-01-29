@@ -17,7 +17,7 @@ class EdgeConvLayer(nn.Module):
             nn.LeakyReLU(negative_slope=0.01),
             nn.Softmax(dim=2),
         )
-        self.normalized_activation = nn.Sequential(
+        self.normalized_activation = nn.Sequential( # TODO: Change to GraphNorm
             nn.LayerNorm(self.edge_fea_len),
             nn.Softplus(),
         )

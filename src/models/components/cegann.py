@@ -68,7 +68,7 @@ class CEGANN(nn.Module):
         )
 
         self.layer_norm = nn.LayerNorm(
-            edge_expansion_units + angle_expansion_units)
+            edge_expansion_units + angle_expansion_units) # TODO: change to GraphNorm
         self.softplus = nn.Softplus()
         self.dropout = nn.Dropout()
 
