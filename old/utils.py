@@ -94,7 +94,7 @@ def process_poscar(poscar_path: str | Path, allow_unknown: bool) -> dict[str, np
 
     data = {
         "structure": poscar.structure,
-        "target": np.array(target, dtype=np.uint8),
+        "target": np.array(target, dtype=np.short),
     }
 
     return data
