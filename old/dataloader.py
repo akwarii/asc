@@ -1,22 +1,24 @@
 import logging
 import sys
+from typing import Callable, Optional
 
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.dataloader import default_collate
 from torch.utils.data.sampler import SubsetRandomSampler
+
 
 logging.getLogger(__name__)
 
 
 def get_train_val_test_loader(
-    dataset,
-    collate_fn=default_collate,
-    batch_size=64,
-    train_ratio=None,
-    val_ratio=0.1,
-    test_ratio=0.1,
-    num_workers=1,
-    pin_memory=False,
+    dataset: Dataset,
+    collate_fn: Callable = default_collate,
+    batch_size: int = 64,
+    train_ratio: Optional[float] = None,
+    val_ratio: Optional[float] = 0.1,
+    test_ratio: Optional[float] = 0.1,
+    num_workers: Optional[int] = 1,
+    pin_memory: bool = False,
     **kwargs,
 ):
     """
