@@ -106,7 +106,7 @@ class CrystalGraphDataset(Dataset):
         self.graphs: list[Graph] = [res[0] for res in results if res is not None]
         self.targets = [torch.ShortTensor(res[1]) for res in results if res is not None]
 
-        # TODO: pretty sure this is useless, but I'll leave it for now
+        # TODO: pretty sure this is useless as it is, but I'll leave it for now
         binarizer = LabelBinarizer()
         binarizer.fit(torch.cat(self.targets))
         self.num_classes = len(binarizer.classes_)
