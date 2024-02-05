@@ -8,7 +8,10 @@ from old.graph import Graph
 
 
 def load_graphs_and_targets(
-    data: dict[str, Any], neighbors: int = 12, rcut: float = 0, delta: float = 1
+    data: dict[str, Any],
+    neighbors: int = 12,
+    rcut: float = 0,
+    delta: float = 1
 ) -> tuple[Graph, torch.Tensor]:
     """
     Create graphs from Pymatgen structures and return both graphs and targets.

@@ -5,7 +5,10 @@ from pymatgen.core.structure import PeriodicNeighbor
 
 
 def find_knn_in_shell(
-    structure: IStructure, rcut: float, n_neighbors: int, delta: float = 1
+    structure: IStructure,
+    rcut: float,
+    n_neighbors: int,
+    delta: float = 1,
 ) -> list[list[PeriodicNeighbor]]:
     if rcut <= 0:
         species = [site.specie.symbol for site in structure.sites]
