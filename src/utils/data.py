@@ -4,7 +4,7 @@ from typing import Any, Callable, Iterable, Optional
 import torch
 from tqdm import tqdm
 
-from old.graph import Graph
+from src.data.processing.graph import Graph
 
 
 def load_graphs_and_targets(
