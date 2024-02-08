@@ -1,0 +1,148 @@
+import json
+from pathlib import Path
+from typing import Any, Callable, Optional
+
+from dotenv import get_key
+from mp_api.client import MPRester
+from pymatgen.core import Structure
+from tqdm.auto import tqdm
+
+from src.data.datasets.base_dataset import CrystalGraphDataset
+from src.data.processing.graph import Graph
+
+
+class MaterialProject(CrystalGraphDataset):
+    """
+    A dataset class for the Material Project dataset.
+
+    Args:
+        root (str): Root directory of the dataset.
+        transform (Optional[Callable]): A function/transform that takes in a graph and returns a transformed version.
+        struct_transform (Optional[Callable]): A function/transform that takes in a structure and returns a transformed version.
+        target_transform (Optional[Callable]): A function/transform that takes in a target and returns a transformed version.
+        download (bool): Whether to download the dataset if it doesn't exist.
+        **graph_kwargs: Additional keyword arguments to be passed to the Graph class.
+
+    Attributes:
+        api_key (str): The API key for the Materials Project.
+        api (MPRester): An instance of the MPRester class.
+        classes (list): A list of space group numbers.
+        resources (list): A list of resource filenames.
+
+    Methods:
+        __init__: Initializes the Aflow dataset.
+        __getitem__: Retrieves a graph and its corresponding target from the dataset.
+        __len__: Returns the length of the dataset.
+        raw_folder: Returns the path to the raw folder.
+        processed_folder: Returns the path to the processed folder.
+        _load_data: Loads the data from the resource files.
+        _check_exists: Checks if the dataset files exist.
+        download: Downloads the Aflow dataset if it doesn't exist already.
+    """
+    _dotenv_path = Path(__file__).resolve().parents[3] / ".env"
+    _dotenv_key = "MATERIALS_PROJECT_API_KEY"
+    
+    api_key = get_key(_dotenv_path, _dotenv_key)
+    api = MPRester(api_key, mute_progress_bars=True, use_document_model=False)
+
+    classes = list(range(1, 231))  # space groups numbers
+
+    resources = [f"data_{class_idx}.json" for class_idx in classes]
+
+    def __init__(
+        self,
+        root: str,
+        transform: Optional[Callable] = None,
+        struct_transform: Optional[Callable] = None,
+        target_transform: Optional[Callable] = None,
+        download: bool = False,
+        **graph_kwargs,
+    ) -> None:
+        super().__init__(root, transform, struct_transform, target_transform)
+        self.graph_kwargs = graph_kwargs
+
+        if download:
+            self.download()
+
+        if not self._check_exists():
+            raise RuntimeError(
+                "Dataset not found. You can use download=True to download it"
+            )
+
+        self.data, self.targets = self._load_data()
+
+    def __getitem__(self, index: int) -> tuple[Any, Any]:
+        contcar, target = self.data[index], self.targets[index]
+
+        struct = Structure.from_str(contcar, fmt="poscar")
+
+        if self.struct_transform is not None:
+            struct = self.struct_transform(struct)
+
+        # TODO: really need to refactor Graph to a graph factory to improve efficiency
+        # and if possible use DGL/PyG graphs instead of custom implementation
+        graph = Graph(**self.graph_kwargs).set_features(struct)
+
+        if self.transform is not None:
+            graph = self.transform(graph)
+
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+
+        return graph, target
+
+    def __len__(self) -> int:
+        return len(self.data)
+
+    def _load_data(self) -> tuple[list[str], list[int]]:
+        files = [Path(self.raw_folder, fname) for fname in self.resources]
+
+        data, targets = [], []
+        for file in files:
+            with open(file) as json_file:
+                json_data = json.load(json_file)
+            data += [entry["structure"] for entry in json_data]
+            targets += [entry["spacegroup"] for entry in json_data]
+
+        return data, targets
+
+    def _check_exists(self) -> bool:
+        return all(Path(self.raw_folder, fname).is_file() for fname in self.resources)
+
+    def download(self) -> None:
+        """
+        Downloads the Aflow dataset if it doesn't exist already.
+
+        Args:
+            chunk_size (int): Number of entries of each chunk to download.
+        """
+        if self._check_exists():
+            return
+
+        Path(self.raw_folder).mkdir(parents=True, exist_ok=True)
+
+        print(f"Downloading Material Project data from {self.api.endpoint} to {self.raw_folder}...")
+        for class_idx in tqdm(self.classes):
+            file = Path(self.raw_folder, f"data_{class_idx}.json")
+
+            if file.is_file() and file.stat().st_size > 0:
+                continue
+
+            with self.api as mpr:
+                docs = mpr.materials.summary.search(
+                    spacegroup_number=class_idx,
+                    fields=["material_id", "symmetry", "structure", "deprecated", "warnings"],
+                )
+                
+            filtered_data = [
+                {
+                    "material_id": entry["material_id"],
+                    "structure": entry["structure"].to("POSCAR"),
+                    "spacegroup": entry["symmetry"]["number"],
+                }
+                for entry in docs
+                if not entry["deprecated"] and not entry["warnings"]
+            ]
+
+            with open(file, "w") as f:
+                json.dump(filtered_data, f, sort_keys=True, indent=4)

@@ -1,96 +1,47 @@
-import codecs
 import json
 from pathlib import Path
-import sys
-from typing import Any, Callable, Optional, Tuple
+from typing import Any, Callable, Optional
 
-import numpy as np
-import torch
+from pymatgen.core import Structure
+from tqdm.auto import tqdm
 
-from torchvision.datasets.utils import _flip_byte_order, check_integrity
-from torch.utils.data import Dataset
 from src.api.aflow import AflowAPI
+from src.data.datasets.base_dataset import CrystalGraphDataset
+from src.data.processing.graph import Graph
 
 
-def get_int(b: bytes) -> int:
-    return int(codecs.encode(b, "hex"), 16)
-
-
-SN3_PASCALVINCENT_TYPEMAP = {
-    8: torch.uint8,
-    9: torch.int8,
-    11: torch.int16,
-    12: torch.int32,
-    13: torch.float32,
-    14: torch.float64,
-}
-
-
-def read_sn3_pascalvincent_tensor(path: str, strict: bool = True) -> torch.Tensor:
-    """Read a SN3 file in "Pascal Vincent" format (Lush file 'libidx/idx-io.lsh').
-    Argument may be a filename, compressed filename, or file object.
+class Aflow(CrystalGraphDataset):
     """
-    # read
-    with open(path, "rb") as f:
-        data = f.read()
-    # parse
-    magic = get_int(data[0:4])
-    nd = magic % 256
-    ty = magic // 256
-    assert 1 <= nd <= 3
-    assert 8 <= ty <= 14
-    torch_type = SN3_PASCALVINCENT_TYPEMAP[ty]
-    s = [get_int(data[4 * (i + 1) : 4 * (i + 2)]) for i in range(nd)]
-
-    parsed = torch.frombuffer(bytearray(data), dtype=torch_type, offset=(4 * (nd + 1)))
-
-    # The MNIST format uses the big endian byte order, while `torch.frombuffer` uses whatever the system uses. In case
-    # that is little endian and the dtype has more than one byte, we need to flip them.
-    if sys.byteorder == "little" and parsed.element_size() > 1:
-        parsed = _flip_byte_order(parsed)
-
-    assert parsed.shape[0] == np.prod(s) or not strict
-    return parsed.view(*s)
-
-
-def read_label_file(path: str) -> torch.Tensor:
-    x = read_sn3_pascalvincent_tensor(path, strict=False)
-    if x.dtype != torch.uint8:
-        raise TypeError(f"x should be of dtype torch.uint8 instead of {x.dtype}")
-    if x.ndimension() != 1:
-        raise ValueError(f"x should have 1 dimension instead of {x.ndimension()}")
-    return x.long()
-
-
-def read_image_file(path: str) -> torch.Tensor:
-    x = read_sn3_pascalvincent_tensor(path, strict=False)
-    if x.dtype != torch.uint8:
-        raise TypeError(f"x should be of dtype torch.uint8 instead of {x.dtype}")
-    if x.ndimension() != 3:
-        raise ValueError(f"x should have 3 dimension instead of {x.ndimension()}")
-    return x
-
-
-class Aflow(Dataset):
-    """`MNIST <http://yann.lecun.com/exdb/mnist/>`_ Dataset.
+    A dataset class for the Aflow dataset.
 
     Args:
-        root (string): Root directory of dataset where ``MNIST/raw/train-images-idx3-ubyte``
-            and  ``MNIST/raw/t10k-images-idx3-ubyte`` exist.
-        train (bool, optional): If True, creates dataset from ``train-images-idx3-ubyte``,
-            otherwise from ``t10k-images-idx3-ubyte``.
-        download (bool, optional): If True, downloads the dataset from the internet and
-            puts it in root directory. If dataset is already downloaded, it is not
-            downloaded again.
-        transform (callable, optional): A function/transform that  takes in an PIL image
-            and returns a transformed version. E.g, ``transforms.RandomCrop``
-        target_transform (callable, optional): A function/transform that takes in the
-            target and transforms it.
+        root (str): Root directory of the dataset.
+        transform (Optional[Callable]): A function/transform that takes in a graph and returns a transformed version.
+        struct_transform (Optional[Callable]): A function/transform that takes in a structure and returns a transformed version.
+        target_transform (Optional[Callable]): A function/transform that takes in a target and returns a transformed version.
+        download (bool): Whether to download the dataset if it doesn't exist.
+        chunk_size (int): Number of entries of each chunk to download.
+        **graph_kwargs: Additional keyword arguments to be passed to the Graph class.
+
+    Attributes:
+        api (AflowAPI): An instance of the AflowAPI class.
+        classes (list): A list of space group numbers.
+        resources (list): A list of resource filenames.
+
+    Methods:
+        __init__: Initializes the Aflow dataset.
+        __getitem__: Retrieves a graph and its corresponding target from the dataset.
+        __len__: Returns the length of the dataset.
+        raw_folder: Returns the path to the raw folder.
+        processed_folder: Returns the path to the processed folder.
+        _load_data: Loads the data from the resource files.
+        _check_exists: Checks if the dataset files exist.
+        download: Downloads the Aflow dataset if it doesn't exist already.
     """
 
     api = AflowAPI()
 
-    classes = list(range(1, 231)) # space groups numbers
+    classes = list(range(1, 231))  # space groups numbers
 
     resources = [f"data_{class_idx}.json" for class_idx in classes]
 
@@ -98,33 +49,36 @@ class Aflow(Dataset):
         self,
         root: str,
         transform: Optional[Callable] = None,
+        struct_transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
         download: bool = False,
+        chunk_size: int = 100_000,
+        **graph_kwargs,
     ) -> None:
-        self.transform = transform
-        self.target_transform = target_transform
-        self.root = root
+        super().__init__(root, transform, struct_transform, target_transform)
+        self.graph_kwargs = graph_kwargs
 
         if download:
-            self.download()
+            self.download(chunk_size)
 
         if not self._check_exists():
-            raise RuntimeError("Dataset not found. You can use download=True to download it")
+            raise RuntimeError(
+                "Dataset not found. You can use download=True to download it"
+            )
 
         self.data, self.targets = self._load_data()
 
-    def __getitem__(self, index: int) -> Tuple[Any, Any]:
-        """
-        Args:
-            index (int): Index
+    def __getitem__(self, index: int) -> tuple[Any, Any]:
+        contcar, target = self.data[index], self.targets[index]
 
-        Returns:
-            tuple: (image, target) where target is index of the target class.
-        """
-        #TODO: I don't think the target must be casted to int
-        graph, target = self.data[index], int(self.targets[index])
-        
-        #TODO: Create a Graph instance
+        struct = Structure.from_str(contcar, fmt="poscar")
+
+        if self.struct_transform is not None:
+            struct = self.struct_transform(struct)
+
+        # TODO: really need to refactor Graph to a graph factory to improve efficiency
+        # and if possible use DGL/PyG graphs instead of custom implementation
+        graph = Graph(**self.graph_kwargs).set_features(struct)
 
         if self.transform is not None:
             graph = self.transform(graph)
@@ -137,69 +91,66 @@ class Aflow(Dataset):
     def __len__(self) -> int:
         return len(self.data)
 
-    @property
-    def raw_folder(self) -> str:
-        return Path(self.root, self.__class__.__name__, "raw")
+    def _load_data(self) -> tuple[list[str], list[int]]:
+        files = [Path(self.raw_folder, fname) for fname in self.resources]
 
-    @property
-    def processed_folder(self) -> str:
-        return Path(self.root, self.__class__.__name__, "processed")
-    
-    #TODO: implement load data
-    #! This method must load the files, not the graph representations of the data
-    def _load_data(self):
-        pass
+        data, targets = [], []
+        for file in files:
+            with file.open("r") as json_file:
+                json_data = json.load(json_file)
+            data += [entry["CONTCAR.relax"] for entry in json_data]
+            targets += [entry["spacegroup_relax"] for entry in json_data]
+
+        return data, targets
 
     def _check_exists(self) -> bool:
-        return all(
-            Path(self.raw_folder, fname).is_file()
-            for fname in self.resources
-        )
+        return all(Path(self.raw_folder, fname).is_file() for fname in self.resources)
 
-    def download(self, chunk_size: int = 100_000) -> None:
-        """Download the Aflow dataset if it doesn't exist already."""
+    def download(self, chunk_size: int) -> None:
+        """
+        Downloads the Aflow dataset if it doesn't exist already.
 
+        Args:
+            chunk_size (int): Number of entries of each chunk to download.
+        """
         if self._check_exists():
             return
 
         Path(self.raw_folder).mkdir(parents=True, exist_ok=True)
-        
-        for class_idx in range(1, 231):
+
+        print(f"Downloading Aflow data from {self.api.base_url} to {self.raw_folder}...")
+        for class_idx in tqdm(self.classes):
             file = Path(self.raw_folder, f"data_{class_idx}.json")
-            
+
             if file.is_file() and file.stat().st_size > 0:
                 continue
-            
-            print(f"Downloading Aflow data for space group {class_idx}")
-            
+
             # Download data by chunks to avoid server timeout
             page_number = 1
-            current_data = None
             total_data = []
-            
-            with self.api as aflow_api:
-                while current_data != []:
-                    current_data = aflow_api.request(f"spacegroup_relax({class_idx})", paging_range=(page_number, chunk_size))
 
+            with self.api as aflow_api:
+                while True:
+                    current_data = aflow_api.request(
+                        f"spacegroup_relax({class_idx})",
+                        paging_range=(page_number, chunk_size),
+                    )
+                    if not current_data:
+                        break
                     page_number += 1
-                    total_data += current_data
-                
+                    total_data.extend(current_data)
+
+                compounds = set()
+                filtered_data = []
                 for entry in total_data:
-                    del entry["Pearson_symbol_relax"]
-                    del entry["compound"]
-                    
-                    # If CONTCAR.relax is not available, remove entry
-                    try:
-                        entry["CONTCAR.relax"] = aflow_api.get_contcar(entry)
-                    except RuntimeError:
-                        del entry
-                
-            file.write_text(json.dumps(total_data, sort_keys=True, indent=4))
-            
-    def extra_repr(self) -> str:
-        split = "Train" if self.train is True else "Test"
-        return f"Split: {split}"
-    
-    
-if __name__ == "__main__":
-    Aflow(root="data", download=True)
+                    if entry["compound"] not in compounds:
+                        try:
+                            entry["CONTCAR.relax"] = aflow_api.get_contcar(entry)
+                        except RuntimeError:
+                            continue
+                        compounds.add(entry["compound"])
+                        del entry["Pearson_symbol_relax"], entry["compound"]
+                        filtered_data.append(entry)
+
+            with open(file, "w") as f:
+                json.dump(filtered_data, f, sort_keys=True, indent=4)
