@@ -1,5 +1,4 @@
 # Source: https://github.com/ashleve/lightning-hydra-template
-#TODO Will not work without the `requirements.txt` file
 
 name: Tests
 
