@@ -1,5 +1,7 @@
+old/
+
 # Datasets
-dataset/
+data/
 predictions/
 
 # Byte-compiled / optimized / DLL files
