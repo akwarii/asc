@@ -4,15 +4,13 @@ from torch import nn
 
 class GaussianBasisExpansion(nn.Module):
     def __init__(self, gbf):
-        """
-        Initializes the GBFExpansion module.
+        """Initializes the GBFExpansion module.
 
         Args:
             gbf (dict): A dictionary containing the parameters for Gaussian basis function expansion.
                 - dmin (float): The minimum value for the Gaussian basis function.
                 - dmax (float): The maximum value for the Gaussian basis function.
                 - steps (int): The number of steps for the Gaussian basis function.
-
         """
         super().__init__()
 
@@ -23,8 +21,7 @@ class GaussianBasisExpansion(nn.Module):
         self.register_buffer("filters", torch.linspace(self.min, self.max, self.steps))
 
     def forward(self, data: torch.Tensor, bond=True) -> torch.Tensor:
-        """
-        Performs the forward pass of the GBFExpansion module.
+        """Performs the forward pass of the GBFExpansion module.
 
         Args:
             data (torch.Tensor): The input data tensor.
@@ -32,7 +29,6 @@ class GaussianBasisExpansion(nn.Module):
 
         Returns:
             torch.Tensor: The output tensor after applying the Gaussian basis function expansion.
-
         """
         dim = 2
         if bond:

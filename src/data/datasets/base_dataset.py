@@ -1,22 +1,22 @@
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 from torch.utils.data import Dataset
 
 
 # TODO add a graph factory attribute and needed kargs in the __init__ method
 class CrystalGraphDataset(Dataset):
-    """
-    Base class for making datasets which are compatible with crystal graphs.
-    It is necessary to override the ``__getitem__`` and ``__len__`` method.
-    A ``download`` method can also be implemented to download the dataset.
-    (This class implementation is based on the torchvision VisionDataset class)
+    """Base class for making datasets which are compatible with crystal graphs. It is necessary to
+    override the ``__getitem__`` and ``__len__`` method. A ``download`` method can also be
+    implemented to download the dataset. (This class implementation is based on the torchvision
+    VisionDataset class)
 
     Args:
         root (string): Root directory of dataset.
-        transform (callable, optional): A function/transform that  takes in an PIL image
+        transform (Callable | None): A function/transform that  takes in an PIL image
             and returns a transformed version. E.g, ``transforms.RandomCrop``
-        target_transform (callable, optional): A function/transform that takes in the
+        target_transform (Callable | None): A function/transform that takes in the
             target and transforms it.
     """
 
@@ -25,9 +25,9 @@ class CrystalGraphDataset(Dataset):
     def __init__(
         self,
         root: str | Path,
-        transform: Optional[Callable] = None,
-        struct_transform: Optional[Callable] = None,
-        target_transform: Optional[Callable] = None,
+        transform: Callable | None = None,
+        struct_transform: Callable | None = None,
+        target_transform: Callable | None = None,
     ) -> None:
         if isinstance(root, str):
             root = Path(root)
@@ -37,9 +37,7 @@ class CrystalGraphDataset(Dataset):
         self.struct_transform = struct_transform
         self.target_transform = target_transform
 
-        self.transforms = StandardTransform(
-            transform, struct_transform, target_transform
-        )
+        self.transforms = StandardTransform(transform, struct_transform, target_transform)
 
     def __getitem__(self, index: int) -> tuple[Any, Any]:
         """
@@ -64,7 +62,7 @@ class CrystalGraphDataset(Dataset):
             body += [repr(self.transform)]
         lines = [head] + [" " * self._repr_indent + line for line in body]
         return "\n".join(lines)
-    
+
     @property
     def raw_folder(self) -> str:
         return self.root / self.__class__.__name__ / "raw"
@@ -75,14 +73,10 @@ class CrystalGraphDataset(Dataset):
 
     def _format_transform_repr(self, transform: Callable, head: str) -> list[str]:
         lines = transform.__repr__().splitlines()
-        return [f"{head}{lines[0]}"] + [
-            "{}{}".format(" " * len(head), line) for line in lines[1:]
-        ]
+        return [f"{head}{lines[0]}"] + ["{}{}".format(" " * len(head), line) for line in lines[1:]]
 
     def download(self) -> None:
-        """
-        Download the dataset if it doesn't exist.
-        """
+        """Download the dataset if it doesn't exist."""
         raise NotImplementedError
 
     def extra_repr(self) -> str:
@@ -92,9 +86,9 @@ class CrystalGraphDataset(Dataset):
 class StandardTransform:
     def __init__(
         self,
-        transform: Optional[Callable] = None,
-        struct_transform: Optional[Callable] = None,
-        target_transform: Optional[Callable] = None,
+        transform: Callable | None = None,
+        struct_transform: Callable | None = None,
+        target_transform: Callable | None = None,
     ) -> None:
         self.transform = transform
         self.struct_transform = struct_transform
@@ -111,21 +105,15 @@ class StandardTransform:
 
     def _format_transform_repr(self, transform: Callable, head: str) -> list[str]:
         lines = transform.__repr__().splitlines()
-        return [f"{head}{lines[0]}"] + [
-            "{}{}".format(" " * len(head), line) for line in lines[1:]
-        ]
+        return [f"{head}{lines[0]}"] + ["{}{}".format(" " * len(head), line) for line in lines[1:]]
 
     def __repr__(self) -> str:
         body = [self.__class__.__name__]
         if self.transform is not None:
             body += self._format_transform_repr(self.transform, "Transform: ")
         if self.struct_transform is not None:
-            body += self._format_transform_repr(
-                self.struct_transform, "Struct transform: "
-            )
+            body += self._format_transform_repr(self.struct_transform, "Struct transform: ")
         if self.target_transform is not None:
-            body += self._format_transform_repr(
-                self.target_transform, "Target transform: "
-            )
+            body += self._format_transform_repr(self.target_transform, "Target transform: ")
 
         return "\n".join(body)

@@ -6,7 +6,7 @@ default_language_version:
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
+    rev: v4.5.0
     hooks:
       # list of supported hooks: https://pre-commit.com/hooks.html
       - id: check-added-large-files
@@ -23,14 +23,14 @@ repos:
 
   # python code formatting
   - repo: https://github.com/psf/black
-    rev: 23.1.0
+    rev: 24.1.1
     hooks:
       - id: black
         args: [--line-length, "99"]
 
   # python import sorting
   - repo: https://github.com/PyCQA/isort
-    rev: 5.12.0
+    rev: 5.13.2
     hooks:
       - id: isort
         args: ["--profile", "black", "--filter-files"]
@@ -70,18 +70,21 @@ repos:
             --ignore-module,
             --ignore-nested-functions,
             --ignore-property-decorators,
+            --ignore-magic,
             -vv,
+            --exclude=old,
           ]
+        pass_filenames: false
 
   # python dead code checking
-  - repo: https://github.com/asottile/dead
-    rev: v1.5.2
-    hooks:
-      - id: dead
+  # - repo: https://github.com/asottile/dead
+  #   rev: v1.5.2
+  #   hooks:
+  #     - id: dead
 
   # python check (PEP8), programming errors and code complexity
   - repo: https://github.com/PyCQA/flake8
-    rev: 6.0.0
+    rev: 7.0.0
     hooks:
       - id: flake8
         args:
@@ -95,7 +98,7 @@ repos:
 
   # python security linter
   - repo: https://github.com/PyCQA/bandit
-    rev: "1.7.5"
+    rev: "1.7.7"
     hooks:
       - id: bandit
         args: ["-s", "B101"]
@@ -110,13 +113,13 @@ repos:
 
   # shell scripts linter
   - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.9.0.2
+    rev: v0.9.0.6
     hooks:
       - id: shellcheck
 
   # md formatting
   - repo: https://github.com/executablebooks/mdformat
-    rev: 0.7.16
+    rev: 0.7.17
     hooks:
       - id: mdformat
         args: ["--number"]
@@ -129,7 +132,7 @@ repos:
 
   # word spelling linter
   - repo: https://github.com/codespell-project/codespell
-    rev: v2.2.4
+    rev: v2.2.6
     hooks:
       - id: codespell
         args:
@@ -138,13 +141,13 @@ repos:
 
   # jupyter notebook cell output clearing
   - repo: https://github.com/kynan/nbstripout
-    rev: 0.6.1
+    rev: 0.7.1
     hooks:
       - id: nbstripout
 
   # jupyter notebook linting
   - repo: https://github.com/nbQA-dev/nbQA
-    rev: 1.6.3
+    rev: 1.7.1
     hooks:
       - id: nbqa-black
         args: ["--line-length=99"]

@@ -14,9 +14,9 @@ class Settings:
     n_classes: int = 2
 
     # Dataloader parameter
-    train_size: Optional[int] = None
-    test_size: Optional[int] = None
-    val_size: Optional[int] = None
+    train_size: int | None = None
+    test_size: int | None = None
+    val_size: int | None = None
     train_ratio: float = 0.8
     val_ratio: float = 0.1
     test_ratio: float = 0.1

@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 
 from src.models.components.expansion.gbf import GaussianBasisExpansion
-from src.models.components.layers.edge_conv import EdgeConvLayer
 from src.models.components.layers.angle_conv import AngleConvLayer
+from src.models.components.layers.edge_conv import EdgeConvLayer
 
 
 class CEGANN(nn.Module):
@@ -52,40 +52,30 @@ class CEGANN(nn.Module):
         self.gbf_edge = GaussianBasisExpansion(gbf_bond)
         self.linear_angle = nn.Linear(angle_features_len, angle_expansion_units)
         self.conv_edge = nn.ModuleList(
-            [
-                EdgeConvLayer(edge_features_len, angle_features_len)
-                for _ in range(n_conv_edge)
-            ]
+            [EdgeConvLayer(edge_features_len, angle_features_len) for _ in range(n_conv_edge)]
         )
 
         self.gbf_angle = GaussianBasisExpansion(gbf_angle)
         self.linear_edge = nn.Linear(edge_features_len, edge_expansion_units)
         self.conv_angle = nn.ModuleList(
-            [
-                AngleConvLayer(edge_features_len, angle_features_len)
-                for _ in range(n_conv_edge - 1)
-            ]
+            [AngleConvLayer(edge_features_len, angle_features_len) for _ in range(n_conv_edge - 1)]
         )
 
         self.layer_norm = nn.LayerNorm(
-            edge_expansion_units + angle_expansion_units) # TODO: change to GraphNorm
+            edge_expansion_units + angle_expansion_units
+        )  # TODO: change to GraphNorm
         self.softplus = nn.Softplus()
         self.dropout = nn.Dropout()
 
-        self.output_layer = nn.Linear(
-            edge_expansion_units + angle_expansion_units, n_classes)
+        self.output_layer = nn.Linear(edge_expansion_units + angle_expansion_units, n_classes)
 
     def _message_passing(
-        self,
-        edge_features: torch.Tensor,
-        angle_features: torch.Tensor,
-        neigh_idx: torch.Tensor
+        self, edge_features: torch.Tensor, angle_features: torch.Tensor, neigh_idx: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """
-        Performs hierarchical message passing on the edge and angle features.
-        The edge layer is updated before the angle layer. This follows the hierarchy
-        that the bond angles are constructed from a pair of edges and any change at
-        the edge level should get propagated to the angle level.
+        """Performs hierarchical message passing on the edge and angle features. The edge layer is
+        updated before the angle layer. This follows the hierarchy that the bond angles are
+        constructed from a pair of edges and any change at the edge level should get propagated to
+        the angle level.
 
         Args:
             edge_features (torch.Tensor): The edge features.
@@ -104,8 +94,7 @@ class CEGANN(nn.Module):
         return edge_features, angle_features
 
     def forward(self, data: tuple) -> torch.Tensor | tuple[torch.Tensor]:
-        """
-        Forward pass of the CEGANN model.
+        """Forward pass of the CEGANN model.
 
         Args:
             data (tuple): Tuple containing bond features, angle features, neighbor indices, and crystal indices.
@@ -122,7 +111,8 @@ class CEGANN(nn.Module):
 
         # Perform message passing
         edge_features, angle_features = self._message_passing(
-            edge_features, angle_features, neigh_idx)
+            edge_features, angle_features, neigh_idx
+        )
 
         # Expand edge features and angle features
         edge_features = self.linear_edge(self.dropout(edge_features))
@@ -131,9 +121,7 @@ class CEGANN(nn.Module):
         # Sum over edge features and angle features
         edge_features = torch.sum(self.softplus(edge_features), dim=1)
         angle_features = torch.sum(
-            self.softplus(
-                torch.sum(self.softplus(angle_features), dim=2)
-            ),
+            self.softplus(torch.sum(self.softplus(angle_features), dim=2)),
             dim=1,
         )
 
@@ -158,8 +146,7 @@ class CEGANN(nn.Module):
             return output
 
     def pool(self, atom_fea, crys_idx):
-        """
-        Pooling function for crystal features.
+        """Pooling function for crystal features.
 
         Args:
             atom_fea (torch.Tensor): Atom-level features.
@@ -169,8 +156,7 @@ class CEGANN(nn.Module):
             torch.Tensor: Pooled crystal features.
         """
         summed_fea = [
-            torch.mean(atom_fea[idx_map[0]: idx_map[1], :],
-                       dim=0, keepdim=True)
+            torch.mean(atom_fea[idx_map[0] : idx_map[1], :], dim=0, keepdim=True)
             for idx_map in crys_idx
         ]
         return torch.cat(summed_fea, dim=0)

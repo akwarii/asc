@@ -8,13 +8,11 @@ logging.getLogger(__name__)
 
 
 # FIXME: The logs are not used correctly, only the root logger in the main file is used
-def set_log_handles(level: int, log_path: Optional[str | Path] = None):
+def set_log_handles(level: int, log_path: str | Path | None = None):
     logger = logging.getLogger("cegann")
     logger.setLevel(level)
 
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     # create console handler and set level to debug
     ch = logging.StreamHandler()

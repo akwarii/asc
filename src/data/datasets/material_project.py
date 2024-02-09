@@ -1,6 +1,7 @@
 import json
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 from dotenv import get_key
 from mp_api.client import MPRester
@@ -12,14 +13,13 @@ from src.processing.graph import Graph
 
 
 class MaterialProject(CrystalGraphDataset):
-    """
-    A dataset class for the Material Project dataset.
+    """A dataset class for the Material Project dataset.
 
     Args:
         root (str): Root directory of the dataset.
-        transform (Optional[Callable]): A function/transform that takes in a graph and returns a transformed version.
-        struct_transform (Optional[Callable]): A function/transform that takes in a structure and returns a transformed version.
-        target_transform (Optional[Callable]): A function/transform that takes in a target and returns a transformed version.
+        transform (Callable | None): A function/transform that takes in a graph and returns a transformed version.
+        struct_transform (Callable | None): A function/transform that takes in a structure and returns a transformed version.
+        target_transform (Callable | None): A function/transform that takes in a target and returns a transformed version.
         download (bool): Whether to download the dataset if it doesn't exist.
         **graph_kwargs: Additional keyword arguments to be passed to the Graph class.
 
@@ -39,9 +39,10 @@ class MaterialProject(CrystalGraphDataset):
         _check_exists: Checks if the dataset files exist.
         download: Downloads the Aflow dataset if it doesn't exist already.
     """
+
     _dotenv_path = Path(__file__).resolve().parents[3] / ".env"
     _dotenv_key = "MATERIALS_PROJECT_API_KEY"
-    
+
     api_key = get_key(_dotenv_path, _dotenv_key)
     api = MPRester(api_key, mute_progress_bars=True, use_document_model=False)
 
@@ -52,9 +53,9 @@ class MaterialProject(CrystalGraphDataset):
     def __init__(
         self,
         root: str,
-        transform: Optional[Callable] = None,
-        struct_transform: Optional[Callable] = None,
-        target_transform: Optional[Callable] = None,
+        transform: Callable | None = None,
+        struct_transform: Callable | None = None,
+        target_transform: Callable | None = None,
         download: bool = False,
         **graph_kwargs,
     ) -> None:
@@ -65,9 +66,7 @@ class MaterialProject(CrystalGraphDataset):
             self.download()
 
         if not self._check_exists():
-            raise RuntimeError(
-                "Dataset not found. You can use download=True to download it"
-            )
+            raise RuntimeError("Dataset not found. You can use download=True to download it")
 
         self.data, self.targets = self._load_data()
 
@@ -95,6 +94,11 @@ class MaterialProject(CrystalGraphDataset):
         return len(self.data)
 
     def _load_data(self) -> tuple[list[str], list[int]]:
+        """Load data from JSON files and return a tuple of data and targets.
+
+        Returns:
+            tuple[list[str], list[int]]: A tuple containing the loaded data and targets.
+        """
         files = [Path(self.raw_folder, fname) for fname in self.resources]
 
         data, targets = [], []
@@ -110,8 +114,7 @@ class MaterialProject(CrystalGraphDataset):
         return all(Path(self.raw_folder, fname).is_file() for fname in self.resources)
 
     def download(self) -> None:
-        """
-        Downloads the Aflow dataset if it doesn't exist already.
+        """Downloads the Aflow dataset if it doesn't exist already.
 
         Args:
             chunk_size (int): Number of entries of each chunk to download.
@@ -121,7 +124,9 @@ class MaterialProject(CrystalGraphDataset):
 
         Path(self.raw_folder).mkdir(parents=True, exist_ok=True)
 
-        print(f"Downloading Material Project data from {self.api.endpoint} to {self.raw_folder}...")
+        print(
+            f"Downloading Material Project data from {self.api.endpoint} to {self.raw_folder}..."
+        )
         for class_idx in tqdm(self.classes):
             file = Path(self.raw_folder, f"data_{class_idx}.json")
 
@@ -133,7 +138,7 @@ class MaterialProject(CrystalGraphDataset):
                     spacegroup_number=class_idx,
                     fields=["material_id", "symmetry", "structure", "deprecated", "warnings"],
                 )
-                
+
             filtered_data = [
                 {
                     "material_id": entry["material_id"],

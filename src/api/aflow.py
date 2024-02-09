@@ -1,25 +1,62 @@
 import json
 import string
-from typing import Optional
 
 import requests
 from requests.adapters import HTTPAdapter
 from requests.exceptions import HTTPError
 from urllib3 import Retry
 
-from src.utils.typing import AfluxResponse
 from src.api.constants import (
-    HTTP_PROTOCOLS,
-    HTTP_STATUS_FORCELIST,
     AFLOW_API,
-    AFLOW_SERVER,
     AFLOW_DEFAULT_PAGING,
     AFLOW_KEYWORDS,
     AFLOW_OPERATORS,
+    AFLOW_SERVER,
+    HTTP_PROTOCOLS,
+    HTTP_STATUS_FORCELIST,
 )
+from src.utils.typing import AfluxResponse
 
 
 class AflowAPI:
+    """A wrapper for the AFLOW API.
+    This class provides a simple interface for querying the AFLOW API and retrieving data.
+    The API documentation can be found at https://aflow.org/documentation/.
+
+    Attributes:
+        SERVER (str): The AFLOW server URL.
+        API (str): The AFLOW API endpoint.
+        PROTOCOLS (list[str]): The supported protocols for the API.
+        STATUS_FORCELIST (list[int]): The list of HTTP status codes to force a retry.
+        API_KEYWORDS (list[str]): The list of valid keywords for the API.
+        API_OPERATORS (list[str]): The list of valid operators for the API.
+        DEFAULT_PAGING (int): The default number of entries per page.
+
+    Methods:
+        __init__(self, max_retries: int | None = None) -> None:
+            Initializes a new instance of the AflowAPI class.
+        __enter__(self):
+            Enters the context manager.
+        __exit__(self, exc_type, exc_value, traceback):
+            Exits the context manager.
+        _create_session(self):
+            Creates a new requests session with optional retry configuration.
+        _make_request(self, url: str) -> requests.Response:
+            Makes a GET request to the specified URL and handles error responses.
+        _is_query_valid(self, query: str) -> bool:
+            Checks if the query string is valid based on the API's rules.
+        base_url(self) -> str:
+            Returns the base URL for API requests.
+        request(self, matchbook: str, paging: int | None = None, chunk_size: int | None = None, no_directives: bool = False) -> AfluxResponse:
+            Sends a request to the AFLOW API and retrieves the response.
+        help(self, keyword: str | None = None) -> None:
+            Displays help information for the AFLOW API.
+        get_contcar(self, entry: dict[str, str]) -> str:
+            Retrieves the CONTCAR file for a given entry.
+        get_property(self, entry: dict[str, str], property: str) -> list[str]:
+            Retrieves a specific property for a given entry.
+    """
+
     SERVER = AFLOW_SERVER
     API = AFLOW_API
     PROTOCOLS = HTTP_PROTOCOLS
@@ -30,18 +67,29 @@ class AflowAPI:
 
     def __init__(
         self,
-        max_retries: Optional[int] = None,
+        max_retries: int | None = None,
     ) -> None:
+        """
+        Args:
+            max_retries (int | None, optional): The maximum number of retries for HTTP requests. Defaults to None.
+        """
         self.max_retries = max_retries
         self.session = self._create_session()
-        
+
     def __enter__(self):
+        """Enters the context manager."""
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
+        """Exits the context manager."""
         self.session.close()
 
     def _create_session(self):
+        """Creates a new requests session with optional retry configuration.
+
+        Returns:
+            requests.Session: The created session.
+        """
         session = requests.Session()
 
         if self.max_retries is not None:
@@ -60,6 +108,17 @@ class AflowAPI:
         return session
 
     def _make_request(self, url: str) -> requests.Response:
+        """Makes a GET request to the specified URL and handles error responses.
+
+        Args:
+            url (str): The URL to make the request to.
+
+        Returns:
+            requests.Response: The response object.
+
+        Raises:
+            RuntimeError: If the request fails with an HTTP error.
+        """
         response = self.session.get(url)
         try:
             response.raise_for_status()
@@ -67,50 +126,66 @@ class AflowAPI:
             raise RuntimeError(f"Failed to download AFLUX data.\n\t{e}")
 
         return response
-    
-    #TODO: Check the query values
+
     def _is_query_valid(self, query: str) -> bool:
-        check_spaces =  any(c.isspace() for c in query)
-        
+        """Checks if the query string is valid based on the API's rules.
+
+        Args:
+            query (str): The query string to validate.
+
+        Returns:
+            bool: True if the query is valid, False otherwise.
+        """
+        check_spaces = any(c.isspace() for c in query)
+
         query_operators = [c for c in query if c in string.punctuation]
         check_operators = all(c in self.API_OPERATORS for c in query_operators)
-        
-        query_keywords = ''.join([c for c in query if c.isalpha()])
+
+        query_keywords = "".join([c for c in query if c.isalpha()])
         for key in self.API_KEYWORDS:
             if key in query_keywords:
-                query_keywords = query_keywords.replace(key, '')
+                query_keywords = query_keywords.replace(key, "")
         check_keywords = len(query_keywords) == 0
-        
+
         return check_spaces and check_operators and check_keywords
-    
+
     @property
     def base_url(self) -> str:
+        """Returns the base URL for API requests.
+
+        Returns:
+            str: The base URL.
+        """
         return self.SERVER + self.API
 
     def request(
         self,
         matchbook: str,
-        paging: Optional[int] = None,
-        chunk_size: Optional[int] = None,
+        paging: int | None = None,
+        chunk_size: int | None = None,
         no_directives: bool = False,
     ) -> AfluxResponse:
-        """
-        Sends a request to AFLUX API and retrieves the response.
+        """Sends a request to the AFLOW API and retrieves the response.
 
         Args:
             matchbook (str): The matchbook to query. See `https://aflow.org/documentation/` for more information.
-            paging (Optional[int]): The page number for the request. By default, the query will be done on all pages at once.
-            chunk_size (Optional[int]): The number of entries per page. This number must be tuned if HttpError 500 happens.
+            paging (int | None, optional): The page number for the request. By default, the query will be done on all pages at once. Defaults to None.
+            chunk_size (int | None, optional): The number of entries per page. This number must be tuned if HttpError 500 happens. Defaults to None.
+            no_directives (bool, optional): Whether to include directives in the request URL. Defaults to False.
 
         Returns:
             AfluxResponse: The response from AFLUX API in a JSON-like object.
+
+        Raises:
+            ValueError: If the chunk_size or paging values are invalid.
+            ValueError: If the matchbook query is invalid.
         """
         if chunk_size is not None and chunk_size < 1:
             raise ValueError("chunk_size must be greater than 0")
 
         if paging is not None and paging < 0:
             raise ValueError("paging must be greater than or equal to 0")
-        
+
         if not self._is_query_valid(matchbook):
             raise ValueError("Invalid query: contains invalid characters or keywords")
 
@@ -129,16 +204,18 @@ class AflowAPI:
         try:
             json_response = response.json()
         except json.JSONDecodeError:
-            raise RuntimeError(f"Failed to decode AFLUX response as JSON")
+            raise RuntimeError("Failed to decode AFLUX response as JSON")
 
         return json_response
 
-    def help(self, keyword: Optional[str] = None) -> None:
-        """
-        Display help information for the AFLOW API.
+    def help(self, keyword: str | None = None) -> None:
+        """Displays help information for the AFLOW API.
 
         Args:
-            keyword (str, optional): The specific keyword to get help for. None will display general help. Defaults to None.
+            keyword (str | None, optional): The specific keyword to get help for. None will display general help. Defaults to None.
+
+        Raises:
+            ValueError: If the keyword query is invalid.
         """
         # General help (https://aflow.org/API/aflux/?)
         if keyword is None:
@@ -149,7 +226,7 @@ class AflowAPI:
         else:
             if not self._is_query_valid(keyword):
                 raise ValueError("Invalid query: contains invalid keywords")
-            
+
             try:
                 help_data = self.request(f"help({keyword})", no_directives=True)
             except RuntimeError:
@@ -165,10 +242,21 @@ class AflowAPI:
             comment = "\n    ".join(entry["__comment__"]).strip()
             if comment:
                 help_str += f"  comment:\n    {comment}"
-                
+
         print(help_str)
 
     def get_contcar(self, entry: dict[str, str]) -> str:
+        """Retrieves the CONTCAR file for a given entry.
+
+        Args:
+            entry (dict[str, str]): The entry containing the 'aurl' key.
+
+        Returns:
+            str: The contents of the CONTCAR file.
+
+        Raises:
+            ValueError: If the entry is missing the 'aurl' key.
+        """
         if "aurl" not in entry.keys():
             raise ValueError("Invalid entry: missing 'aurl' key.")
 
@@ -188,6 +276,18 @@ class AflowAPI:
         return poscar
 
     def get_property(self, entry: dict[str, str], property: str) -> list[str]:
+        """Retrieves a specific property for a given entry.
+
+        Args:
+            entry (dict[str, str]): The entry containing the 'aurl' key.
+            property (str): The property to retrieve.
+
+        Returns:
+            list[str]: The values of the property.
+
+        Raises:
+            ValueError: If the entry is missing the 'aurl' key.
+        """
         if "aurl" not in entry.keys():
             raise ValueError("Invalid entry: missing 'aurl' key.")
 

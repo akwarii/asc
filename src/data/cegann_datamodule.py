@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 import torch
 from lightning import LightningDataModule
@@ -8,23 +8,21 @@ from torchvision.transforms import transforms
 
 
 class CEGANNDataModule(LightningDataModule):
+    """DataModule for the CEGANN model.
+
+    This class handles the data loading, splitting, and preprocessing of the dataset. It also
+    provides train, validation, and test dataloaders.
+    """
+
     def __init__(
         self,
-        data_dir: str = "data/",
+        data_dir: str = "data",
         train_val_test_split: tuple[int, int, int] = (55_000, 5_000, 10_000),
         n_classes: int = 2,
         batch_size: int = 64,
         num_workers: int = 0,
         pin_memory: bool = False,
     ) -> None:
-        """Initialize a `MNISTDataModule`.
-
-        :param data_dir: The data directory. Defaults to `"data/"`.
-        :param train_val_test_split: The train, validation and test split. Defaults to `(55_000, 5_000, 10_000)`.
-        :param batch_size: The batch size. Defaults to `64`.
-        :param num_workers: The number of workers. Defaults to `0`.
-        :param pin_memory: Whether to pin memory. Defaults to `False`.
-        """
         super().__init__()
 
         # this line allows to access init params with 'self.hparams' attribute
@@ -36,14 +34,14 @@ class CEGANNDataModule(LightningDataModule):
             [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
         )
 
-        self.data_train: Optional[Dataset] = None
-        self.data_val: Optional[Dataset] = None
-        self.data_test: Optional[Dataset] = None
+        self.data_train: Dataset | None = None
+        self.data_val: Dataset | None = None
+        self.data_test: Dataset | None = None
 
     @property
     def num_classes(self) -> int:
         """Get the number of classes."""
-        return self.hparams.graphs.num_classes
+        return 10
 
     def prepare_data(self) -> None:
         """Download data if needed. Lightning ensures that `self.prepare_data()` is called only
@@ -56,7 +54,7 @@ class CEGANNDataModule(LightningDataModule):
         MNIST(self.hparams.data_dir, train=True, download=True)
         MNIST(self.hparams.data_dir, train=False, download=True)
 
-    def setup(self, stage: Optional[str] = None) -> None:
+    def setup(self, stage: str | None = None) -> None:
         """Load data. Set variables: `self.data_train`, `self.data_val`, `self.data_test`.
 
         This method is called by Lightning before `trainer.fit()`, `trainer.validate()`, `trainer.test()`, and
@@ -116,7 +114,7 @@ class CEGANNDataModule(LightningDataModule):
             shuffle=False,
         )
 
-    def teardown(self, stage: Optional[str] = None) -> None:
+    def teardown(self, stage: str | None = None) -> None:
         """Lightning hook for cleaning up after `trainer.fit()`, `trainer.validate()`,
         `trainer.test()`, and `trainer.predict()`.
 
@@ -142,4 +140,4 @@ class CEGANNDataModule(LightningDataModule):
 
 
 if __name__ == "__main__":
-    _ = CEGANNDataModule()
+    CEGANNDataModule()

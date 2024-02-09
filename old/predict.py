@@ -15,9 +15,7 @@ def validate_args():
     try:
         validation_data = sys.argv[1]
     except IndexError:
-        raise IndexError(
-            "For prediction, validation data must be provided as first argument"
-        )
+        raise IndexError("For prediction, validation data must be provided as first argument")
 
     try:
         checkpoint_best = sys.argv[2]
@@ -25,7 +23,7 @@ def validate_args():
         raise IndexError(
             "For prediction, the model checkpoint must be provided as second argument"
         )
-        
+
     if not Path(validation_data).is_dir():
         raise FileNotFoundError("Validation data not found")
 
@@ -70,7 +68,7 @@ def main():
     model.to(device)
 
     checkpoint = torch.load(checkpoint_path, map_location=torch.device(device))
-    model.load_state_dict(checkpoint["model"]) #FIXME: keys are missing
+    model.load_state_dict(checkpoint["model"])  # FIXME: keys are missing
 
     predictions = predict(model, graphs, labels)
     with open("predictions.json", "w") as f:

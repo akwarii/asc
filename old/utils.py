@@ -1,28 +1,26 @@
 from __future__ import annotations
 
-from functools import partial
 import logging
+import multiprocessing
 import shutil
+from functools import partial
 from pathlib import Path
 from typing import Optional
 
 import numpy as np
 import torch
-from pymatgen.io.vasp.inputs import Poscar
+from graph import CrystalGraphDataset
 from pymatgen.core.structure import IStructure
+from pymatgen.io.vasp.inputs import Poscar
+from settings import Settings
 from tqdm import tqdm
 from yaml import full_load
-
-from graph import CrystalGraphDataset
-from settings import Settings
-import multiprocessing
 
 logging.getLogger(__name__)
 
 
-def prepare_batch_fn(batch: tuple[torch.TensorType,...], device: str, non_blocking: bool = False):
-    """
-    Helper function to move the tensors to the device. The tensors can be moved asynchronously
+def prepare_batch_fn(batch: tuple[torch.TensorType, ...], device: str, non_blocking: bool = False):
+    """Helper function to move the tensors to the device. The tensors can be moved asynchronously
     by setting non_blocking to True.
 
     Args:
@@ -55,23 +53,21 @@ def prepare_batch_fn(batch: tuple[torch.TensorType,...], device: str, non_blocki
     ), target.to(device, non_blocking=non_blocking)
 
 
-def load_settings(config_file: Optional[str | Path] = "custom_config.yaml") -> Settings:
-    """
-    Load the settings from a custom configuration file.
+def load_settings(config_file: str | Path | None = "custom_config.yaml") -> Settings:
+    """Load the settings from a custom configuration file.
 
     Args:
-        config_file (Optional[str | Path]): The path to the custom configuration file. 
+        config_file (Optional[str | Path]): The path to the custom configuration file.
             If not provided, the default file "custom_config.yaml" will be used.
 
     Returns:
         Settings: The loaded settings.
-
     """
     if not isinstance(config_file, Path):
         config_file = Path(config_file)
-    
+
     if config_file.exists():
-        with open(config_file, "r") as file:
+        with open(config_file) as file:
             custom_dict = full_load(file)
             settings = Settings(**custom_dict)
     else:
@@ -81,7 +77,10 @@ def load_settings(config_file: Optional[str | Path] = "custom_config.yaml") -> S
 
     return settings
 
-def process_poscar(poscar_path: str | Path, allow_unknown: bool) -> dict[str, np.ndarray | IStructure]:
+
+def process_poscar(
+    poscar_path: str | Path, allow_unknown: bool
+) -> dict[str, np.ndarray | IStructure]:
     poscar = Poscar.from_file(poscar_path)
 
     try:
@@ -103,11 +102,10 @@ def process_poscar(poscar_path: str | Path, allow_unknown: bool) -> dict[str, np
 def load_dataset(
     data_dir: str | Path,
     settings: Settings,
-    return_labels: Optional[bool] = False,
-    allow_unknown: Optional[bool] = False
+    return_labels: bool | None = False,
+    allow_unknown: bool | None = False,
 ) -> CrystalGraphDataset | tuple[CrystalGraphDataset, list[str]]:
-    """
-    Load a dataset from the specified directory.
+    """Load a dataset from the specified directory.
 
     Args:
         data_dir (str | Path): The directory path where the dataset is located.
@@ -131,7 +129,9 @@ def load_dataset(
 
     with multiprocessing.Pool(settings.num_workers) as pool:
         func = partial(process_poscar, allow_unknown=allow_unknown)
-        classification_dataset = list(tqdm(pool.imap_unordered(func, poscars), total=len(poscars), desc="Loading dataset"))
+        classification_dataset = list(
+            tqdm(pool.imap_unordered(func, poscars), total=len(poscars), desc="Loading dataset")
+        )
 
     graphs = CrystalGraphDataset(
         classification_dataset,
@@ -155,11 +155,10 @@ def save_checkpoint(
     best_val_accuracy: float,
     epoch: int,
     is_best: bool,
-    path: Optional[str | Path] = Path.cwd(),
-    filename: Optional[str | Path] = "checkpoint.pt"
+    path: str | Path | None = Path.cwd(),
+    filename: str | Path | None = "checkpoint.pt",
 ) -> None:
-    """
-    Save the checkpoint of the training process.
+    """Save the checkpoint of the training process.
 
     Args:
         model (nn.Module): The model being trained.
@@ -194,8 +193,7 @@ def save_checkpoint(
 
 
 def resume_training(output_dir, model, optimizer, scheduler, trainer, settings):
-    """
-    Resumes training from a checkpoint file.
+    """Resumes training from a checkpoint file.
 
     Args:
         output_dir (str): The directory where the checkpoint file is located.
@@ -211,16 +209,15 @@ def resume_training(output_dir, model, optimizer, scheduler, trainer, settings):
     if Path(f"{output_dir}/checkpoint.pt").is_file():
         logging.info(f"Loaded checkpoint: '{output_dir}/checkpoint.pt'")
         ckpt = torch.load(f"{output_dir}/checkpoint.pt")
-        
+
         epoch = ckpt["epoch"]
         settings.epochs = settings.epochs - epoch - 1
-        
+
         best_val_error = ckpt["best_accuracy"]
-        
+
         model.load_state_dict(ckpt["model"])
         optimizer.load_state_dict(ckpt["optimizer"])
         scheduler.load_state_dict(ckpt["lr_scheduler"])
         trainer.load_state_dict(ckpt["trainer"])
     else:
         raise FileNotFoundError("Checkpoint not found")
-    

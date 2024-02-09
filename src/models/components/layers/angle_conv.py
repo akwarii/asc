@@ -3,6 +3,13 @@ from torch import nn
 
 
 class AngleConvLayer(nn.Module):
+    """Angle Convolution Layer.
+
+    Args:
+        edge_fea_len (int): The length of the edge features.
+        angle_fea_len (int): The length of the angle features.
+    """
+
     def __init__(
         self,
         edge_fea_len: int,
@@ -16,18 +23,19 @@ class AngleConvLayer(nn.Module):
         angle_input_dim = self.angle_fea_len + 2 * self.edge_fea_len
 
         self.linear = nn.Linear(angle_input_dim, self.angle_fea_len)
-        self.attention = nn.Sequential( # TODO: Change to GATv2
+        self.attention = nn.Sequential(  # TODO: Change to GATv2
             nn.Linear(angle_input_dim, 1),
             nn.LeakyReLU(negative_slope=0.01),
         )
-        self.normalized_activation = nn.Sequential( # TODO: Change to GraphNorm
+        self.normalized_activation = nn.Sequential(  # TODO: Change to GraphNorm
             nn.LayerNorm(self.angle_fea_len),
             nn.Softplus(),
         )
 
-    def forward(self, angle_fea: torch.Tensor, edge_fea: torch.Tensor, nbr_idx: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass of the ConvAngle module.
+    def forward(
+        self, angle_fea: torch.Tensor, edge_fea: torch.Tensor, nbr_idx: torch.Tensor
+    ) -> torch.Tensor:
+        """Forward pass of the ConvAngle module.
 
         Args:
             angle_fea (torch.Tensor): The angle features.

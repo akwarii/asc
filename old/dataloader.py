@@ -1,11 +1,11 @@
 import logging
 import sys
-from typing import Callable, Optional
+from collections.abc import Callable
+from typing import Optional
 
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.dataloader import default_collate
 from torch.utils.data.sampler import SubsetRandomSampler
-
 
 logging.getLogger(__name__)
 
@@ -14,15 +14,14 @@ def get_train_val_test_loader(
     dataset: Dataset,
     collate_fn: Callable = default_collate,
     batch_size: int = 64,
-    train_ratio: Optional[float] = None,
-    val_ratio: Optional[float] = 0.1,
-    test_ratio: Optional[float] = 0.1,
-    num_workers: Optional[int] = 1,
+    train_ratio: float | None = None,
+    val_ratio: float | None = 0.1,
+    test_ratio: float | None = 0.1,
+    num_workers: int | None = 1,
     pin_memory: bool = False,
     **kwargs,
 ):
-    """
-    Returns train, validation, and test data loaders for a given dataset.
+    """Returns train, validation, and test data loaders for a given dataset.
 
     Args:
         dataset (Dataset): The dataset to be used for creating the data loaders.
@@ -69,9 +68,7 @@ def get_train_val_test_loader(
     if test_size == 0:
         val_sampler = SubsetRandomSampler(indices[-valid_size:])
     else:
-        val_sampler = SubsetRandomSampler(
-            indices[-(valid_size + test_size) : -test_size]
-        )
+        val_sampler = SubsetRandomSampler(indices[-(valid_size + test_size) : -test_size])
         test_sampler = SubsetRandomSampler(indices[-test_size:])
 
     train_loader = DataLoader(

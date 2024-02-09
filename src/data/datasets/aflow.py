@@ -1,6 +1,7 @@
 import json
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 from pymatgen.core import Structure
 from tqdm.auto import tqdm
@@ -11,14 +12,13 @@ from src.processing.graph import Graph
 
 
 class Aflow(CrystalGraphDataset):
-    """
-    A dataset class for the Aflow dataset.
+    """A dataset class for the Aflow dataset.
 
     Args:
         root (str): Root directory of the dataset.
-        transform (Optional[Callable]): A function/transform that takes in a graph and returns a transformed version.
-        struct_transform (Optional[Callable]): A function/transform that takes in a structure and returns a transformed version.
-        target_transform (Optional[Callable]): A function/transform that takes in a target and returns a transformed version.
+        transform (Callable | None): A function/transform that takes in a graph and returns a transformed version.
+        struct_transform (Callable | None): A function/transform that takes in a structure and returns a transformed version.
+        target_transform (Callable | None): A function/transform that takes in a target and returns a transformed version.
         download (bool): Whether to download the dataset if it doesn't exist.
         chunk_size (int): Number of entries of each chunk to download.
         **graph_kwargs: Additional keyword arguments to be passed to the Graph class.
@@ -48,9 +48,9 @@ class Aflow(CrystalGraphDataset):
     def __init__(
         self,
         root: str,
-        transform: Optional[Callable] = None,
-        struct_transform: Optional[Callable] = None,
-        target_transform: Optional[Callable] = None,
+        transform: Callable | None = None,
+        struct_transform: Callable | None = None,
+        target_transform: Callable | None = None,
         download: bool = False,
         chunk_size: int = 100_000,
         **graph_kwargs,
@@ -62,9 +62,7 @@ class Aflow(CrystalGraphDataset):
             self.download(chunk_size)
 
         if not self._check_exists():
-            raise RuntimeError(
-                "Dataset not found. You can use download=True to download it"
-            )
+            raise RuntimeError("Dataset not found. You can use download=True to download it")
 
         self.data, self.targets = self._load_data()
 
@@ -92,6 +90,11 @@ class Aflow(CrystalGraphDataset):
         return len(self.data)
 
     def _load_data(self) -> tuple[list[str], list[int]]:
+        """Load data from JSON files and return a tuple of data and targets.
+
+        Returns:
+            tuple[list[str], list[int]]: A tuple containing the loaded data and targets.
+        """
         files = [Path(self.raw_folder, fname) for fname in self.resources]
 
         data, targets = [], []
@@ -107,8 +110,7 @@ class Aflow(CrystalGraphDataset):
         return all(Path(self.raw_folder, fname).is_file() for fname in self.resources)
 
     def download(self, chunk_size: int) -> None:
-        """
-        Downloads the Aflow dataset if it doesn't exist already.
+        """Downloads the Aflow dataset if it doesn't exist already.
 
         Args:
             chunk_size (int): Number of entries of each chunk to download.

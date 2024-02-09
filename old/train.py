@@ -5,18 +5,22 @@ import sys
 from pathlib import Path
 
 import torch
+from dataloader import get_train_val_test_loader
 from ignite.contrib.handlers.tqdm_logger import ProgressBar
-from ignite.engine import (Events, create_supervised_evaluator,
-                           create_supervised_trainer)
+from ignite.engine import Events, create_supervised_evaluator, create_supervised_trainer
 from ignite.handlers.param_scheduler import LRScheduler
 from ignite.metrics import Accuracy
+from logger import set_log_handles
 from torch.optim.lr_scheduler import StepLR
 
-from dataloader import get_train_val_test_loader
-from logger import set_log_handles
 from src.models.components.cegann import CEGANN
-from utils import (load_dataset, load_settings, prepare_batch_fn,
-                   resume_training, save_checkpoint)
+from utils import (
+    load_dataset,
+    load_settings,
+    prepare_batch_fn,
+    resume_training,
+    save_checkpoint,
+)
 
 # logging.getLogger(__name__)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -27,16 +31,13 @@ def validate_args():
         training_data = sys.argv[1]
     except IndexError:
         logging.error("Training data folder not provided")
-        raise IndexError(
-            "The training data folder must be provided as first argument"
-        )
+        raise IndexError("The training data folder must be provided as first argument")
 
     try:
         checkpoint_dir = sys.argv[2]
     except IndexError:
         checkpoint_dir = "model_checkpoints"
-        logging.warning(
-            f"Checkpoint directory not provided, using default: {checkpoint_dir}")
+        logging.warning(f"Checkpoint directory not provided, using default: {checkpoint_dir}")
 
     try:
         logfile = sys.argv[3]
@@ -103,9 +104,7 @@ def run(
     )
 
     if settings.scheduler:
-        torch_lr_scheduler = StepLR(
-            optimizer, step_size=settings.step_size, gamma=settings.gamma
-        )
+        torch_lr_scheduler = StepLR(optimizer, step_size=settings.step_size, gamma=settings.gamma)
         scheduler = LRScheduler(torch_lr_scheduler)
         trainer.add_event_handler(Events.EPOCH_STARTED, scheduler)
 
@@ -129,8 +128,7 @@ def run(
     )
 
     if settings.resume:
-        resume_training(output_dir, model, optimizer,
-                        scheduler, trainer, settings)
+        resume_training(output_dir, model, optimizer, scheduler, trainer, settings)
     else:
         Path(screen_log).unlink(missing_ok=True)
 
@@ -165,15 +163,32 @@ def run(
             test_accuracy = testmetrics["accuracy"]
 
         if epoch % settings.checkpoint_every == 0:
-            save_checkpoint(model, optimizer, scheduler, trainer,
-                            best_val_accuracy, epoch, is_best=False, path=output_dir)
+            save_checkpoint(
+                model,
+                optimizer,
+                scheduler,
+                trainer,
+                best_val_accuracy,
+                epoch,
+                is_best=False,
+                path=output_dir,
+            )
 
         if val_accuracy > best_val_accuracy:
             best_val_accuracy = val_accuracy
             logging.info(
-                f"Saving best checkpoint with {best_val_accuracy} accuracy (epoch {epoch})")
-            save_checkpoint(model, optimizer, scheduler, trainer,
-                            best_val_accuracy, epoch, is_best=True, path=output_dir)
+                f"Saving best checkpoint with {best_val_accuracy} accuracy (epoch {epoch})"
+            )
+            save_checkpoint(
+                model,
+                optimizer,
+                scheduler,
+                trainer,
+                best_val_accuracy,
+                epoch,
+                is_best=True,
+                path=output_dir,
+            )
 
         if settings.progress:
             pbar_log_msg = f"train_loss:{avg_batch_loss:.4f},  val_acc: {val_accuracy:.4f}"
@@ -187,7 +202,7 @@ def run(
             screen_log_msg += f",{test_accuracy:.4f}"
 
         with open(screen_log, "a") as outfile:
-            outfile.write(screen_log_msg+"\n")
+            outfile.write(screen_log_msg + "\n")
 
         epoch += 1
 
@@ -203,7 +218,7 @@ def main() -> None:
 
     settings = load_settings()
     graphs = load_dataset(training_data, settings)
-    
+
     if graphs.num_classes != settings.n_classes:
         logging.warning(
             f"Number of classes in dataset ({graphs.num_classes}) does not match n_classes ({settings.n_classes}). Setting n_classification to {graphs.num_classes}."
@@ -238,8 +253,7 @@ def main() -> None:
     try:
         model = torch.compile(model)
     except Exception:
-        logging.warning(
-            "Model is not compilable. Consider upgrading to PyTorch 2 or higher.")
+        logging.warning("Model is not compilable. Consider upgrading to PyTorch 2 or higher.")
     else:
         print("Model was compiled successfully.")
         logging.info("Model was compiled successfully.")
@@ -251,7 +265,7 @@ def main() -> None:
         test_loader,
         settings,
         output_dir=checkpoint_dir,
-        screen_log=logfile
+        screen_log=logfile,
     )
 
 

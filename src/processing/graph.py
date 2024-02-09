@@ -1,24 +1,28 @@
 from __future__ import annotations
-# from functools import partial
-# from typing import Optional
 
 import numpy as np
 import torch
 from pymatgen.core import IStructure
+
+from src.utils.bonds import compute_bond_angle_cosines
+
+# from src.utils.data import load_graphs_and_targets, process
+from src.utils.neighbors import find_knn_in_shell
+
+# from functools import partial
+# from typing import Optional
+
+
 # from sklearn.preprocessing import LabelBinarizer
 # from torch.utils.data import Dataset
 
-from src.utils.bonds import compute_bond_angle_cosines
-# from src.utils.data import load_graphs_and_targets, process
-from src.utils.neighbors import find_knn_in_shell
 
 torch.set_default_dtype(torch.float32)
 
 
 class Graph:
-    """
-    Graph object for creation of atomic graphs with bond and node attributes from pymatgen structure
-    """
+    """Graph object for creation of atomic graphs with bond and node attributes from pymatgen
+    structure."""
 
     def __init__(
         self,
@@ -29,17 +33,18 @@ class Graph:
         self.n_neighbors = neighbors
         self.rcut = rcut
         self.delta = delta
-    
-    
-    #TODO implement radius graph construction
-    @classmethod
-    def radius_graph(cls,) -> Graph:
-        ...
 
-    #TODO implement knn graph construction
+    # TODO implement radius graph construction
     @classmethod
-    def knn_graph(cls,) -> Graph:
-        ...
+    def radius_graph(
+        cls,
+    ) -> Graph: ...
+
+    # TODO implement knn graph construction
+    @classmethod
+    def knn_graph(
+        cls,
+    ) -> Graph: ...
 
     def set_features(self, structure: IStructure) -> None:
         all_neighbors_sorted = find_knn_in_shell(
@@ -47,22 +52,16 @@ class Graph:
         )
 
         # Graph features (nodes: atoms, edges: bonds)
-        #TODO add one-hot encoding of atomic numbers
+        # TODO add one-hot encoding of atomic numbers
         self.edge_features = torch.from_numpy(
             np.array(
-                [
-                    [x.nn_distance for x in neighbors]
-                    for neighbors in all_neighbors_sorted
-                ],
+                [[x.nn_distance for x in neighbors] for neighbors in all_neighbors_sorted],
                 dtype=np.float32,
             )
         )
         self.neighbor_list = torch.from_numpy(
             np.array(
-                [
-                    [x.index for x in neighbors]
-                    for neighbors in all_neighbors_sorted
-                ],
+                [[x.index for x in neighbors] for neighbors in all_neighbors_sorted],
                 dtype=np.int32,
             )
         )
@@ -71,7 +70,6 @@ class Graph:
         self.line_graph_features = compute_bond_angle_cosines(
             structure, all_neighbors_sorted, self.edge_features
         )
-    
 
 
 # class OldCrystalGraphDataset(Dataset):

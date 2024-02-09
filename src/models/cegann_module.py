@@ -4,6 +4,18 @@ from lightning import LightningModule
 
 
 class CEGANNModule(LightningModule):
+    """CEGANNModule is a PyTorch Lightning module that implements the CEGANN (Crystal Edge Graph
+    Attention Neural Network) model.
+
+    Args:
+        model (torch.nn.Module): The generator model.
+        optimizer (torch.optim.Optimizer): The optimizer for training the model.
+        scheduler (torch.optim.lr_scheduler._LRScheduler): The learning rate scheduler.
+        criterion (torch.nn.Module): The loss criterion for training the model.
+        metrics (torchmetrics.MetricCollection): Collection of metrics to evaluate the model performance.
+        compile (bool, optional): Whether to compile the model using torch.compile(). Defaults to True.
+    """
+
     def __init__(
         self,
         model: torch.nn.Module,
@@ -15,10 +27,9 @@ class CEGANNModule(LightningModule):
     ) -> None:
         super().__init__()
 
-        self.save_hyperparameters(
-            logger=False, ignore=["model", "criterion", "metrics"]
-        )
+        self.save_hyperparameters(logger=False, ignore=["model", "criterion", "metrics"])
 
+        # TODO add model compilation
         self.model = model
         self.optimizer = optimizer
         self.scheduler = scheduler
@@ -31,9 +42,18 @@ class CEGANNModule(LightningModule):
         self.val_best_acc = torchmetrics.MaxMetric(prefix="val/")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass of the CEGANNModule.
+
+        Args:
+            x (torch.Tensor): Input tensor.
+
+        Returns:
+            torch.Tensor: Output tensor.
+        """
         return self.model(x)
 
     def on_train_start(self) -> None:
+        """Hook method called when the training starts."""
         # by default lightning executes validation step sanity checks before training starts,
         # so it's worth to make sure validation metrics don't store results from these checks
         self.train_metrics.reset()
@@ -44,6 +64,14 @@ class CEGANNModule(LightningModule):
     def model_step(
         self, batch: tuple[torch.Tensor, torch.Tensor]
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Perform a single step of the model.
+
+        Args:
+            batch (tuple[torch.Tensor, torch.Tensor]): Input batch.
+
+        Returns:
+            tuple[torch.Tensor, torch.Tensor, torch.Tensor]: Tuple containing the loss, predicted labels, and target labels.
+        """
         x, y = batch
         logits = self.forward(x)
         loss = self.criterion(logits, y)
@@ -53,6 +81,15 @@ class CEGANNModule(LightningModule):
     def training_step(
         self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
+        """Training step of the CEGANNModule.
+
+        Args:
+            batch (tuple[torch.Tensor, torch.Tensor]): Input batch.
+            batch_idx (int): Index of the current batch.
+
+        Returns:
+            torch.Tensor: Loss value.
+        """
         loss, preds, targets = self.model_step(batch)
 
         output = self.train_metrics(preds, targets)
@@ -62,15 +99,21 @@ class CEGANNModule(LightningModule):
         return loss
 
     def on_train_epoch_end(self) -> None:
+        """Hook method called at the end of each training epoch."""
         pass
 
-    def validation_step(
-        self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int
-    ) -> None:
+    def validation_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> None:
+        """Validation step of the CEGANNModule.
+
+        Args:
+            batch (tuple[torch.Tensor, torch.Tensor]): Input batch.
+            batch_idx (int): Index of the current batch.
+        """
         loss, preds, targets = self.model_step(batch)
         self.val_metrics.update(preds, targets)
 
     def on_validation_epoch_end(self) -> None:
+        """Hook method called at the end of each validation epoch."""
         output = self.val_metrics.compute()
         self.val_best_acc(output["val/acc"])
 
@@ -78,22 +121,37 @@ class CEGANNModule(LightningModule):
         self.log_dict(output)
         self.val_metrics.reset()
 
-    def test_step(
-        self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int
-    ) -> None:
+    def test_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> None:
+        """Test step of the CEGANNModule.
+
+        Args:
+            batch (tuple[torch.Tensor, torch.Tensor]): Input batch.
+            batch_idx (int): Index of the current batch.
+        """
         loss, preds, targets = self.model_step(batch)
         self.test_metrics.update(preds, targets)
 
     def on_test_epoch_end(self) -> None:
+        """Hook method called at the end of each testing epoch."""
         output = self.test_metrics.compute()
         self.log_dict(output)
         self.test_metrics.reset()
-        
+
     def setup(self, stage: str) -> None:
+        """Setup method called at the beginning of training/evaluation.
+
+        Args:
+            stage (str): Either "fit" for training or "test" for testing.
+        """
         if self.hparams.compile and stage == "fit":
             self.model = torch.compile(self.model)
 
     def configure_optimizers(self) -> dict[str, torch.optim.lr_scheduler._LRScheduler]:
+        """Configure the optimizer and learning rate scheduler.
+
+        Returns:
+            dict[str, torch.optim.lr_scheduler._LRScheduler]: Dictionary containing the optimizer and learning rate scheduler.
+        """
         optimizer = self.hparams.optimizer(params=self.parameters())
         if self.hparams.scheduler is not None:
             scheduler = self.hparams.scheduler(optimizer=optimizer)

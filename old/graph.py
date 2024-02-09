@@ -15,9 +15,8 @@ torch.set_default_dtype(torch.float32)
 
 
 class Graph:
-    """
-    Graph object for creation of atomic graphs with bond and node attributes from pymatgen structure
-    """
+    """Graph object for creation of atomic graphs with bond and node attributes from pymatgen
+    structure."""
 
     def __init__(
         self,
@@ -35,22 +34,16 @@ class Graph:
         )
 
         # Graph features (nodes: atoms, edges: bonds)
-        #TODO add one-hot encoding of atomic numbers
+        # TODO add one-hot encoding of atomic numbers
         self.edge_features = torch.from_numpy(
             np.array(
-                [
-                    [x.nn_distance for x in neighbors]
-                    for neighbors in all_neighbors_sorted
-                ],
+                [[x.nn_distance for x in neighbors] for neighbors in all_neighbors_sorted],
                 dtype=np.float32,
             )
         )
         self.neighbor_list = torch.from_numpy(
             np.array(
-                [
-                    [x.index for x in neighbors]
-                    for neighbors in all_neighbors_sorted
-                ],
+                [[x.index for x in neighbors] for neighbors in all_neighbors_sorted],
                 dtype=np.int32,
             )
         )
@@ -62,8 +55,7 @@ class Graph:
 
 
 class CrystalGraphDataset(Dataset):
-    """
-    Dataset class for crystal graph data.
+    """Dataset class for crystal graph data.
 
     Args:
         dataset (list[dict[str, np.ndarray | IStructure]]): List of dictionaries containing the dataset.
@@ -91,7 +83,7 @@ class CrystalGraphDataset(Dataset):
         rcut: float = 0,
         delta: float = 1,
         mp_load: bool = False,
-        mp_cpu_count: Optional[int] = None,
+        mp_cpu_count: int | None = None,
     ) -> None:
         if len(dataset) == 0:
             raise ValueError("Dataset is empty")
@@ -115,7 +107,9 @@ class CrystalGraphDataset(Dataset):
     def size(self) -> int:
         return len(self.graphs)
 
-    def collate(self, datalist) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def collate(
+        self, datalist
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         bond_feature, neighbor_idx, angular_feature, crystal_idx, targets = [], [], [], [], []
         index = 0
 
