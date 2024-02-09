@@ -8,7 +8,7 @@ from pymatgen.core import Structure
 from tqdm.auto import tqdm
 
 from src.data.datasets.base_dataset import CrystalGraphDataset
-from src.data.processing.graph import Graph
+from src.processing.graph import Graph
 
 
 class MaterialProject(CrystalGraphDataset):

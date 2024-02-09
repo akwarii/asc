@@ -7,7 +7,7 @@ from tqdm.auto import tqdm
 
 from src.api.aflow import AflowAPI
 from src.data.datasets.base_dataset import CrystalGraphDataset
-from src.data.processing.graph import Graph
+from src.processing.graph import Graph
 
 
 class Aflow(CrystalGraphDataset):

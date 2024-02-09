@@ -1,3 +1,4 @@
+from __future__ import annotations
 # from functools import partial
 # from typing import Optional
 
@@ -28,6 +29,17 @@ class Graph:
         self.n_neighbors = neighbors
         self.rcut = rcut
         self.delta = delta
+    
+    
+    #TODO implement radius graph construction
+    @classmethod
+    def radius_graph(cls,) -> Graph:
+        ...
+
+    #TODO implement knn graph construction
+    @classmethod
+    def knn_graph(cls,) -> Graph:
+        ...
 
     def set_features(self, structure: IStructure) -> None:
         all_neighbors_sorted = find_knn_in_shell(
@@ -59,6 +71,7 @@ class Graph:
         self.line_graph_features = compute_bond_angle_cosines(
             structure, all_neighbors_sorted, self.edge_features
         )
+    
 
 
 # class OldCrystalGraphDataset(Dataset):
