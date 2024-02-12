@@ -1,6 +1,3 @@
-# Source: https://github.com/ashleve/lightning-hydra-template
-#TODO fix this config file
-
 name-template: "v$RESOLVED_VERSION"
 tag-template: "v$RESOLVED_VERSION"
 
@@ -32,13 +29,13 @@ change-title-escapes: '\<*_&' # You can add # and @ to disable mentions
 version-resolver:
   major:
     labels:
-      - "major"
+      - 'major'
   minor:
     labels:
-      - "minor"
+      - 'minor'
   patch:
     labels:
-      - "patch"
+      - 'patch'
   default: patch
 
 template: |
