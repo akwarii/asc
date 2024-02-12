@@ -2,7 +2,7 @@
 # Source: https://github.com/ashleve/lightning-hydra-template
 
 default_language_version:
-  python: python3.11
+  python: python3
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -57,25 +57,26 @@ repos:
             --black,
           ]
 
+  #TODO uncomment this hook when 1.6.0 is available or for local tests
   # python docstring coverage checking
-  - repo: https://github.com/econchick/interrogate
-    rev: 1.5.0
-    hooks:
-      - id: interrogate
-        args:
-          [
-            --verbose,
-            --fail-under=80,
-            --ignore-init-module,
-            --ignore-init-method,
-            --ignore-module,
-            --ignore-nested-functions,
-            --ignore-property-decorators,
-            --ignore-magic,
-            -vv,
-            --exclude=old,
-          ]
-        pass_filenames: false
+  # - repo: https://github.com/econchick/interrogate
+  #   rev: 1.5.0
+  #   hooks:
+  #     - id: interrogate
+  #       args:
+  #         [
+  #           --verbose,
+  #           --fail-under=80,
+  #           --ignore-init-module,
+  #           --ignore-init-method,
+  #           --ignore-module,
+  #           --ignore-nested-functions,
+  #           --ignore-property-decorators,
+  #           --ignore-magic,
+  #           -vv,
+  #           --exclude=old,
+  #         ]
+  #       pass_filenames: false
 
   # python dead code checking
   # - repo: https://github.com/asottile/dead
