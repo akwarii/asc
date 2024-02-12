@@ -1,4 +1,5 @@
 # Source: https://github.com/ashleve/lightning-hydra-template
+#TODO fix this config file
 
 name-template: "v$RESOLVED_VERSION"
 tag-template: "v$RESOLVED_VERSION"
