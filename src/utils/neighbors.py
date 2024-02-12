@@ -32,11 +32,11 @@ def find_knn_in_shell(
 
     for i in missing_neighbors_idx:
         rcut = rcut
-        n_neighbors = len(all_neighbors[i])
-        while n_neighbors < n_neighbors:
+        current_neighbors = len(all_neighbors[i])
+        while current_neighbors < n_neighbors:
             rcut += delta
             neighbor = structure.get_neighbors(structure[i], rcut)
-            n_neighbors = len(neighbor)
+            current_neighbors = len(neighbor)
         all_neighbors[i] = neighbor
 
     all_neighbors_sorted = [
