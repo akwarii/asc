@@ -17,6 +17,7 @@ import os
 from collections.abc import Sequence
 
 from absl import app, flags
+from google.cloud import storage
 
 _DATA_DIR = flags.DEFINE_string(
     name="data_dir",
@@ -24,7 +25,6 @@ _DATA_DIR = flags.DEFINE_string(
     help="Location to copy downloaded data.",
 )
 
-PUBLIC_LINK = "https://storage.googleapis.com/"
 BUCKET_NAME = "gdm_materials_discovery"
 FOLDER_NAME = "gnome_data"
 FILES = (
@@ -37,28 +37,33 @@ FILES = (
 )
 
 
-def download_from_link(link: str, output_dir: str):
-    """Download a file from a public link using wget."""
-    os.system(f"wget {link} -P {output_dir}")
+def copy_blob(bucket: storage.Bucket, blob_name: str, copy_dir: str):
+    """Copy a file from Google Cloud storage."""
+    blob = bucket.get_blob(blob_name)
+    if blob is None:
+        raise ValueError(f"Unable to find blob {blob_name} in bucket {bucket.name}")
+    output_filename = os.path.join(copy_dir, blob_name)
+    blob.download_to_filename(output_filename)
 
 
 def main(argv: Sequence[str]) -> None:
     if len(argv) > 1:
         raise app.UsageError("Too many command-line arguments.")
 
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(BUCKET_NAME)
+
     # Create output folder
     output_folder = os.path.join(_DATA_DIR.value, FOLDER_NAME)
     os.makedirs(output_folder, exist_ok=True)
 
-    parent_directory = os.path.join(PUBLIC_LINK, BUCKET_NAME, FOLDER_NAME)
-
     # Download LICENSE file
-    download_from_link(os.path.join(PUBLIC_LINK, BUCKET_NAME, "LICENSE"), _DATA_DIR.value)
+    copy_blob(bucket, "LICENSE", _DATA_DIR.value)
 
     # Download data files.
     for filename in FILES:
-        public_link = os.path.join(parent_directory, filename)
-        download_from_link(public_link, os.path.join(_DATA_DIR.value, FOLDER_NAME))
+        blob_name = os.path.join(FOLDER_NAME, filename)
+        copy_blob(bucket, blob_name, _DATA_DIR.value)
 
     print(f"Done downloading data to directory: {_DATA_DIR.value}")
 
