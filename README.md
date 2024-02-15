@@ -5,19 +5,12 @@
 [![lightning](https://img.shields.io/badge/-Lightning_2.0+-792ee5?logo=pytorchlightning&logoColor=white)](https://pytorchlightning.ai/)
 [![black](https://img.shields.io/badge/Code%20Style-Black-black.svg?labelColor=gray)](https://black.readthedocs.io/en/stable/)
 [![isort](https://img.shields.io/badge/%20imports-isort-%231674b1?style=flat&labelColor=ef8336)](https://pycqa.github.io/isort/) <br>
-
-<!-- TODO Need to add GitHub Actions test -->
-
-[![tests](https://github.com/akwarii/Lightning-CEGANN2/actions/workflows/test.yml/badge.svg)](https://github.com/akwarii/Lightning-CEGANN2/actions/workflows/test.yml)
-
-<!-- TODO Need to add GitHub Actions code quality -->
-
-[![code-quality](https://github.com/ashleve/lightning-hydra-template/actions/workflows/code-quality-main.yaml/badge.svg)](https://github.com/ashleve/lightning-hydra-template/actions/workflows/code-quality-main.yaml)
-[![codecov](https://codecov.io/gh/ashleve/lightning-hydra-template/branch/main/graph/badge.svg)](https://codecov.io/gh/ashleve/lightning-hydra-template) <br>
-
+[![tests](https://github.com/akwarii/Lightning-CEGANN2/actions/workflows/test.yaml/badge.svg)](https://github.com/akwarii/Lightning-CEGANN2/actions/workflows/test.yaml)
+[![code-quality](https://github.com/akwarii/Lightning-CEGANN2/actions/workflows/code-quality-main.yaml/badge.svg)](https://github.com/akwarii/Lightning-CEGANN2/actions/workflows/code-quality-main.yaml)
+[![codecov](https://codecov.io/gh/akwarii/Lightning-CEGANN2/branch/main/graph/badge.svg)](https://codecov.io/gh/akwarii/Lightning-CEGANN2) <br>
 [![license](https://img.shields.io/badge/License-GNU_GPLv3-green.svg?labelColor=gray)](https://github.com/akwarii/Lightning-CEGANN2#license)
 [![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/akwarii/Lightning-CEGANN2/pulls)
-[![contributors](https://img.shields.io/github/contributors/ashleve/lightning-hydra-template.svg)](https://github.com/akwarii/Lightning-CEGANN2/contributors)
+[![contributors](https://img.shields.io/github/contributors/akwarii/Lightning-CEGANN2.svg)](https://github.com/akwarii/Lightning-CEGANN2/contributors)
 
 <!-- TABLE OF CONTENTS -->
 
