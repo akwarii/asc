@@ -52,19 +52,13 @@ class CEGANN(nn.Module):
         self.gbf_edge = GaussianBasisExpansion(gbf_bond)
         self.linear_angle = nn.Linear(angle_features_len, angle_expansion_units)
         self.conv_edge = nn.ModuleList(
-            [
-                EdgeConvLayer(edge_features_len, angle_features_len)
-                for _ in range(n_conv_edge)
-            ]
+            [EdgeConvLayer(edge_features_len, angle_features_len) for _ in range(n_conv_edge)]
         )
 
         self.gbf_angle = GaussianBasisExpansion(gbf_angle)
         self.linear_edge = nn.Linear(edge_features_len, edge_expansion_units)
         self.conv_angle = nn.ModuleList(
-            [
-                AngleConvLayer(edge_features_len, angle_features_len)
-                for _ in range(n_conv_edge - 1)
-            ]
+            [AngleConvLayer(edge_features_len, angle_features_len) for _ in range(n_conv_edge - 1)]
         )
 
         self.layer_norm = nn.LayerNorm(
@@ -73,9 +67,7 @@ class CEGANN(nn.Module):
         self.softplus = nn.Softplus()
         self.dropout = nn.Dropout()
 
-        self.output_layer = nn.Linear(
-            edge_expansion_units + angle_expansion_units, n_classes
-        )
+        self.output_layer = nn.Linear(edge_expansion_units + angle_expansion_units, n_classes)
 
     def _message_passing(
         self,

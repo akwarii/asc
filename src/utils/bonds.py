@@ -26,15 +26,11 @@ def compute_bond_angle_cosines(
         )
     )
     node_coords = torch.from_numpy(structure.cart_coords).float()
-    node_coords = node_coords.unsqueeze(1).expand(
-        len(structure), neighbors_coords.shape[1], 3
-    )
+    node_coords = node_coords.unsqueeze(1).expand(len(structure), neighbors_coords.shape[1], 3)
 
     dxyz = neighbors_coords - node_coords
     r = edge_features.unsqueeze(2)
 
-    bond_cosines = (
-        dxyz @ torch.swapaxes(dxyz, 1, 2) / (r @ torch.swapaxes(r, 1, 2))
-    )  # cosine rule
+    bond_cosines = dxyz @ torch.swapaxes(dxyz, 1, 2) / (r @ torch.swapaxes(r, 1, 2))  # cosine rule
 
     return bond_cosines

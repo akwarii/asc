@@ -38,15 +38,13 @@ class Graph:
     @classmethod
     def radius_graph(
         cls,
-    ) -> Graph:
-        ...
+    ) -> Graph: ...
 
     # TODO implement knn graph construction
     @classmethod
     def knn_graph(
         cls,
-    ) -> Graph:
-        ...
+    ) -> Graph: ...
 
     def set_features(self, structure: IStructure) -> None:
         all_neighbors_sorted = find_knn_in_shell(
@@ -57,10 +55,7 @@ class Graph:
         # TODO add one-hot encoding of atomic numbers
         self.edge_features = torch.from_numpy(
             np.array(
-                [
-                    [x.nn_distance for x in neighbors]
-                    for neighbors in all_neighbors_sorted
-                ],
+                [[x.nn_distance for x in neighbors] for neighbors in all_neighbors_sorted],
                 dtype=np.float32,
             )
         )

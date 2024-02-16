@@ -74,9 +74,7 @@ class CrystalGraphDataset(Dataset):
 
     def _format_transform_repr(self, transform: Callable, head: str) -> list[str]:
         lines = transform.__repr__().splitlines()
-        return [f"{head}{lines[0]}"] + [
-            "{}{}".format(" " * len(head), line) for line in lines[1:]
-        ]
+        return [f"{head}{lines[0]}"] + ["{}{}".format(" " * len(head), line) for line in lines[1:]]
 
     def check_exists(self) -> bool:
         return all((self.raw_folder / fname).is_file() for fname in self.resources)
@@ -111,21 +109,15 @@ class StandardTransform:
 
     def _format_transform_repr(self, transform: Callable, head: str) -> list[str]:
         lines = transform.__repr__().splitlines()
-        return [f"{head}{lines[0]}"] + [
-            "{}{}".format(" " * len(head), line) for line in lines[1:]
-        ]
+        return [f"{head}{lines[0]}"] + ["{}{}".format(" " * len(head), line) for line in lines[1:]]
 
     def __repr__(self) -> str:
         body = [self.__class__.__name__]
         if self.transform is not None:
             body += self._format_transform_repr(self.transform, "Transform: ")
         if self.struct_transform is not None:
-            body += self._format_transform_repr(
-                self.struct_transform, "Struct transform: "
-            )
+            body += self._format_transform_repr(self.struct_transform, "Struct transform: ")
         if self.target_transform is not None:
-            body += self._format_transform_repr(
-                self.target_transform, "Target transform: "
-            )
+            body += self._format_transform_repr(self.target_transform, "Target transform: ")
 
         return "\n".join(body)

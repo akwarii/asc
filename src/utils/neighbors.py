@@ -40,8 +40,7 @@ def find_knn_in_shell(
         all_neighbors[i] = neighbor
 
     all_neighbors_sorted = [
-        sorted(neighbors, key=lambda x: x[1])[:n_neighbors]
-        for neighbors in all_neighbors
+        sorted(neighbors, key=lambda x: x[1])[:n_neighbors] for neighbors in all_neighbors
     ]
 
     return all_neighbors_sorted

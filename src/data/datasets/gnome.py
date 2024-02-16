@@ -17,16 +17,16 @@ from typing import Any
 from zipfile import ZipFile
 
 import pandas as pd
+import requests
 from pymatgen.core import Structure
 
 from src.data.datasets.base_dataset import CrystalGraphDataset
 from src.processing.graph import Graph
-import requests
 
 
 def download_from_link(link: str, output_dir: str):
     """Download a file from a public link using requests."""
-    response = requests.get(link)
+    response = requests.get(link, timeout=10)
     if response.status_code == 200:
         with open(os.path.join(output_dir, os.path.basename(link)), "wb") as file:
             file.write(response.content)
@@ -65,9 +65,7 @@ class Gnome(CrystalGraphDataset):
             self.download()
 
         if not self.check_exists():
-            raise RuntimeError(
-                "Dataset not found. You can use download=True to download it"
-            )
+            raise RuntimeError("Dataset not found. You can use download=True to download it")
 
         self.data, self.targets = self._load_data()
 
@@ -77,7 +75,7 @@ class Gnome(CrystalGraphDataset):
         with ZipFile(self.raw_folder / "by_id.zip", "r") as zip_ref:
             with zip_ref.open(fname) as file:
                 cif = file.read().decode("utf-8")
-                
+
         struct = Structure.from_str(cif, fmt="cif")
 
         if self.struct_transform is not None:
@@ -104,14 +102,14 @@ class Gnome(CrystalGraphDataset):
     def _load_data(self) -> tuple[list[str], list[int]]:
         df = pd.read_csv(self.raw_folder / "stable_materials_summary.csv")
         targets = df["Space Group Number"].values.tolist()
-        
+
         # Load the zip file and extract the contents
         data = []
         with ZipFile(self.raw_folder / "by_id.zip", "r") as zip_ref:
             data = [f for f in zip_ref.namelist() if f.endswith(".CIF")]
-        
+
         # assert len(data) == len(targets), "Data and targets length mismatch"
-        
+
         return data, targets
 
     def download(self) -> None:

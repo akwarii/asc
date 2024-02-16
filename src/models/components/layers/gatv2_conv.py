@@ -34,9 +34,7 @@ class GATv2Layer(nn.Module):
         self.share_weights = share_weights
 
         if self.is_concat:
-            assert (
-                out_features % self.n_heads == 0
-            ), "out_features must be divisible by n_heads"
+            assert out_features % self.n_heads == 0, "out_features must be divisible by n_heads"
             self.n_hidden = out_features // self.n_heads
         else:
             self.n_hidden = out_features

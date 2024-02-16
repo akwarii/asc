@@ -51,12 +51,8 @@ class GraphNorm(nn.Module):
         batch_size = len(batch_list)
         batch_list = torch.Tensor(batch_list).long().to(tensor.device)
 
-        batch_index = (
-            torch.arange(batch_size).to(tensor.device).repeat_interleave(batch_list)
-        )
-        batch_index = batch_index.view((-1,) + (1,) * (tensor.dim() - 1)).expand_as(
-            tensor
-        )
+        batch_index = torch.arange(batch_size).to(tensor.device).repeat_interleave(batch_list)
+        batch_index = batch_index.view((-1,) + (1,) * (tensor.dim() - 1)).expand_as(tensor)
 
         mean = torch.zeros(batch_size, *tensor.shape[1:]).to(tensor.device)
         mean = mean.scatter_add_(0, batch_index, tensor)
