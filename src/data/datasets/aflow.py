@@ -1,6 +1,5 @@
 import json
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 from pymatgen.core import Structure
@@ -24,7 +23,7 @@ class Aflow(CrystalGraphDataset):
         **graph_kwargs: Additional keyword arguments to be passed to the Graph class.
 
     Attributes:
-        api (AflowAPI): An instance of the AflowAPI class.
+        API (AflowAPI): An instance of the AflowAPI class.
         classes (list): A list of space group numbers.
         resources (list): A list of resource filenames.
 
@@ -32,14 +31,11 @@ class Aflow(CrystalGraphDataset):
         __init__: Initializes the Aflow dataset.
         __getitem__: Retrieves a graph and its corresponding target from the dataset.
         __len__: Returns the length of the dataset.
-        raw_folder: Returns the path to the raw folder.
-        processed_folder: Returns the path to the processed folder.
         _load_data: Loads the data from the resource files.
-        _check_exists: Checks if the dataset files exist.
         download: Downloads the Aflow dataset if it doesn't exist already.
     """
 
-    api = AflowAPI()
+    API = AflowAPI()
 
     classes = list(range(1, 231))  # space groups numbers
 
@@ -61,7 +57,7 @@ class Aflow(CrystalGraphDataset):
         if download:
             self.download(chunk_size)
 
-        if not self._check_exists():
+        if not self.check_exists():
             raise RuntimeError("Dataset not found. You can use download=True to download it")
 
         self.data, self.targets = self._load_data()
@@ -95,7 +91,7 @@ class Aflow(CrystalGraphDataset):
         Returns:
             tuple[list[str], list[int]]: A tuple containing the loaded data and targets.
         """
-        files = [Path(self.raw_folder, fname) for fname in self.resources]
+        files = [self.raw_folder / fname for fname in self.resources]
 
         data, targets = [], []
         for file in files:
@@ -106,23 +102,21 @@ class Aflow(CrystalGraphDataset):
 
         return data, targets
 
-    def _check_exists(self) -> bool:
-        return all(Path(self.raw_folder, fname).is_file() for fname in self.resources)
-
     def download(self, chunk_size: int) -> None:
         """Downloads the Aflow dataset if it doesn't exist already.
 
         Args:
             chunk_size (int): Number of entries of each chunk to download.
         """
-        if self._check_exists():
+        if self.check_exists():
+            print(f"Dataset already exists at {self.root}")
             return
 
-        Path(self.raw_folder).mkdir(parents=True, exist_ok=True)
+        self.raw_folder.mkdir(parents=True, exist_ok=True)
 
-        print(f"Downloading Aflow data from {self.api.base_url} to {self.raw_folder}...")
+        print(f"Downloading Aflow data from {self.API.base_url} to {self.raw_folder}...")
         for class_idx in tqdm(self.classes):
-            file = Path(self.raw_folder, f"data_{class_idx}.json")
+            file = self.raw_folder / f"data_{class_idx}.json"
 
             if file.is_file() and file.stat().st_size > 0:
                 continue
@@ -131,7 +125,7 @@ class Aflow(CrystalGraphDataset):
             page_number = 1
             total_data = []
 
-            with self.api as aflow_api:
+            with self.API as aflow_api:
                 while True:
                     current_data = aflow_api.request(
                         f"spacegroup_relax({class_idx})",
