@@ -51,7 +51,10 @@ class EdgeConvLayer(nn.Module):
         output = self.normalized_activation(
             edge_fea
             + torch.sum(
-                self.normalized_activation(self.attention(cat_fea) * self.linear(cat_fea)), dim=2
+                self.normalized_activation(
+                    self.attention(cat_fea) * self.linear(cat_fea)
+                ),
+                dim=2,
             )
         )
 
