@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-from dgl import DGLGraph
 
 
 class GraphNorm(nn.Module):
@@ -38,7 +37,7 @@ class GraphNorm(nn.Module):
         self.weight = nn.Parameter(torch.ones(self.in_channels))
         self.bias = nn.Parameter(torch.zeros(self.in_channels))
 
-    def forward(self, graph: DGLGraph, tensor: torch.Tensor) -> torch.Tensor:
+    def forward(self, graph: "DGLGraph", tensor: torch.Tensor) -> torch.Tensor:
         """Forward pass of the GraphNorm layer.
 
         Args:
