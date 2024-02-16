@@ -1,5 +1,3 @@
-dgl
-absl-py==2.1.0
 lightning==2.2.0.post0
 mp_api==0.39.5
 numpy==1.26.4
