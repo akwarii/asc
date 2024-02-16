@@ -72,7 +72,8 @@ class Aflow(CrystalGraphDataset):
 
         # TODO: really need to refactor Graph to a graph factory to improve efficiency
         # and if possible use DGL/PyG graphs instead of custom implementation
-        graph = Graph(**self.graph_kwargs).set_features(struct)
+        graph = Graph(**self.graph_kwargs)
+        graph.set_features(struct)
 
         if self.transform is not None:
             graph = self.transform(graph)
