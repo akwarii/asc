@@ -104,7 +104,7 @@ _For more examples, please refer to the [Documentation](https://example.com)_
 - [x] Extensive code refactoring for readability, maintainability, and future development.
 - [x] Transition from Ignite to Lightning:
   - [x] LightningModule for structured training.
-  - [ ] DataModule for data loading and preprocessing.
+  - [x] DataModule for data loading and preprocessing.
   - [ ] Trainer for optimal hyperparameter tuning and training execution.
 
 **Model Optimizations:**
@@ -117,8 +117,9 @@ _For more examples, please refer to the [Documentation](https://example.com)_
 **Data Handling:**
 
 - [x] Leveraged existing Material Project and Aflow datasets with custom Aflow API wrapper.
-- [ ] Support for user-defined structures readable by pymatgen.
-- [ ] Exploration of data augmentation techniques:
+- [ ] Support for user-defined structures readable by pymatgen (custom dataset).
+- [ ] Exploration of data transformations techniques:
+  - [x] Basic normalization transformation.
   - [ ] Generic Structure Augmentation class
   - [ ] Incorporation of Gaussian noise and MD simulations (with ASE).
   - [ ] Potential investigation of active learning for improved training efficiency.
