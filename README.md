@@ -174,6 +174,7 @@ If you use `Lightning-CEGANNv2` in your research, please consider citing the fol
 ## Contact
 
 If you have any questions, please contact one of the contributors below:
+
 <ul>
   <li>
     <a href="mailto:gael.huynh@univ-lyon1.fr?"> Gaël Huynh</a>
