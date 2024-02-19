@@ -1,27 +1,54 @@
-from typing import Any
+from collections.abc import Sequence
+from typing import Any, Literal
 
 import torch
 from lightning import LightningDataModule
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, random_split
-from torchvision.datasets import MNIST
-from torchvision.transforms import transforms
+
+from src.data import _REPR_INDENT, datasets
+from src.data import transforms as T
+
+DATASET_MAPPING = {
+    "aflow": datasets.Aflow,
+    "mp": datasets.MaterialProject,
+    "gnome": datasets.Gnome,
+}
+
+CustomBatch = Any  # TODO remove this line once the CustomBatch class is defined
+StageType = Literal["fit", "validate", "test", "predict"]
 
 
+# TODO add collate_fn to dataloader
+# TODO add neighbor sampler
 class CEGANNDataModule(LightningDataModule):
-    """DataModule for the CEGANN model.
+    """CEGANNDataModule is a LightningDataModule subclass that provides data loading and processing
+    functionality for the CEGANN model.
 
-    This class handles the data loading, splitting, and preprocessing of the dataset. It also
-    provides train, validation, and test dataloaders.
+    Args:
+        root (str, optional): The root directory where the datasets are stored. Defaults to "data".
+        datasets (Sequence[Literal["aflow", "mp", "gnome"]], optional): The datasets to use.
+            Multiple datasets can be used at once. Defaults to ("gnome",).
+        train_val_test_split (tuple[int, int, int] | tuple[float, float, float], optional): The split ratios for train,
+            validation, and test datasets. Defaults to (0.8, 0.1, 0.1).
+        transforms (Any, optional): The data transformations to apply. Defaults to None.
+        batch_size (int, optional): The batch size for data loading. Defaults to 64.
+        num_workers (int, optional): The number of workers for data loading. Defaults to 0.
+        pin_memory (bool, optional): Whether to pin memory for faster data transfer. Defaults to False.
+        **kwargs: Additional keyword arguments.
     """
+
+    _repr_indent = _REPR_INDENT
 
     def __init__(
         self,
-        data_dir: str = "data",
-        train_val_test_split: tuple[int, int, int] = (55_000, 5_000, 10_000),
-        n_classes: int = 2,
+        root: str = "data",
+        datasets: Sequence[Literal["aflow", "mp", "gnome"]] = ("gnome",),
+        train_val_test_split: tuple[int, int, int] | tuple[float, float, float] = (0.8, 0.1, 0.1),
+        transforms: Sequence[Any] | None = None,
         batch_size: int = 64,
         num_workers: int = 0,
         pin_memory: bool = False,
+        **kwargs,
     ) -> None:
         super().__init__()
 
@@ -30,55 +57,77 @@ class CEGANNDataModule(LightningDataModule):
         self.save_hyperparameters(logger=False)
 
         # data transformations
-        self.transforms = transforms.Compose(
-            [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
-        )
+        if transforms is None:
+            self.transforms = None
+        else:
+            self.transforms = T.Compose([t for t in transforms])
 
         self.data_train: Dataset | None = None
         self.data_val: Dataset | None = None
         self.data_test: Dataset | None = None
+        self.data_predict: Dataset | None = None
 
     @property
-    def num_classes(self) -> int:
-        """Get the number of classes."""
-        return 10
+    def num_classes(self) -> int | None:
+        """Get the number of classes.
+
+        If the dataset is not loaded, return None.
+        """
+        # Once setup has been called, either `self.data_train` or `self.data_predict` will be set
+        if self.data_train:
+            return len(self.data_train.classes)
+        if self.data_predict:
+            return len(self.data_predict.classes)
 
     def prepare_data(self) -> None:
-        """Download data if needed. Lightning ensures that `self.prepare_data()` is called only
-        within a single process on CPU, so you can safely add your downloading logic within. In
-        case of multi-node training, the execution of this hook depends upon
-        `self.prepare_data_per_node()`.
+        """Safely download and save the dataset.
 
-        Do not use it to assign state (self.x = y).
+        This method is called only from a single process.
+        In case of multi-node training, the execution of this hook depends upon `prepare_data_per_node`.
         """
-        MNIST(self.hparams.data_dir, train=True, download=True)
-        MNIST(self.hparams.data_dir, train=False, download=True)
+        for dataset in self.hparams.datasets:
+            DATASET_MAPPING[dataset](self.hparams.root, download=True, load=False)
 
-    def setup(self, stage: str | None = None) -> None:
-        """Load data. Set variables: `self.data_train`, `self.data_val`, `self.data_test`.
+    def setup(self, stage: StageType) -> None:
+        """Load data in memory. If stage is either `"fit"`, `"validate"` or `"test"`, then
+        `self.data_train`, `self.data_val` and `self.data_test` will be set. If stage is
+        `"predict"` then `self.data_predict` will be set.
 
-        This method is called by Lightning before `trainer.fit()`, `trainer.validate()`, `trainer.test()`, and
-        `trainer.predict()`, so be careful not to execute things like random split twice! Also, it is called after
-        `self.prepare_data()` and there is a barrier in between which ensures that all the processes proceed to
-        `self.setup()` once the data is prepared and available for use.
+        The random split is done only once and the same split is used for all the stages (except for the `"predict"` stage which use the
+        full prediction dataset). This is because the random split is deterministic and the same seed is used for all the stages.
 
-        :param stage: The stage to setup. Either `"fit"`, `"validate"`, `"test"`, or `"predict"`. Defaults to ``None``.
+        Args:
+            stage: The stage to load the data for. Either `"fit"`, `"validate"`, `"test"`, or `"predict"`.
         """
-        # load and split datasets only if not loaded already
-        if not self.data_train and not self.data_val and not self.data_test:
-            trainset = MNIST(self.hparams.data_dir, train=True, transform=self.transforms)
-            testset = MNIST(self.hparams.data_dir, train=False, transform=self.transforms)
-            dataset = ConcatDataset(datasets=[trainset, testset])
+        # We only test for self.data_test because if self.data_train is set,
+        # then self.data_val and self.data_test are also set
+        if stage != "predict" and not self.data_test:
+            dataset = ConcatDataset(
+                [
+                    DATASET_MAPPING[dataset](self.hparams.root, transform=self.transforms)
+                    for dataset in self.hparams.datasets
+                ]
+            )
             self.data_train, self.data_val, self.data_test = random_split(
                 dataset=dataset,
                 lengths=self.hparams.train_val_test_split,
                 generator=torch.Generator().manual_seed(42),
             )
 
+        if stage == "predict":
+            dataset = ConcatDataset(
+                [
+                    DATASET_MAPPING[dataset](self.hparams.root, transform=self.transforms)
+                    for dataset in self.hparams.datasets
+                ]
+            )
+            self.data_predict = dataset
+
     def train_dataloader(self) -> DataLoader[Any]:
         """Create and return the train dataloader.
 
-        :return: The train dataloader.
+        Returns:
+            The train dataloader.
         """
         return DataLoader(
             dataset=self.data_train,
@@ -91,7 +140,8 @@ class CEGANNDataModule(LightningDataModule):
     def val_dataloader(self) -> DataLoader[Any]:
         """Create and return the validation dataloader.
 
-        :return: The validation dataloader.
+        Returns:
+            The validation dataloader.
         """
         return DataLoader(
             dataset=self.data_val,
@@ -104,7 +154,8 @@ class CEGANNDataModule(LightningDataModule):
     def test_dataloader(self) -> DataLoader[Any]:
         """Create and return the test dataloader.
 
-        :return: The test dataloader.
+        Returns:
+            The test dataloader.
         """
         return DataLoader(
             dataset=self.data_test,
@@ -114,19 +165,88 @@ class CEGANNDataModule(LightningDataModule):
             shuffle=False,
         )
 
-    def teardown(self, stage: str | None = None) -> None:
-        """Lightning hook for cleaning up after `trainer.fit()`, `trainer.validate()`,
-        `trainer.test()`, and `trainer.predict()`.
+    def predict_dataloader(self) -> DataLoader[Any]:
+        """Create and return the predict dataloader.
 
-        :param stage: The stage being torn down. Either `"fit"`, `"validate"`, `"test"`, or `"predict"`.
-            Defaults to ``None``.
+        Returns:
+            The predict dataloader.
         """
-        pass
+        return DataLoader(
+            dataset=self.data_predict,
+            batch_size=self.hparams.batch_size,
+            num_workers=self.hparams.num_workers,
+            pin_memory=self.hparams.pin_memory,
+            shuffle=False,
+        )
+
+    def teardown(self, stage: StageType) -> None:
+        """Cleans up the data after a specific stage. Note that the test dataloader is the last to
+        be used before performing predictions. Meaning that if the stage is `"test"`, then
+        `self.data_train`, `self.data_val` and `self.data_test` will be set to `None`. If the stage
+        is `"predict"`, then `self.data_predict` will be set to `None`.
+
+        Args:
+            stage: The stage to clean up the data for.
+        """
+        # !Assume that test dataloader is the last to be used before performing predictions
+        if stage == "test":
+            self.data_train = None
+            self.data_val = None
+            self.data_test = None
+
+        if stage == "predict":
+            self.data_predict = None
+
+    def transfer_batch_to_device(
+        self, batch: Any, device: torch.device, dataloader_idx: int
+    ) -> Any:
+        """Override this hook if your DataLoader returns tensors wrapped in a custom data
+        structure. The data types listed below (and any arbitrary nesting of them) are supported
+        out of the box: `torch.Tensor` or anything that implements .to(…) `list` `dict` `tuple` For
+        anything else, you need to define how the data is moved to the target device (CPU, GPU,
+        TPU, …).
+
+        Args:
+            batch: The output of the DataLoader.
+            device: The target device.
+            dataloader_idx: The index of the DataLoader producing the batch.
+
+        Returns:
+            The batch after applying the batch augmentations.
+        """
+        return super().transfer_batch_to_device(batch, device, dataloader_idx)
+
+    def on_before_batch_transfer(self, batch: Any, dataloader_idx: int) -> Any:
+        """Override to alter or apply batch augmentations to your batch before it is transferred to
+        the device.
+
+        Args:
+            batch: The output of the DataLoader.
+            dataloader_idx: The index of the DataLoader producing the batch.
+
+        Returns:
+            The batch after applying the batch augmentations.
+        """
+        return super().on_before_batch_transfer(batch, dataloader_idx)
+
+    def on_after_batch_transfer(self, batch: Any, dataloader_idx: int) -> Any:
+        """Override to alter or apply batch augmentations to your batch after it is transferred to
+        the device.
+
+        Args:
+            batch: The output of the DataLoader.
+            dataloader_idx: The index of the DataLoader producing the batch.
+
+        Returns:
+            The batch after applying the batch augmentations.
+        """
+        return super().on_after_batch_transfer(batch, dataloader_idx)
 
     def state_dict(self) -> dict[Any, Any]:
         """Called when saving a checkpoint. Implement to generate and save the datamodule state.
 
-        :return: A dictionary containing the datamodule state that you want to save.
+        Returns:
+            A dictionary containing the datamodule state that you want to save.
         """
         return {}
 
@@ -134,9 +254,20 @@ class CEGANNDataModule(LightningDataModule):
         """Called when loading a checkpoint. Implement to reload datamodule state given datamodule
         `state_dict()`.
 
-        :param state_dict: The datamodule state returned by `self.state_dict()`.
+        Args:
+            state_dict: The datamodule state returned by `self.state_dict()`.
         """
         pass
+
+    def __repr__(self) -> str:
+        format_string = f"{self.__class__.__name__}(\n"
+        for k, v in self.hparams.items():
+            if v is not None:
+                format_string += " " * self._repr_indent + f"{k}={v}\n"
+
+
+def kwargs_repr(**kwargs: Any) -> str:
+    return ", ".join([f"{k}={v}" for k, v in kwargs.items() if v is not None])
 
 
 if __name__ == "__main__":

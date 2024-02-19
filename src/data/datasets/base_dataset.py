@@ -4,6 +4,8 @@ from typing import Any
 
 from torch.utils.data import Dataset
 
+from src.data import _REPR_INDENT
+
 
 # TODO add a graph factory attribute and needed kargs in the __init__ method
 class CrystalGraphDataset(Dataset):
@@ -20,7 +22,7 @@ class CrystalGraphDataset(Dataset):
             target and transforms it.
     """
 
-    _repr_indent = 4
+    _repr_indent = _REPR_INDENT
     resources = []
 
     def __init__(
@@ -54,7 +56,7 @@ class CrystalGraphDataset(Dataset):
         raise NotImplementedError
 
     def __repr__(self) -> str:
-        head = "Dataset " + self.__class__.__name__
+        head = f"Dataset {self.__class__.__name__}"
         body = [f"Number of datapoints: {self.__len__()}"]
         if self.root is not None:
             body.append(f"Root location: {self.root}")

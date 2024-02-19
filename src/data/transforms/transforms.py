@@ -1,5 +1,7 @@
 import torch
 
+from src.data import _REPR_INDENT
+
 __all__ = [
     "Compose",
     "Normalize",
@@ -19,6 +21,8 @@ class Compose:
         >>> ])
     """
 
+    _repr_indent = _REPR_INDENT
+
     def __init__(self, transforms):
         self.transforms = transforms
 
@@ -28,11 +32,10 @@ class Compose:
         return data_object
 
     def __repr__(self) -> str:
-        format_string = self.__class__.__name__ + "("
+        format_string = f"{self.__class__.__name__}(\n"
         for t in self.transforms:
-            format_string += "\n"
-            format_string += f"    {t}"
-        format_string += "\n)"
+            format_string += " " * self._repr_indent + f"{t}\n"
+        format_string += ")"
         return format_string
 
 
