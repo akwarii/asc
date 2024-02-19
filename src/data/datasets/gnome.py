@@ -56,6 +56,7 @@ class Gnome(CrystalGraphDataset):
         struct_transform: Callable | None = None,
         target_transform: Callable | None = None,
         download: bool = False,
+        load: bool = True,
         **graph_kwargs,
     ) -> None:
         super().__init__(root, transform, struct_transform, target_transform)
@@ -67,9 +68,14 @@ class Gnome(CrystalGraphDataset):
         if not self.check_exists():
             raise RuntimeError("Dataset not found. You can use download=True to download it")
 
-        self.data, self.targets = self._load_data()
+        if load:
+            self.data, self.targets = self._load_data()
 
     def __getitem__(self, index: int) -> tuple[Any, Any]:
+        if not self.data:
+            RuntimeWarning("Dataset not loaded. Use load=True to load the dataset")
+            return None, None
+        
         fname, target = self.data[index], self.targets[index]
 
         with ZipFile(self.raw_folder / "by_id.zip", "r") as zip_ref:
