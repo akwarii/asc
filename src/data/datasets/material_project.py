@@ -73,7 +73,7 @@ class MaterialProject(CrystalGraphDataset):
         if not self.data:
             RuntimeWarning("Dataset not loaded. Use load=True to load the dataset")
             return None, None
-        
+
         contcar, target = self.data[index], self.targets[index]
 
         struct = Structure.from_str(contcar, fmt="poscar")

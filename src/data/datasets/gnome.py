@@ -75,7 +75,7 @@ class Gnome(CrystalGraphDataset):
         if not self.data:
             RuntimeWarning("Dataset not loaded. Use load=True to load the dataset")
             return None, None
-        
+
         fname, target = self.data[index], self.targets[index]
 
         with ZipFile(self.raw_folder / "by_id.zip", "r") as zip_ref:
