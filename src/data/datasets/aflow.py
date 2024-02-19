@@ -5,7 +5,7 @@ from typing import Any
 from pymatgen.core import Structure
 from tqdm.auto import tqdm
 
-from src.api.aflow import AflowAPI
+from src.api import AflowAPI
 from src.data.datasets.base_dataset import CrystalGraphDataset
 from src.processing.graph import Graph
 

@@ -1,5 +1,10 @@
 import torch
 
+__all__ = [
+    "Compose",
+    "Normalize",
+]
+
 class Compose:
     """Reimplementation of the `torchvision.transforms.Compose` class.
 
