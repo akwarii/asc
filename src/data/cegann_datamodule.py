@@ -7,15 +7,13 @@ from torch.utils.data import ConcatDataset, DataLoader, Dataset, random_split
 
 from src.data import _REPR_INDENT, datasets
 from src.data import transforms as T
+from src.utils.typing import PathLike, StageType
 
 DATASET_MAPPING = {
     "aflow": datasets.Aflow,
     "mp": datasets.MaterialProject,
     "gnome": datasets.Gnome,
 }
-
-CustomBatch = Any  # TODO remove this line once the CustomBatch class is defined
-StageType = Literal["fit", "validate", "test", "predict"]
 
 
 # TODO add collate_fn to dataloader
@@ -29,22 +27,47 @@ class CEGANNDataModule(LightningDataModule):
         datasets (Sequence[Literal["aflow", "mp", "gnome"]], optional): The datasets to use.
             Multiple datasets can be used at once. Defaults to ("gnome",).
         train_val_test_split (tuple[int, int, int] | tuple[float, float, float], optional): The split ratios for train,
-            validation, and test datasets. Defaults to (0.8, 0.1, 0.1).
-        transforms (Any, optional): The data transformations to apply. Defaults to None.
+            validation, and test datasets. If integers are used, the split ratios are calculated as the number of samples
+            for each dataset. If floats are used, the split ratios are calculated as the percentage of samples for each
+            dataset (). Defaults to (0.8, 0.1, 0.1).
+        transforms (Any, optional): The data transformations (eg. normalization) to apply. Transformations are applied to
+            the structure graph. Defaults to None.
+        struct_transforms (Any, optional): The structure transformations (eg. random noise) to apply. Structure
+            transformations are applied to the structure (before the graph creation). Defaults to None.
         batch_size (int, optional): The batch size for data loading. Defaults to 64.
         num_workers (int, optional): The number of workers for data loading. Defaults to 0.
         pin_memory (bool, optional): Whether to pin memory for faster data transfer. Defaults to False.
         **kwargs: Additional keyword arguments.
+
+    Methods:
+        prepare_data: Safely download and save the dataset.
+        setup: Load data in memory.
+        train_dataloader: Create and return the train dataloader.
+        val_dataloader: Create and return the validation dataloader.
+        test_dataloader: Create and return the test dataloader.
+        predict_dataloader: Create and return the predict dataloader.
+        teardown: Cleans up the data after a specific stage.
+        transfer_batch_to_device: Override this hook if your DataLoader returns tensors wrapped in a custom data
+            structure.
+        on_before_batch_transfer: Override to alter or apply batch augmentations to your batch before it is transferred to
+            the device.
+        on_after_batch_transfer: Override to alter or apply batch augmentations to your batch after it is transferred to
+            the device.
+        state_dict: Called when saving a checkpoint. Implement to generate and save the datamodule state.
+        load_state_dict: Called when loading a checkpoint. Implement to reload datamodule state given datamodule
+            `state_dict()`.
+        __repr__: Return a string representation of the datamodule.
     """
 
     _repr_indent = _REPR_INDENT
 
     def __init__(
         self,
-        root: str = "data",
+        root: PathLike = "data",
         datasets: Sequence[Literal["aflow", "mp", "gnome"]] = ("gnome",),
         train_val_test_split: tuple[int, int, int] | tuple[float, float, float] = (0.8, 0.1, 0.1),
         transforms: Sequence[Any] | None = None,
+        struct_transforms: Sequence[Any] | None = None,
         batch_size: int = 64,
         num_workers: int = 0,
         pin_memory: bool = False,
@@ -61,6 +84,11 @@ class CEGANNDataModule(LightningDataModule):
             self.transforms = None
         else:
             self.transforms = T.Compose([t for t in transforms])
+
+        if struct_transforms is None:
+            self.struct_transforms = None
+        else:
+            self.struct_transforms = T.Compose([t for t in struct_transforms])
 
         self.data_train: Dataset | None = None
         self.data_val: Dataset | None = None
@@ -104,7 +132,11 @@ class CEGANNDataModule(LightningDataModule):
         if stage != "predict" and not self.data_test:
             dataset = ConcatDataset(
                 [
-                    DATASET_MAPPING[dataset](self.hparams.root, transform=self.transforms)
+                    DATASET_MAPPING[dataset](
+                        self.hparams.root,
+                        transform=self.transforms,
+                        struct_transform=self.struct_transforms,
+                    )
                     for dataset in self.hparams.datasets
                 ]
             )
@@ -117,7 +149,11 @@ class CEGANNDataModule(LightningDataModule):
         if stage == "predict":
             dataset = ConcatDataset(
                 [
-                    DATASET_MAPPING[dataset](self.hparams.root, transform=self.transforms)
+                    DATASET_MAPPING[dataset](
+                        self.hparams.root,
+                        transform=self.transforms,
+                        struct_transform=self.struct_transforms,
+                    )
                     for dataset in self.hparams.datasets
                 ]
             )

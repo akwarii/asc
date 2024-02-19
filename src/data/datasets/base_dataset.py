@@ -5,6 +5,7 @@ from typing import Any
 from torch.utils.data import Dataset
 
 from src.data import _REPR_INDENT
+from src.utils.typing import PathLike
 
 
 # TODO add a graph factory attribute and needed kargs in the __init__ method
@@ -27,7 +28,7 @@ class CrystalGraphDataset(Dataset):
 
     def __init__(
         self,
-        root: str | Path,
+        root: PathLike,
         transform: Callable | None = None,
         struct_transform: Callable | None = None,
         target_transform: Callable | None = None,
