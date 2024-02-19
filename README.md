@@ -127,14 +127,15 @@ _For more examples, please refer to the [Documentation](https://example.com)_
 
 - [x] Improvement of the feature computation speed.
 - [x] Efficient KNN graph construction.
-- [ ] Exploration of radius graphs.
 - [ ] Flexible graph factory for better maintainability.
+- [ ] Create the subgraphs on-the-fly to avoid large memory usage (this will permit the user to tune the memory usage with the number of workers)
 
 **Additional Enhancements:**
 
 - [ ] Integration of Optuna for efficient hyperparameter tuning and model pruning.
-- [ ] Implementation of a comprehensive logging system (Neptune/TensorBoard/Wandb) for detailed analysis and reproducibility.
+- [ ] Implementation of at least one comprehensive logging system (Neptune/TensorBoard/Wandb) for detailed analysis and reproducibility.
 - [ ] Creation of a user-friendly command-line interface (CLI) based on argparse for ease of use.
+- [ ] Cleaning and merging the different datasets and upload it somewhere.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -144,10 +145,8 @@ _For more examples, please refer to the [Documentation](https://example.com)_
 
 ## Experiments
 
-- Planned experiment: Local classification of individual space groups within the material.
-- More complex experiment: Simultaneous classification of both space groups and grain boundaries within the material.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+- Local classification of individual space groups within the material.
+- Simultaneous classification of both space groups and grain boundaries within the material.
 
 ### Experimental Guidelines
 
@@ -174,13 +173,20 @@ If you use `Lightning-CEGANNv2` in your research, please consider citing the fol
 
 ## Contact
 
-If you have any questions, please contact one of the contributors below:<br/>
-Gaël Huynh - <gael.huynh@univ-lyon1.fr>
+If you have any questions, please contact one of the contributors below:
+<ul>
+  <li>
+    <a href="mailto:gael.huynh@univ-lyon1.fr?"> Gaël Huynh</a>
+  </li>
+  <li>
+    <a href="mailto:david.rodney@univ-lyon1.fr?"> David Rodney</a>
+  </li>
+</ul>
 
 If you found a bug or want to request a new feature, please create a new
 [GitHub Issues](https://github.com/akwarii/Lightning-CEGANN2/issues)
 
-Project Link: [https://github.com/your_username/repo_name](https://github.com/your_username/repo_name)
+Project Link: [https://github.com/akwarii/Lightning-CEGANN2](https://github.com/akwarii/Lightning-CEGANN2)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
