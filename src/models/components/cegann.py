@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from src.models.components.expansion.gbf import GaussianBasisExpansion
+from src.models.components.expansion.radial import GaussianBasis
 from src.models.components.layers.angle_conv import AngleConvLayer
 from src.models.components.layers.edge_conv import EdgeConvLayer
 
@@ -49,13 +49,13 @@ class CEGANN(nn.Module):
         edge_features_len = gbf_bond["steps"]
         angle_features_len = gbf_angle["steps"]
 
-        self.gbf_edge = GaussianBasisExpansion(gbf_bond)
+        self.gbf_edge = GaussianBasis(gbf_bond)
         self.linear_angle = nn.Linear(angle_features_len, angle_expansion_units)
         self.conv_edge = nn.ModuleList(
             [EdgeConvLayer(edge_features_len, angle_features_len) for _ in range(n_conv_edge)]
         )
 
-        self.gbf_angle = GaussianBasisExpansion(gbf_angle)
+        self.gbf_angle = GaussianBasis(gbf_angle)
         self.linear_edge = nn.Linear(edge_features_len, edge_expansion_units)
         self.conv_angle = nn.ModuleList(
             [AngleConvLayer(edge_features_len, angle_features_len) for _ in range(n_conv_edge - 1)]
