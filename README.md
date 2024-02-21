@@ -111,18 +111,24 @@ _For more examples, please refer to the [Documentation](https://example.com)_
 
 - [x] Adoption of GATv2 attention mechanism.
 - [x] Replacement of LayerNorm with GraphNorm for enhanced graph data handling.
-- [ ] Planned RBF optimization for potentially improved performance.
+- [x] Planned RBF optimization for potentially improved performance.
 - [ ] Integration of Angular Basis Function inspired by GemNet for potentially improved feature representation.
 
 **Data Handling:**
 
-- [x] Leveraged existing Material Project and Aflow datasets with custom Aflow API wrapper.
-- [ ] Support for user-defined structures readable by pymatgen (custom dataset).
-- [ ] Exploration of data transformations techniques:
-  - [x] Basic normalization transformation.
-  - [ ] Generic Structure Augmentation class
-  - [ ] Incorporation of Gaussian noise and MD simulations (with ASE).
-  - [ ] Potential investigation of active learning for improved training efficiency.
+- [x] Datasets implementations:
+  - [x] Aflow data with a custom API wrapper.
+  - [x] Material Project data (need an API key).
+  - [x] GNoMe summary dataset.
+  - [ ] User-defined dataset for structures readable by pymatgen.
+- [x] Data transformations techniques:
+  - [x] Normalization transformation.
+  - [ ] Tags to remove atoms from structure
+    - [ ] Random initialization of tags
+- [ ] Data augmentation techniques:
+  - [ ] Incorporation of Gaussian noise (with ASE).
+  - [ ] Incorporation of MD simulations (with ASE).
+- [ ] Cleaning and merging the Aflow, MP and GNoMe datasets and upload it somewhere.
 
 **Graph Creation Optimization:**
 
@@ -136,7 +142,6 @@ _For more examples, please refer to the [Documentation](https://example.com)_
 - [ ] Integration of Optuna for efficient hyperparameter tuning and model pruning.
 - [ ] Implementation of at least one comprehensive logging system (Neptune/TensorBoard/Wandb) for detailed analysis and reproducibility.
 - [ ] Creation of a user-friendly command-line interface (CLI) based on argparse for ease of use.
-- [ ] Cleaning and merging the different datasets and upload it somewhere.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
