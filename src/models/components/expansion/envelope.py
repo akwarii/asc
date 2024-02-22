@@ -1,13 +1,14 @@
-import torch
 from functools import cached_property
+
+import torch
 
 
 class ExponentialEnvelope(torch.nn.Module):
-    """
-    Exponential envelope function that ensures a smooth cutoff,
-    as proposed in Unke et al (2021).
+    """Exponential envelope function that ensures a smooth cutoff, as proposed in Unke et al
+    (2021).
+
     SpookyNet: Learning Force Fields with Electronic Degrees of Freedom
-    and Nonlocal Effects.
+    and Nonlocal Effects. (https://doi.org/10.1038/s41467-021-27504-0)
     """
 
     def __init__(self) -> None:
@@ -19,15 +20,13 @@ class ExponentialEnvelope(torch.nn.Module):
         Args:
             d_scaled (torch.Tensor): The scaled distance tensor.
         """
-        env = torch.exp(-torch.pow(d_scaled, 2) / ((1 - d_scaled) * (1 + d_scaled)))
+        env = torch.exp(-(d_scaled**2) / ((1 - d_scaled) * (1 + d_scaled)))
         return torch.where(d_scaled < 1, env, torch.zeros_like(d_scaled))
 
 
 class PolynomialEnvelope(torch.nn.Module):
-    """
-    Polynomial envelope function that ensures a smooth cutoff,
-    as proposed in Gasteiger et al (2022).
-    Directional Message Passing for Molecular Graphs (arXiv:2003.03123).
+    """Polynomial envelope function that ensures a smooth cutoff, as proposed in Gasteiger et al
+    (2022). Directional Message Passing for Molecular Graphs (arXiv:2003.03123).
 
     Args:
         degree (int, optional): The degree of the polynomial envelope. Defaults to 5.
@@ -63,18 +62,18 @@ class PolynomialEnvelope(torch.nn.Module):
         a, b, c = self._coeffs
         env = (
             1
-            + a * torch.pow(d_scaled, self.degree)
-            + b * torch.pow(d_scaled, self.degree + 1)
-            + c * torch.pow(d_scaled, self.degree + 2)
+            + a * d_scaled ** (self.degree)
+            + b * d_scaled ** (self.degree + 1)
+            + c * d_scaled ** (self.degree + 2)
         )
         return torch.where(d_scaled < 1, env, torch.zeros_like(d_scaled))
 
 
 class DummyEnvelope(torch.nn.Module):
-    """
-    Dummy envelope function that does not apply any envelope.
-    Using this envelope function is equivalent to using no envelope,
-    meaning the bases orthonormality is conserved.
+    """Dummy envelope function that does not apply any envelope.
+
+    Using this envelope function is equivalent to using no envelope, meaning the bases
+    orthonormality is conserved.
     """
 
     def __init__(self) -> None:
