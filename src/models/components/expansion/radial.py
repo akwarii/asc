@@ -121,7 +121,9 @@ class RadialBasisExpansion(torch.nn.Module):
         if envelope_kwargs is None:
             envelope_kwargs = {}
         if envelope not in ENVELOPE_FUNCTIONS:
-            raise ValueError(f"Unknown envelope function '{envelope}'. Available options are {ENVELOPE_FUNCTIONS.keys()}.")
+            raise ValueError(
+                f"Unknown envelope function '{envelope}'. Available options are {ENVELOPE_FUNCTIONS.keys()}."
+            )
 
         self.envelope = ENVELOPE_FUNCTIONS[envelope](**envelope_kwargs)
 
