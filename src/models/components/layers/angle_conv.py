@@ -25,7 +25,7 @@ class AngleConvLayer(nn.Module):
         self.linear = nn.Linear(angle_input_dim, self.angle_fea_len)
         self.attention = nn.Sequential(  # TODO: Change to GATv2
             nn.Linear(angle_input_dim, 1),
-            nn.LeakyReLU(negative_slope=0.01),
+            nn.LeakyReLU(negative_slope=0.01), # TODO: change to PRelu
         )
         self.normalized_activation = nn.Sequential(  # TODO: Change to GraphNorm
             nn.LayerNorm(self.angle_fea_len),
