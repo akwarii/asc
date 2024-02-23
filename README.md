@@ -106,13 +106,18 @@ _For more examples, please refer to the [Documentation](https://example.com)_
   - [x] LightningModule for structured training.
   - [x] DataModule for data loading and preprocessing.
   - [ ] Trainer for optimal hyperparameter tuning and training execution.
+- [ ] Transition from pure PyTorch to PyGeometric
+  - [ ] Sparse graphs
+  - [ ] Neighbour sampler to enable mini-batching
+  - [ ] Conv modules
+  - [ ] Model compilation
 
 **Model Optimizations:**
 
 - [x] Adoption of GATv2 attention mechanism.
 - [x] Replacement of LayerNorm with GraphNorm for enhanced graph data handling.
 - [x] Planned RBF optimization for potentially improved performance.
-- [ ] Integration of Angular Basis Function inspired by GemNet for potentially improved feature representation.
+- [x] Integration of Angular Basis Function inspired by GemNet and DimeNet for potentially improved feature representation.
 
 **Data Handling:**
 
@@ -124,16 +129,16 @@ _For more examples, please refer to the [Documentation](https://example.com)_
 - [x] Data transformations techniques:
   - [x] Normalization transformation.
   - [ ] Tags to remove atoms from structure
-    - [ ] Random initialization of tags
 - [ ] Data augmentation techniques:
   - [ ] Incorporation of Gaussian noise (with ASE).
   - [ ] Incorporation of MD simulations (with ASE).
+  - [ ] Drop random nodes to simulate defects.
 - [ ] Cleaning and merging the Aflow, MP and GNoMe datasets and upload it somewhere.
 
 **Graph Creation Optimization:**
 
 - [x] Improvement of the feature computation speed.
-- [x] Efficient KNN graph construction.
+- [ ] Efficient KNN graph construction.
 - [ ] Flexible graph factory for better maintainability.
 - [ ] Create the subgraphs on-the-fly to avoid large memory usage (this will permit the user to tune the memory usage with the number of workers)
 
