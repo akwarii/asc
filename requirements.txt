@@ -1,7 +1,7 @@
 lightning==2.2.0.post0
 mp_api==0.40.0
 numpy==1.26.4
-pymatgen==2024.2.20
+pymatgen==2024.2.23
 python-dotenv==1.0.1
 PyYAML==6.0.1
 Requests==2.31.0
