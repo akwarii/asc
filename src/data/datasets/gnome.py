@@ -44,7 +44,6 @@ class Gnome(CrystalGraphDataset):
 
     # Note that other datasets exists in the same bucket
     resources = (
-        "stable_materials_r2scan.csv",
         "stable_materials_summary.csv",
         "by_id.zip",
     )
@@ -136,9 +135,8 @@ class Gnome(CrystalGraphDataset):
             public_link = os.path.join(parent_directory, filename)
             download_from_link(public_link, self.raw_folder)
 
-        print(f"Done downloading data to directory: {self.root}")
-
-
-if __name__ == "__main__":
-    gnome = Gnome(root="data", download=True)
-    print(gnome[0])
+        df: pd.DataFrame = pd.read_csv(
+            self.raw_folder / "stable_materials_summary.csv",
+            usecols=["MaterialId", "Space Group Number"],
+        )
+        df.dropna().to_csv(self.raw_folder / "stable_materials_summary.csv", index=False)
