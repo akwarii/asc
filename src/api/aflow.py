@@ -1,4 +1,5 @@
 import json
+import re
 import string
 
 import requests
@@ -146,7 +147,7 @@ class AflowAPI:
             if key in query_keywords:
                 query_keywords = query_keywords.replace(key, "")
         check_keywords = len(query_keywords) == 0
-        
+
         return check_spaces and check_operators and check_keywords
 
     @property
@@ -268,9 +269,38 @@ class AflowAPI:
         # Fix POSTCAR if in VASP4 format
         poscar_lines = response.text.split("\n")
 
+        # Apply the lattice scaling factor
+        scaling_factor = float(poscar_lines[1])
+        if scaling_factor != 1.0:
+            poscar_lines[1] = "1.0"
+            for i in range(2, 5):
+                poscar_lines[i] = " ".join(
+                    str(float(x) * scaling_factor) for x in poscar_lines[i].split()
+                )
+
         # Add species names if missing
         if poscar_lines[5].strip()[0].isnumeric():
-            poscar_lines.insert(5, " ".join(entry["species"]))
+            species = re.findall("[A-Z][a-z]*", entry["compound"])
+            poscar_lines.insert(5, " ".join(species))
+
+        # Remove the selective dynamics tag if present
+        if poscar_lines[7].startswith(("s", "S")):
+            del poscar_lines[7]
+
+        # Convert the coordinates to Direct if in Cartesian format
+        # and remove the potential selective dynamics tag
+        n_atoms = sum(int(x) for x in poscar_lines[6].split())
+        if poscar_lines[7].strip() == "Cartesian":
+            poscar_lines[7] = "Direct"
+            for i in range(8, 8 + n_atoms):
+                poscar_lines[i] = " ".join(
+                    str(float(x) * scaling_factor) for x in poscar_lines[i].split()[:3]
+                )
+
+        # Remove the velocities if present
+        if len(poscar_lines) > 8 + n_atoms:
+            poscar_lines = poscar_lines[: 8 + n_atoms]
+            poscar_lines.append("")  # Add an empty line at the end
 
         poscar = "\n".join(poscar_lines)
         return poscar
