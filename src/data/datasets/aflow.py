@@ -7,8 +7,8 @@ from tqdm.auto import tqdm
 
 from src.api import AflowAPI
 from src.data.datasets.base_dataset import CrystalGraphDataset
+from src.data.datasets.utils import poscar_from_entry
 from src.processing.graph import Graph
-
 
 class Aflow(CrystalGraphDataset):
     """A dataset class for the Aflow dataset.
@@ -19,6 +19,7 @@ class Aflow(CrystalGraphDataset):
         struct_transform (Callable | None): A function/transform that takes in a structure and returns a transformed version.
         target_transform (Callable | None): A function/transform that takes in a target and returns a transformed version.
         download (bool): Whether to download the dataset if it doesn't exist.
+        load (bool): Whether to load the dataset.
         chunk_size (int): Number of entries of each chunk to download.
         **graph_kwargs: Additional keyword arguments to be passed to the Graph class.
 
@@ -49,7 +50,7 @@ class Aflow(CrystalGraphDataset):
         target_transform: Callable | None = None,
         download: bool = False,
         load: bool = True,
-        chunk_size: int = 100_000,
+        chunk_size: int = 50_000,
         **graph_kwargs,
     ) -> None:
         super().__init__(root, transform, struct_transform, target_transform)
@@ -131,29 +132,35 @@ class Aflow(CrystalGraphDataset):
             # Download data by chunks to avoid server timeout
             page_number = 1
             total_data = []
+            matchbook = f"spacegroup_relax({class_idx}),geometry,positions_fractional"
 
             with self.API as aflow_api:
                 while True:
                     current_data = aflow_api.request(
-                        f"spacegroup_relax({class_idx})",
-                        paging_range=(page_number, chunk_size),
+                        matchbook=matchbook,
+                        paging=page_number,
+                        chunk_size=chunk_size,
                     )
                     if not current_data:
                         break
                     page_number += 1
                     total_data.extend(current_data)
 
-                compounds = set()
-                filtered_data = []
-                for entry in total_data:
-                    if entry["compound"] not in compounds:
-                        try:
-                            entry["CONTCAR.relax"] = aflow_api.get_contcar(entry)
-                        except RuntimeError:
-                            continue
-                        compounds.add(entry["compound"])
-                        del entry["Pearson_symbol_relax"], entry["compound"]
-                        filtered_data.append(entry)
+            # Generate a CONTCAR for each unique compound
+            compounds = set()
+            filtered_data = []
+            for entry in total_data:
+                if entry["compound"] not in compounds:
+                    compounds.add(entry["compound"])
+                    reduced_entry = {
+                        "spacegroup": entry["spacegroup_relax"],
+                        "structure": poscar_from_entry(entry),
+                    }
+                    filtered_data.append(reduced_entry)
 
             with open(file, "w") as f:
                 json.dump(filtered_data, f, sort_keys=True, indent=4)
+
+
+if __name__ == "__main__":
+    aflow = Aflow(root="data", download=True, load=False)
