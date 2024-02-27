@@ -192,9 +192,9 @@ class AflowAPI:
 
         paging = paging or self.DEFAULT_PAGING
         if chunk_size is not None:
-            paging_str = f"$paging({paging},{chunk_size})"
+            paging_str = f",$paging({paging},{chunk_size})"
         else:
-            paging_str = f"$paging({paging})"
+            paging_str = f",$paging({paging})"
 
         request_url = self.base_url + matchbook
         if not no_directives:
