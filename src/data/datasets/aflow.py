@@ -10,6 +10,7 @@ from src.data.datasets.base_dataset import CrystalGraphDataset
 from src.data.datasets.utils import poscar_from_entry
 from src.processing.graph import Graph
 
+
 class Aflow(CrystalGraphDataset):
     """A dataset class for the Aflow dataset.
 
@@ -160,7 +161,3 @@ class Aflow(CrystalGraphDataset):
 
             with open(file, "w") as f:
                 json.dump(filtered_data, f, sort_keys=True, indent=4)
-
-
-if __name__ == "__main__":
-    aflow = Aflow(root="data", download=True, load=False)

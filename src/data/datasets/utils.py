@@ -4,10 +4,9 @@ import numpy as np
 
 
 def lattice_from_geometry(geometry):
-    """Create a cell matrix from its lattice parameter (a,b,c,alpha,beta,gamma).
-    The returned cell is orientated such that a and b are normal to (0,0,1)
-    and a is parallel to (1,0,0). The cell vectors are defined row-wise.
-    This implementation is based on the one in ASE.
+    """Create a cell matrix from its lattice parameter (a,b,c,alpha,beta,gamma). The returned cell
+    is orientated such that a and b are normal to (0,0,1) and a is parallel to (1,0,0). The cell
+    vectors are defined row-wise. This implementation is based on the one in ASE.
 
     Args:
         geometry (Sequence): A sequence of lattice parameters (a,b,c,alpha,beta,gamma).
@@ -59,7 +58,7 @@ def poscar_from_entry(entry):
 
     lattice = lattice_from_geometry(entry["geometry"])
     species = re.findall("[A-Z][a-z]*", entry["compound"])
-    n_atoms_per_species = re.findall("\d+", entry["compound"])
+    n_atoms_per_species = re.findall(r"\d+", entry["compound"])
 
     poscar = f"{entry['compound']}\n"
     poscar += "1.0\n"
@@ -73,4 +72,3 @@ def poscar_from_entry(entry):
         poscar += f"{position[0]:.10f} {position[1]:.10f} {position[2]:.10f}\n"
 
     return poscar
-

@@ -158,6 +158,3 @@ class MaterialProject(CrystalGraphDataset):
 
             with open(file, "w") as f:
                 json.dump(filtered_data, f, sort_keys=True, indent=4)
-
-if __name__ == "__main__":
-    _ = MaterialProject(root="data", download=True, load=False)
