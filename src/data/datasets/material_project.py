@@ -21,6 +21,7 @@ class MaterialProject(CrystalGraphDataset):
         struct_transform (Callable | None): A function/transform that takes in a structure and returns a transformed version.
         target_transform (Callable | None): A function/transform that takes in a target and returns a transformed version.
         download (bool): Whether to download the dataset if it doesn't exist.
+        load (bool): Whether to load the dataset.
         **graph_kwargs: Additional keyword arguments to be passed to the Graph class.
 
     Attributes:
@@ -139,7 +140,6 @@ class MaterialProject(CrystalGraphDataset):
                 docs = mpr.materials.summary.search(
                     spacegroup_number=class_idx,
                     fields=[
-                        "material_id",
                         "symmetry",
                         "structure",
                         "deprecated",
@@ -149,8 +149,7 @@ class MaterialProject(CrystalGraphDataset):
 
             filtered_data = [
                 {
-                    "material_id": entry["material_id"],
-                    "structure": entry["structure"].to("POSCAR"),
+                    "structure": entry["structure"].to(fmt="poscar"),
                     "spacegroup": entry["symmetry"]["number"],
                 }
                 for entry in docs
@@ -159,3 +158,6 @@ class MaterialProject(CrystalGraphDataset):
 
             with open(file, "w") as f:
                 json.dump(filtered_data, f, sort_keys=True, indent=4)
+
+if __name__ == "__main__":
+    _ = MaterialProject(root="data", download=True, load=False)
