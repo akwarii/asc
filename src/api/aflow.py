@@ -136,17 +136,17 @@ class AflowAPI:
         Returns:
             bool: True if the query is valid, False otherwise.
         """
-        check_spaces = any(c.isspace() for c in query)
+        check_spaces = not any(c.isspace() for c in query)
 
-        query_operators = [c for c in query if c in string.punctuation]
+        query_operators = [c for c in query if c in string.punctuation and c != "_"]
         check_operators = all(c in self.API_OPERATORS for c in query_operators)
 
-        query_keywords = "".join([c for c in query if c.isalpha()])
+        query_keywords = "".join([c for c in query if c.isalpha() or c == "_"])
         for key in self.API_KEYWORDS:
             if key in query_keywords:
                 query_keywords = query_keywords.replace(key, "")
         check_keywords = len(query_keywords) == 0
-
+        
         return check_spaces and check_operators and check_keywords
 
     @property
