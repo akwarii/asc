@@ -1,5 +1,5 @@
 lightning==2.2.0.post0
-mp_api==0.40.0
+mp_api==0.41.1
 numpy==1.26.4
 pymatgen==2024.2.20
 python-dotenv==1.0.1
