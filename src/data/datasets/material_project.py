@@ -116,11 +116,7 @@ class MaterialProject(CrystalGraphDataset):
         return data, targets
 
     def download(self) -> None:
-        """Downloads the Aflow dataset if it doesn't exist already.
-
-        Args:
-            chunk_size (int): Number of entries of each chunk to download.
-        """
+        """Downloads the Aflow dataset if it doesn't exist already."""
         if self.check_exists():
             print(f"Dataset already exists at {self.root}")
             return
