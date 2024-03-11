@@ -1,30 +1,13 @@
-import hashlib
-import json
-import os
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from dotenv import get_key
 from kaggle import KaggleApi
 from pymatgen.core import Structure
-from tqdm.auto import tqdm
 
 from src.data.datasets.base import GraphDataset
 from src.processing.graph import KNNGraph
-
-
-def md5(fname):
-    hash_md5 = hashlib.md5(usedforsecurity=False)
-    with open(fname, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            hash_md5.update(chunk)
-    return hash_md5.hexdigest()
-
-
-def check_md5(fname, md5_checksum):
-    return md5(fname) == md5_checksum
+from src.data.datasets.utils import check_integrity
 
 
 class CSG(GraphDataset):
@@ -132,22 +115,10 @@ class CSG(GraphDataset):
         """
         df = pd.read_csv(self.raw_folder / self.resources[0])
         data = df["Structure"].tolist()
-        targets = df["Space Group Number"].tolist()
+        targets = df["SpaceGroupNumber"].tolist()
 
         return data, targets
     
-    def _check_integrity(self) -> bool:
-        """Check the integrity of the dataset."""
-        for resource, md5 in zip(self.resources, self.md5_checksums):
-            fpath = self.raw_folder / resource
-            if not fpath.is_file():
-                return False
-            if md5 is None:
-                continue
-            if not check_md5(fpath, md5):
-                return False
-        return True
-
     def download(self) -> None:
         """Downloads the Aflow dataset if it doesn't exist already."""
         
@@ -157,4 +128,5 @@ class CSG(GraphDataset):
         self.API.authenticate()
         self.API.dataset_download_files(self.KAGGLE_DATASET, path=self.raw_folder, quiet=False, unzip=True)
         
-        self._check_integrity()
+        paths = [self.raw_folder / resource for resource in self.resources]
+        check_integrity(paths, self.md5_checksums)
