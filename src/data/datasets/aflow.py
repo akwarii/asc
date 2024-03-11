@@ -1,8 +1,8 @@
 import json
 from collections.abc import Callable
 from typing import Any
-import numpy as np
 
+import numpy as np
 from pymatgen.core import Structure
 from tqdm.auto import tqdm
 
@@ -113,7 +113,12 @@ class Aflow(GraphDataset):
 
         return data, targets
 
-    def download(self, chunk_size: int, stress_threshold: int | None = None, force_threshold: float | None = None) -> None:
+    def download(
+        self,
+        chunk_size: int,
+        stress_threshold: int | None = None,
+        force_threshold: float | None = None,
+    ) -> None:
         """Downloads the Aflow dataset if it doesn't exist already.
 
         Args:
@@ -134,9 +139,9 @@ class Aflow(GraphDataset):
             total_data = []
             matchbook = f"spacegroup_relax({class_idx}),geometry,positions_fractional"
             if stress_threshold:
-                matchbook += f",stress_tensor"
+                matchbook += ",stress_tensor"
             if force_threshold:
-                matchbook += f",forces"
+                matchbook += ",forces"
 
             with self.API as aflow_api:
                 while True:
@@ -158,7 +163,7 @@ class Aflow(GraphDataset):
                     continue
                 if force_threshold and np.max(np.abs(entry["forces"])) > force_threshold:
                     continue
-                
+
                 if entry["compound"] not in compounds:
                     compounds.add(entry["compound"])
                     reduced_entry = {
