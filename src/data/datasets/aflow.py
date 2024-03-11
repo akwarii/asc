@@ -1,17 +1,18 @@
 import json
 from collections.abc import Callable
 from typing import Any
+import numpy as np
 
 from pymatgen.core import Structure
 from tqdm.auto import tqdm
 
 from src.api import AflowAPI
-from src.data.datasets.base_dataset import CrystalGraphDataset
+from src.data.datasets.base import GraphDataset
 from src.data.datasets.utils import poscar_from_entry
-from src.processing.graph import Graph
+from src.processing.graph import KNNGraph
 
 
-class Aflow(CrystalGraphDataset):
+class Aflow(GraphDataset):
     """A dataset class for the Aflow dataset.
 
     Args:
@@ -26,11 +27,10 @@ class Aflow(CrystalGraphDataset):
 
     Attributes:
         API (AflowAPI): An instance of the AflowAPI class.
-        classes (list): A list of space group numbers.
-        resources (list): A list of resource filenames.
+        classes (list): A list of space group numbers ranging from 1 to 230.
+        resources (list): Names of the files containing the dataset.
 
     Methods:
-        __init__: Initializes the Aflow dataset.
         __getitem__: Retrieves a graph and its corresponding target from the dataset.
         __len__: Returns the length of the dataset.
         _load_data: Loads the data from the resource files.
@@ -52,13 +52,15 @@ class Aflow(CrystalGraphDataset):
         download: bool = False,
         load: bool = True,
         chunk_size: int = 50_000,
+        stress_threshold: int | None = None,
+        force_threshold: float | None = None,
         **graph_kwargs,
     ) -> None:
         super().__init__(root, transform, struct_transform, target_transform)
         self.graph_kwargs = graph_kwargs
 
         if download:
-            self.download(chunk_size)
+            self.download(chunk_size, stress_threshold, force_threshold)
 
         if not self.check_exists():
             raise RuntimeError("Dataset not found. You can use download=True to download it")
@@ -80,7 +82,7 @@ class Aflow(CrystalGraphDataset):
 
         # TODO: really need to refactor Graph to a graph factory to improve efficiency
         # and if possible use DGL/PyG graphs instead of custom implementation
-        graph = Graph(**self.graph_kwargs)
+        graph = KNNGraph(**self.graph_kwargs)
         graph.set_features(struct)
 
         if self.transform is not None:
@@ -111,7 +113,7 @@ class Aflow(CrystalGraphDataset):
 
         return data, targets
 
-    def download(self, chunk_size: int) -> None:
+    def download(self, chunk_size: int, stress_threshold: int | None = None, force_threshold: float | None = None) -> None:
         """Downloads the Aflow dataset if it doesn't exist already.
 
         Args:
@@ -127,13 +129,14 @@ class Aflow(CrystalGraphDataset):
         for class_idx in tqdm(self.classes):
             file = self.raw_folder / f"data_{class_idx}.json"
 
-            if file.is_file() and file.stat().st_size > 0:
-                continue
-
             # Download data by chunks to avoid server timeout
             page_number = 1
             total_data = []
             matchbook = f"spacegroup_relax({class_idx}),geometry,positions_fractional"
+            if stress_threshold:
+                matchbook += f",stress_tensor"
+            if force_threshold:
+                matchbook += f",forces"
 
             with self.API as aflow_api:
                 while True:
@@ -151,6 +154,11 @@ class Aflow(CrystalGraphDataset):
             compounds = set()
             filtered_data = []
             for entry in total_data:
+                if stress_threshold and np.max(np.abs(entry["stress_tensor"])) > stress_threshold:
+                    continue
+                if force_threshold and np.max(np.abs(entry["forces"])) > force_threshold:
+                    continue
+                
                 if entry["compound"] not in compounds:
                     compounds.add(entry["compound"])
                     reduced_entry = {

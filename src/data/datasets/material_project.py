@@ -8,11 +8,11 @@ from mp_api.client import MPRester
 from pymatgen.core import Structure
 from tqdm.auto import tqdm
 
-from src.data.datasets.base_dataset import CrystalGraphDataset
-from src.processing.graph import Graph
+from src.data.datasets.base import GraphDataset
+from src.processing.graph import KNNGraph
 
 
-class MaterialProject(CrystalGraphDataset):
+class MaterialProject(GraphDataset):
     """A dataset class for the Material Project dataset.
 
     Args:
@@ -25,17 +25,16 @@ class MaterialProject(CrystalGraphDataset):
         **graph_kwargs: Additional keyword arguments to be passed to the Graph class.
 
     Attributes:
-        API_KEY (str): The API key for the Materials Project.
+        API_KEY (str): The Materials Project API key.
         API (MPRester): An instance of the MPRester class.
-        classes (list): A list of space group numbers.
-        resources (list): A list of resource filenames.
+        classes (list): A list of space group numbers ranging from 1 to 230.
+        resources (list): Names of the files containing the dataset.
 
     Methods:
-        __init__: Initializes the Aflow dataset.
         __getitem__: Retrieves a graph and its corresponding target from the dataset.
         __len__: Returns the length of the dataset.
         _load_data: Loads the data from the resource files.
-        download: Downloads the Aflow dataset if it doesn't exist already.
+        download: Downloads the dataset if it doesn't exist already.
     """
 
     _dotenv_path = Path(__file__).resolve().parents[3] / ".env"
@@ -84,7 +83,7 @@ class MaterialProject(CrystalGraphDataset):
 
         # TODO: really need to refactor Graph to a graph factory to improve efficiency
         # and if possible use DGL/PyG graphs instead of custom implementation
-        graph = Graph(**self.graph_kwargs)
+        graph = KNNGraph(**self.graph_kwargs)
         graph.set_features(struct)
 
         if self.transform is not None:
@@ -128,9 +127,6 @@ class MaterialProject(CrystalGraphDataset):
         )
         for class_idx in tqdm(self.classes):
             file = self.raw_folder / f"data_{class_idx}.json"
-
-            if file.is_file() and file.stat().st_size > 0:
-                continue
 
             with self.API as mpr:
                 docs = mpr.materials.summary.search(

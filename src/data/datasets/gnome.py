@@ -20,8 +20,8 @@ import pandas as pd
 import requests
 from pymatgen.core import Structure
 
-from src.data.datasets.base_dataset import CrystalGraphDataset
-from src.processing.graph import Graph
+from src.data.datasets.base import GraphDataset
+from src.processing.graph import KNNGraph
 
 
 def download_from_link(link: str, output_dir: str):
@@ -35,7 +35,35 @@ def download_from_link(link: str, output_dir: str):
         print(f"Failed to download {link}")
 
 
-class Gnome(CrystalGraphDataset):
+class Gnome(GraphDataset):
+    """GNoME is a dataset of crystal structures predicted to be stable by the GNoME model
+    created by the DeepMind team. The dataset contains ~380,000 crystal structures with space
+    group numbers ranging from 1 to 230. The dataset is formatted as a CSV file with two
+    columns: "MaterialId" and "Space Group Number". The "MaterialId" column contains the
+    unique identifier of the material and the "Space Group Number" column contains the space
+    group number of the crystal structure.
+    
+    Args:
+        root (str): Root directory of the dataset.
+        transform (Callable | None): A function/transform that takes in a graph and returns a transformed version.
+        struct_transform (Callable | None): A function/transform that takes in a structure and returns a transformed version.
+        target_transform (Callable | None): A function/transform that takes in a target and returns a transformed version.
+        download (bool): Whether to download the dataset if it doesn't exist.
+        load (bool): Whether to load the dataset.
+        chunk_size (int): Number of entries of each chunk to download.
+        **graph_kwargs: Additional keyword arguments to be passed to the Graph class.
+
+    Attributes:
+        API (AflowAPI): URL to the google storage api.
+        classes (list): A list of space group numbers ranging from 1 to 230.
+        resources (list): Names of the files containing the dataset.
+
+    Methods:
+        __getitem__: Retrieves a graph and its corresponding target from the dataset.
+        __len__: Returns the length of the dataset.
+        _load_data: Loads the data from the resource files.
+        download: Downloads the Aflow dataset if it doesn't exist already.
+    """
     API = "https://storage.googleapis.com/"
     _BUCKET_NAME = "gdm_materials_discovery"
     _FOLDER_NAME = "gnome_data"
@@ -88,7 +116,7 @@ class Gnome(CrystalGraphDataset):
 
         # TODO: really need to refactor Graph to a graph factory to improve efficiency
         # and if possible use DGL/PyG graphs instead of custom implementation
-        graph = Graph(**self.graph_kwargs)
+        graph = KNNGraph(**self.graph_kwargs)
         graph.set_features(struct)
 
         if self.transform is not None:
@@ -131,6 +159,7 @@ class Gnome(CrystalGraphDataset):
         download_from_link(os.path.join(bucket_directory, "LICENSE"), self.raw_folder)
 
         # Download data files.
+        print(f"Downloading Gnome data from {parent_directory} to {self.raw_folder}...")
         for filename in self.resources:
             public_link = os.path.join(parent_directory, filename)
             download_from_link(public_link, self.raw_folder)

@@ -9,7 +9,7 @@ from src.utils.typing import PathLike
 
 
 # TODO add a graph factory attribute and needed kargs in the __init__ method
-class CrystalGraphDataset(Dataset):
+class GraphDataset(Dataset):
     """Base class for making datasets which are compatible with crystal graphs. It is necessary to
     override the ``__getitem__`` and ``__len__`` method. A ``download`` method can also be
     implemented to download the dataset. (This class implementation is based on the torchvision
