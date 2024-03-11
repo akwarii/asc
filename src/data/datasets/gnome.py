@@ -42,7 +42,7 @@ class Gnome(GraphDataset):
     columns: "MaterialId" and "Space Group Number". The "MaterialId" column contains the
     unique identifier of the material and the "Space Group Number" column contains the space
     group number of the crystal structure.
-    
+
     Args:
         root (str): Root directory of the dataset.
         transform (Callable | None): A function/transform that takes in a graph and returns a transformed version.
@@ -64,6 +64,7 @@ class Gnome(GraphDataset):
         _load_data: Loads the data from the resource files.
         download: Downloads the Aflow dataset if it doesn't exist already.
     """
+
     API = "https://storage.googleapis.com/"
     _BUCKET_NAME = "gdm_materials_discovery"
     _FOLDER_NAME = "gnome_data"
