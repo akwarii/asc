@@ -62,11 +62,11 @@ class GATv2Layer(nn.Module):
             torch.Tensor: Output tensor of shape (n_nodes, out_features) if is_concat is True,
                 or (n_nodes, out_features // n_heads) if is_concat is False.
         """
-        n_nodes = h.shape[0]
+        n_nodes: int = h.shape[0]
 
         # Initial transformations for each head
-        g_l = self.linear_l(h).view(n_nodes, self.n_heads, self.n_hidden)
-        g_r = self.linear_r(h).view(n_nodes, self.n_heads, self.n_hidden)
+        g_l: torch.Tensor = self.linear_l(h).view(n_nodes, self.n_heads, self.n_hidden)
+        g_r: torch.Tensor = self.linear_r(h).view(n_nodes, self.n_heads, self.n_hidden)
 
         # Compute attention scores
         g_l_repeat = g_l.repeat(n_nodes, 1, 1)
@@ -74,7 +74,7 @@ class GATv2Layer(nn.Module):
         g_sum = g_l_repeat + g_r_repeat_interleave
         g_sum = g_sum.view(n_nodes, n_nodes, self.n_heads, self.n_hidden)
 
-        e = self.attention(self.activation(g_sum))
+        e: torch.Tensor = self.attention(self.activation(g_sum))
         e = e.squeeze(-1)
 
         # Mask attention scores
@@ -91,6 +91,7 @@ class GATv2Layer(nn.Module):
         # Compute final output for each head
         attn_res = torch.einsum("ijh,jhf->ihf", a, g_r)
 
+        # Concatenate / average the outputs of each head
         if self.is_concat:
             return attn_res.reshape(n_nodes, self.n_heads * self.n_hidden)
         else:
