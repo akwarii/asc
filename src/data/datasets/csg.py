@@ -6,8 +6,8 @@ from kaggle import KaggleApi
 from pymatgen.core import Structure
 
 from src.data.datasets.base import GraphDataset
-from src.processing.graph import KNNGraph
 from src.data.datasets.utils import check_integrity
+from src.processing.graph import KNNGraph
 
 
 class CSG(GraphDataset):
@@ -22,7 +22,7 @@ class CSG(GraphDataset):
     All GNoME data predicted stable were included.
     Additionally, structures with both the same space group number and composition were removed to avoid redundancy.
 
-    The maximum number of atoms in a structure is 444. A radius graph with a cutoff of 10 angstroms ensure that 99.5% 
+    The maximum number of atoms in a structure is 444. A radius graph with a cutoff of 10 angstroms ensure that 99.5%
     of the graphs are complete.
 
     The dataset is available for download from Kaggle at https://www.kaggle.com/datasets/gaelhuynh/space-group.
@@ -47,14 +47,15 @@ class CSG(GraphDataset):
         _load_data: Loads the data from the resource files.
         download: Downloads the dataset if it doesn't exist already.
     """
+
     KAGGLE_DATASET = "gaelhuynh/space-group"
     API = KaggleApi()
 
     classes = list(range(1, 231))  # space groups numbers
 
-    resources = ("CSG.csv", )
-    md5_checksums = ("685236d6e7fd6677d3dd809897ecb393", )
-    
+    resources = ("CSG.csv",)
+    md5_checksums = ("685236d6e7fd6677d3dd809897ecb393",)
+
     def __init__(
         self,
         root: str,
@@ -72,16 +73,14 @@ class CSG(GraphDataset):
             self.download()
 
         if not self.check_exists():
-            raise RuntimeError(
-                "Dataset not found. You can use download=True to download it")
+            raise RuntimeError("Dataset not found. You can use download=True to download it")
 
         if load:
             self.data, self.targets = self._load_data()
 
     def __getitem__(self, index: int) -> tuple[Any, Any]:
         if not self.data:
-            RuntimeWarning(
-                "Dataset not loaded. Use load=True to load the dataset")
+            RuntimeWarning("Dataset not loaded. Use load=True to load the dataset")
             return None, None
 
         contcar, target = self.data[index], self.targets[index]
@@ -118,15 +117,17 @@ class CSG(GraphDataset):
         targets = df["SpaceGroupNumber"].tolist()
 
         return data, targets
-    
+
     def download(self) -> None:
         """Downloads the Aflow dataset if it doesn't exist already."""
-        
+
         if self.check_exists():
             return
 
         self.API.authenticate()
-        self.API.dataset_download_files(self.KAGGLE_DATASET, path=self.raw_folder, quiet=False, unzip=True)
-        
+        self.API.dataset_download_files(
+            self.KAGGLE_DATASET, path=self.raw_folder, quiet=False, unzip=True
+        )
+
         paths = [self.raw_folder / resource for resource in self.resources]
         check_integrity(paths, self.md5_checksums)

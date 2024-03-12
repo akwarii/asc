@@ -1,7 +1,7 @@
 import hashlib
 import re
+from collections.abc import Sequence
 from itertools import zip_longest
-from typing import Sequence
 
 import numpy as np
 
