@@ -2,6 +2,7 @@ import hashlib
 import re
 from collections.abc import Sequence
 from itertools import zip_longest
+from pathlib import Path
 
 import numpy as np
 
@@ -23,6 +24,9 @@ def check_md5(fname, md5_checksum):
 def check_integrity(fpaths: Sequence[PathLike], checksums: Sequence[str | None]) -> bool:
     """Check the integrity of the dataset."""
     for fpath, md5 in zip_longest(fpaths, checksums):
+        if isinstance(fpath, str):
+            fpath = Path(fpath)
+        
         if not fpath.is_file():
             return False
         if md5 is None:
