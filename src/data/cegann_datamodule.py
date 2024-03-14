@@ -5,14 +5,17 @@ import torch
 from lightning import LightningDataModule
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, random_split
 
-from src.data import _REPR_INDENT, datasets
+from src.data import _REPR_INDENT
+import src.data.datasets as datasets
 from src.data import transforms as T
 from src.utils.typing import PathLike, StageType
 
-DATASET_MAPPING = {
+DATASET_MAP = {
     "aflow": datasets.Aflow,
     "mp": datasets.MaterialProject,
     "gnome": datasets.Gnome,
+    "csg": datasets.CSG,
+    "in_memory": datasets.InMemoryDataset,
 }
 
 
@@ -24,7 +27,7 @@ class CEGANNDataModule(LightningDataModule):
 
     Args:
         root (str, optional): The root directory where the datasets are stored. Defaults to "data".
-        datasets (Sequence[Literal["aflow", "mp", "gnome"]], optional): The datasets to use.
+        datasets (Sequence[str] | str, optional): The datasets to use.
             Multiple datasets can be used at once. Defaults to ("gnome",).
         train_val_test_split (tuple[int, int, int] | tuple[float, float, float], optional): The split ratios for train,
             validation, and test datasets. If integers are used, the split ratios are calculated as the number of samples
@@ -64,7 +67,7 @@ class CEGANNDataModule(LightningDataModule):
     def __init__(
         self,
         root: PathLike = "data",
-        datasets: Sequence[Literal["aflow", "mp", "gnome"]] = ("gnome",),
+        datasets: Sequence[str] | str = "csg",
         train_val_test_split: tuple[int, int, int] | tuple[float, float, float] = (0.8, 0.1, 0.1),
         transforms: Sequence[Any] | None = None,
         struct_transforms: Sequence[Any] | None = None,
@@ -74,6 +77,12 @@ class CEGANNDataModule(LightningDataModule):
         **kwargs,
     ) -> None:
         super().__init__()
+        
+        if isinstance(datasets, str):
+            datasets = [datasets]
+            
+        if any(dataset not in DATASET_MAP for dataset in datasets):
+            raise ValueError(f"Invalid dataset. Available datasets are {list(DATASET_MAP.keys())}")
 
         # this line allows to access init params with 'self.hparams' attribute
         # also ensures init params will be stored in ckpt
@@ -114,7 +123,7 @@ class CEGANNDataModule(LightningDataModule):
         In case of multi-node training, the execution of this hook depends upon `prepare_data_per_node`.
         """
         for dataset in self.hparams.datasets:
-            DATASET_MAPPING[dataset](self.hparams.root, download=True, load=False)
+            DATASET_MAP[dataset](self.hparams.root, download=True, load=False)
 
     def setup(self, stage: StageType) -> None:
         """Load data in memory. If stage is either `"fit"`, `"validate"` or `"test"`, then
@@ -132,7 +141,7 @@ class CEGANNDataModule(LightningDataModule):
         if stage != "predict" and not self.data_test:
             dataset = ConcatDataset(
                 [
-                    DATASET_MAPPING[dataset](
+                    DATASET_MAP[dataset](
                         self.hparams.root,
                         transform=self.transforms,
                         struct_transform=self.struct_transforms,
@@ -149,7 +158,7 @@ class CEGANNDataModule(LightningDataModule):
         if stage == "predict":
             dataset = ConcatDataset(
                 [
-                    DATASET_MAPPING[dataset](
+                    DATASET_MAP[dataset](
                         self.hparams.root,
                         transform=self.transforms,
                         struct_transform=self.struct_transforms,
@@ -296,10 +305,12 @@ class CEGANNDataModule(LightningDataModule):
         pass
 
     def __repr__(self) -> str:
+        # TODO check it's complete
         format_string = f"{self.__class__.__name__}(\n"
         for k, v in self.hparams.items():
             if v is not None:
                 format_string += " " * self._repr_indent + f"{k}={v}\n"
+        return format_string + ")"
 
 
 def kwargs_repr(**kwargs: Any) -> str:
