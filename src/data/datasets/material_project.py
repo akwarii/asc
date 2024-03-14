@@ -81,10 +81,8 @@ class MaterialProject(GraphDataset):
         if self.struct_transform is not None:
             struct = self.struct_transform(struct)
 
-        # TODO: really need to refactor Graph to a graph factory to improve efficiency
-        # and if possible use DGL/PyG graphs instead of custom implementation
         graph = KNNGraph(**self.graph_kwargs)
-        graph.set_features(struct)
+        graph.convert(struct)
 
         if self.transform is not None:
             graph = self.transform(graph)
@@ -125,12 +123,12 @@ class MaterialProject(GraphDataset):
         print(
             f"Downloading Material Project data from {self.API.endpoint} to {self.raw_folder}..."
         )
-        for class_idx in tqdm(self.classes):
-            file = self.raw_folder / f"data_{class_idx}.json"
+        for idx in tqdm(self.classes):
+            file = self.raw_folder / f"data_{idx}.json"
 
             with self.API as mpr:
                 docs = mpr.materials.summary.search(
-                    spacegroup_number=class_idx,
+                    spacegroup_number=idx,
                     fields=[
                         "symmetry",
                         "structure",

@@ -21,10 +21,10 @@ import requests
 from pymatgen.core import Structure
 
 from src.data.datasets.base import GraphDataset
-from src.processing.graph import KNNGraph
+from src.utils.typing import PathLike
 
 
-def download_from_link(link: str, output_dir: str):
+def download_from_link(link: str, output_dir: PathLike):
     """Download a file from a public link using requests."""
     response = requests.get(link, timeout=10)
     if response.status_code == 200:
@@ -61,7 +61,7 @@ class Gnome(GraphDataset):
     Methods:
         __getitem__: Retrieves a graph and its corresponding target from the dataset.
         __len__: Returns the length of the dataset.
-        _load_data: Loads the data from the resource files.
+        load: Loads the data from the resource files.
         download: Downloads the Aflow dataset if it doesn't exist already.
     """
 
@@ -69,7 +69,7 @@ class Gnome(GraphDataset):
     _BUCKET_NAME = "gdm_materials_discovery"
     _FOLDER_NAME = "gnome_data"
 
-    classes = list(range(1, 231))  # space groups numbers
+    classes = list(range(1, 231))  # TODO refine classes
 
     # Note that other datasets exists in the same bucket
     resources = (
@@ -84,11 +84,9 @@ class Gnome(GraphDataset):
         struct_transform: Callable | None = None,
         target_transform: Callable | None = None,
         download: bool = False,
-        load: bool = True,
-        **graph_kwargs,
+        graph_kwargs: dict[str, Any] = {},
     ) -> None:
-        super().__init__(root, transform, struct_transform, target_transform)
-        self.graph_kwargs = graph_kwargs
+        super().__init__(root, transform, struct_transform, target_transform, graph_kwargs)
 
         if download:
             self.download()
@@ -96,14 +94,9 @@ class Gnome(GraphDataset):
         if not self.check_exists():
             raise RuntimeError("Dataset not found. You can use download=True to download it")
 
-        if load:
-            self.data, self.targets = self._load_data()
+        self.data, self.targets = self.load()
 
     def __getitem__(self, index: int) -> tuple[Any, Any]:
-        if not self.data:
-            RuntimeWarning("Dataset not loaded. Use load=True to load the dataset")
-            return None, None
-
         fname, target = self.data[index], self.targets[index]
 
         with ZipFile(self.raw_folder / "by_id.zip", "r") as zip_ref:
@@ -111,15 +104,10 @@ class Gnome(GraphDataset):
                 cif = file.read().decode("utf-8")
 
         struct = Structure.from_str(cif, fmt="cif")
-
         if self.struct_transform is not None:
             struct = self.struct_transform(struct)
 
-        # TODO: really need to refactor Graph to a graph factory to improve efficiency
-        # and if possible use DGL/PyG graphs instead of custom implementation
-        graph = KNNGraph(**self.graph_kwargs)
-        graph.set_features(struct)
-
+        graph = self.knn.convert(struct)
         if self.transform is not None:
             graph = self.transform(graph)
 
@@ -133,7 +121,7 @@ class Gnome(GraphDataset):
 
     # TODO: efficient implementation of _load_data
     # as of now, there is a mismatch between the data and targets
-    def _load_data(self) -> tuple[list[str], list[int]]:
+    def load(self) -> tuple[list[str], list[int]]:
         df = pd.read_csv(self.raw_folder / "stable_materials_summary.csv")
         targets = df["Space Group Number"].values.tolist()
 

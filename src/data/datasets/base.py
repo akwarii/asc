@@ -5,14 +5,14 @@ from typing import Any
 from torch.utils.data import Dataset
 
 from src.data import _REPR_INDENT
+from src.processing.graph import KNNGraph
 from src.utils.typing import PathLike
 
 
-# TODO add a graph factory attribute and needed kargs in the __init__ method
 class GraphDataset(Dataset):
     """Base class for making datasets which are compatible with crystal graphs. It is necessary to
-    override the ``__getitem__`` and ``__len__`` method. A ``download`` method can also be
-    implemented to download the dataset. (This class implementation is based on the torchvision
+    override the ``__getitem__``, ``__len__`` and ``load`` method. A ``download`` method can also
+    be implemented to download the dataset. (This class implementation is based on the torchvision
     VisionDataset class)
 
     Args:
@@ -32,6 +32,7 @@ class GraphDataset(Dataset):
         transform: Callable | None = None,
         struct_transform: Callable | None = None,
         target_transform: Callable | None = None,
+        graph_kwargs: dict[str, Any] = {},
     ) -> None:
         if isinstance(root, str):
             root = Path(root)
@@ -42,6 +43,8 @@ class GraphDataset(Dataset):
         self.target_transform = target_transform
 
         self.transforms = StandardTransform(transform, struct_transform, target_transform)
+
+        self.knn = KNNGraph(**graph_kwargs)
 
     def __getitem__(self, index: int) -> tuple[Any, Any]:
         """
@@ -80,10 +83,19 @@ class GraphDataset(Dataset):
         return [f"{head}{lines[0]}"] + ["{}{}".format(" " * len(head), line) for line in lines[1:]]
 
     def check_exists(self) -> bool:
+        """Check if every file in the resources attribute exists in the raw folder."""
         return all((self.raw_folder / fname).is_file() for fname in self.resources)
 
     def download(self) -> None:
         """Download the dataset if it doesn't exist."""
+        raise NotImplementedError
+
+    def load(self) -> tuple[list[str], list[int]]:
+        """Load data from resources and return a tuple of data and targets.
+
+        Returns:
+            tuple[list[str], list[int]]: A tuple containing the loaded data and targets.
+        """
         raise NotImplementedError
 
     def extra_repr(self) -> str:

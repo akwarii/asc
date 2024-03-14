@@ -4,10 +4,10 @@ from typing import Any
 import pandas as pd
 from kaggle import KaggleApi
 from pymatgen.core import Structure
+from torch_geometric.data import Data
 
 from src.data.datasets.base import GraphDataset
 from src.data.datasets.utils import check_integrity
-from src.processing.graph import KNNGraph
 
 
 class CSG(GraphDataset):
@@ -44,14 +44,14 @@ class CSG(GraphDataset):
         __init__: Initializes the Aflow dataset.
         __getitem__: Retrieves a graph and its corresponding target from the dataset.
         __len__: Returns the length of the dataset.
-        _load_data: Loads the data from the resource files.
+        load: Loads the data from the resource files.
         download: Downloads the dataset if it doesn't exist already.
     """
 
     KAGGLE_DATASET = "gaelhuynh/space-group"
     API = KaggleApi()
 
-    classes = list(range(1, 231))  # space groups numbers
+    classes = list(range(1, 231))  # TODO refine classes
 
     resources = ("CSG.csv",)
     md5_checksums = ("685236d6e7fd6677d3dd809897ecb393",)
@@ -63,11 +63,9 @@ class CSG(GraphDataset):
         struct_transform: Callable | None = None,
         target_transform: Callable | None = None,
         download: bool = False,
-        load: bool = True,
-        **graph_kwargs,
+        graph_kwargs: dict[str, Any] = {},
     ) -> None:
-        super().__init__(root, transform, struct_transform, target_transform)
-        self.graph_kwargs = graph_kwargs
+        super().__init__(root, transform, struct_transform, target_transform, graph_kwargs)
 
         if download:
             self.download()
@@ -75,43 +73,28 @@ class CSG(GraphDataset):
         if not self.check_exists():
             raise RuntimeError("Dataset not found. You can use download=True to download it")
 
-        if load:
-            self.data, self.targets = self._load_data()
+        self.data, self.targets = self.load()
 
-    def __getitem__(self, index: int) -> tuple[Any, Any]:
-        if not self.data:
-            RuntimeWarning("Dataset not loaded. Use load=True to load the dataset")
-            return None, None
+    def __getitem__(self, index: int) -> tuple[Data, int]:
+        data, target = self.data[index], self.targets[index]
 
-        contcar, target = self.data[index], self.targets[index]
-
-        struct = Structure.from_str(contcar, fmt="poscar")
-
+        struct = Structure.from_str(data, fmt="poscar")
         if self.struct_transform is not None:
             struct = self.struct_transform(struct)
 
-        # TODO: really need to refactor Graph to a graph factory to improve efficiency
-        # and if possible use DGL/PyG graphs instead of custom implementation
-        graph = KNNGraph(**self.graph_kwargs)
-        graph.set_features(struct)
-
+        graph = self.knn.convert(struct)
         if self.transform is not None:
-            graph = self.transform(graph)
+            graph: Data = self.transform(graph)
 
         if self.target_transform is not None:
-            target = self.target_transform(target)
+            target: int = self.target_transform(target)
 
         return graph, target
 
     def __len__(self) -> int:
         return len(self.data)
 
-    def _load_data(self) -> tuple[list[str], list[int]]:
-        """Load data from JSON files and return a tuple of data and targets.
-
-        Returns:
-            tuple[list[str], list[int]]: A tuple containing the loaded data and targets.
-        """
+    def load(self) -> tuple[list[str], list[int]]:
         df = pd.read_csv(self.raw_folder / self.resources[0])
         data = df["Structure"].tolist()
         targets = df["SpaceGroupNumber"].tolist()
@@ -119,9 +102,10 @@ class CSG(GraphDataset):
         return data, targets
 
     def download(self) -> None:
-        """Downloads the Aflow dataset if it doesn't exist already."""
+        paths = [self.raw_folder / resource for resource in self.resources]
 
-        if self.check_exists():
+        if self.check_exists() and check_integrity(paths, self.md5_checksums):
+            print(f"Dataset already exists at {self.root}")
             return
 
         self.API.authenticate()
@@ -129,5 +113,4 @@ class CSG(GraphDataset):
             self.KAGGLE_DATASET, path=self.raw_folder, quiet=False, unzip=True
         )
 
-        paths = [self.raw_folder / resource for resource in self.resources]
         check_integrity(paths, self.md5_checksums)

@@ -4,12 +4,12 @@ from typing import Any
 
 import numpy as np
 from pymatgen.core import Structure
+from torch_geometric.data import Data
 from tqdm.auto import tqdm
 
 from src.api import AflowAPI
 from src.data.datasets.base import GraphDataset
 from src.data.datasets.utils import poscar_from_entry
-from src.processing.graph import KNNGraph
 
 
 class Aflow(GraphDataset):
@@ -33,7 +33,7 @@ class Aflow(GraphDataset):
     Methods:
         __getitem__: Retrieves a graph and its corresponding target from the dataset.
         __len__: Returns the length of the dataset.
-        _load_data: Loads the data from the resource files.
+        load: Loads the data from the resource files.
         download: Downloads the Aflow dataset if it doesn't exist already.
     """
 
@@ -50,14 +50,12 @@ class Aflow(GraphDataset):
         struct_transform: Callable | None = None,
         target_transform: Callable | None = None,
         download: bool = False,
-        load: bool = True,
         chunk_size: int = 50_000,
         stress_threshold: int | None = None,
         force_threshold: float | None = None,
-        **graph_kwargs,
+        graph_kwargs: dict[str, Any] = {},
     ) -> None:
-        super().__init__(root, transform, struct_transform, target_transform)
-        self.graph_kwargs = graph_kwargs
+        super().__init__(root, transform, struct_transform, target_transform, graph_kwargs)
 
         if download:
             self.download(chunk_size, stress_threshold, force_threshold)
@@ -65,43 +63,28 @@ class Aflow(GraphDataset):
         if not self.check_exists():
             raise RuntimeError("Dataset not found. You can use download=True to download it")
 
-        if load:
-            self.data, self.targets = self._load_data()
+        self.data, self.targets = self.load()
 
-    def __getitem__(self, index: int) -> tuple[Any, Any]:
-        if not self.data:
-            RuntimeWarning("Dataset not loaded. Use load=True to load the dataset")
-            return None, None
+    def __getitem__(self, index: int) -> tuple[Data, int]:
+        data, target = self.data[index], self.targets[index]
 
-        contcar, target = self.data[index], self.targets[index]
-
-        struct = Structure.from_str(contcar, fmt="poscar")
-
+        struct = Structure.from_str(data, fmt="poscar")
         if self.struct_transform is not None:
             struct = self.struct_transform(struct)
 
-        # TODO: really need to refactor Graph to a graph factory to improve efficiency
-        # and if possible use DGL/PyG graphs instead of custom implementation
-        graph = KNNGraph(**self.graph_kwargs)
-        graph.set_features(struct)
-
+        graph = self.knn.convert(struct)
         if self.transform is not None:
-            graph = self.transform(graph)
+            graph: Data = self.transform(graph)
 
         if self.target_transform is not None:
-            target = self.target_transform(target)
+            target: int = self.target_transform(target)
 
         return graph, target
 
     def __len__(self) -> int:
         return len(self.data)
 
-    def _load_data(self) -> tuple[list[str], list[int]]:
-        """Load data from JSON files and return a tuple of data and targets.
-
-        Returns:
-            tuple[list[str], list[int]]: A tuple containing the loaded data and targets.
-        """
+    def load(self) -> tuple[list[str], list[int]]:
         files = [self.raw_folder / fname for fname in self.resources]
 
         data, targets = [], []
@@ -119,10 +102,12 @@ class Aflow(GraphDataset):
         stress_threshold: int | None = None,
         force_threshold: float | None = None,
     ) -> None:
-        """Downloads the Aflow dataset if it doesn't exist already.
+        """Downloads the dataset if it doesn't exist already.
 
         Args:
-            chunk_size (int): Number of entries of each chunk to download.
+            chunk_size (int): Number of entries per chunk.
+            stress_threshold (int | None): Absolute stress threshold to filter the data.
+            force_threshold (float | None): Absolute force threshold to filter the data.
         """
         if self.check_exists():
             print(f"Dataset already exists at {self.root}")
