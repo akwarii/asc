@@ -106,8 +106,8 @@ _For more examples, please refer to the [Documentation](https://example.com)_
   - [x] LightningModule for structured training.
   - [x] DataModule for data loading and preprocessing.
   - [ ] Trainer for optimal hyperparameter tuning and training execution.
-- [ ] Transition from pure PyTorch to PyGeometric
-  - [ ] Sparse graphs
+- [ ] Transition from pure PyTorch to PyG
+  - [x] Sparse graphs
   - [ ] Neighbour sampler to enable mini-batching
   - [ ] Conv modules
   - [ ] Model compilation
@@ -119,13 +119,17 @@ _For more examples, please refer to the [Documentation](https://example.com)_
 - [x] Planned RBF optimization for potentially improved performance.
 - [x] Integration of Angular Basis Function inspired by GemNet and DimeNet for potentially improved feature representation.
 
-**Data Handling:**
+**Datasets**
 
-- [x] Datasets implementations:
-  - [x] Aflow data with a custom API wrapper.
-  - [x] Material Project data (need an API key).
-  - [x] GNoMe summary dataset.
-  - [ ] User-defined dataset for structures readable by pymatgen.
+- [x] Aflow data with a custom API wrapper.
+- [x] Material Project data (need an API key).
+- [x] GNoMe summary dataset.
+- [x] Cleaning and merging the mentioned datasets and upload it to Kaggle.
+- [ ] User-defined dataset for structures readable by pymatgen.
+- [ ] In memory dataset, mostly to load previously saved Data objects
+
+**Data augmentation/transformations**
+
 - [x] Data transformations techniques:
   - [x] Normalization transformation.
   - [ ] Tags to remove atoms from structure
@@ -133,14 +137,14 @@ _For more examples, please refer to the [Documentation](https://example.com)_
   - [ ] Incorporation of Gaussian noise (with ASE).
   - [ ] Incorporation of MD simulations (with ASE).
   - [ ] Drop random nodes to simulate defects.
-- [ ] Cleaning and merging the Aflow, MP and GNoMe datasets and upload it somewhere.
 
 **Graph Creation Optimization:**
 
 - [x] Improvement of the feature computation speed.
-- [ ] Efficient KNN graph construction.
-- [ ] Flexible graph factory for better maintainability.
-- [ ] Create the subgraphs on-the-fly to avoid large memory usage (this will permit the user to tune the memory usage with the number of workers)
+- [x] Efficient KNN graph construction.
+- [x] Flexible graph factory for better maintainability.
+- [x] Create the graphs on-the-fly to avoid large memory usage.
+- [x] Collate and save the whole graph dataset to load it later.
 
 **Additional Enhancements:**
 
