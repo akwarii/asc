@@ -26,7 +26,7 @@ def check_integrity(fpaths: Sequence[PathLike], checksums: Sequence[str | None])
     for fpath, md5 in zip_longest(fpaths, checksums):
         if isinstance(fpath, str):
             fpath = Path(fpath)
-        
+
         if not fpath.is_file():
             return False
         if md5 is None:

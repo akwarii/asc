@@ -1,6 +1,8 @@
+from typing import Any
+
 import torch
 
-from src.data import _REPR_INDENT
+from src.utils.constants import REPR_INDENT
 
 __all__ = [
     "Compose",
@@ -21,12 +23,10 @@ class Compose:
         >>> ])
     """
 
-    _repr_indent = _REPR_INDENT
-
-    def __init__(self, transforms):
+    def __init__(self, transforms) -> None:
         self.transforms = transforms
 
-    def __call__(self, data_object):
+    def __call__(self, data_object) -> Any:
         for t in self.transforms:
             data_object = t(data_object)
         return data_object
@@ -34,7 +34,7 @@ class Compose:
     def __repr__(self) -> str:
         format_string = f"{self.__class__.__name__}(\n"
         for t in self.transforms:
-            format_string += " " * self._repr_indent + f"{t}\n"
+            format_string += " " * REPR_INDENT + f"{t}\n"
         format_string += ")"
         return format_string
 
@@ -96,7 +96,7 @@ class Normalize(torch.nn.Module):
 
     def state_dict(self) -> dict[str, float]:
         """Return the state of the normalization transformation."""
-        return {"mean": self.mean, "std": self.std}
+        return {"mean": self.mean, "std": self.std}  # type: ignore
 
     def load_state_dict(self, state_dict: dict[str, float]) -> None:
         """Load the state of the normalization transformation.
