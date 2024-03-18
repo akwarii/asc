@@ -1,13 +1,13 @@
 from collections.abc import Sequence
-from typing import Any, Literal
+from typing import Any
 
 import torch
 from lightning import LightningDataModule
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, random_split
 
-from src.data import _REPR_INDENT
 import src.data.datasets as datasets
 from src.data import transforms as T
+from src.utils.constants import REPR_INDENT
 from src.utils.typing import PathLike, StageType
 
 DATASET_MAP = {
@@ -15,12 +15,18 @@ DATASET_MAP = {
     "mp": datasets.MaterialProject,
     "gnome": datasets.Gnome,
     "csg": datasets.CSG,
-    "in_memory": datasets.InMemoryDataset,
+    "custom": datasets.PymatgenDataset,
 }
 
 
+# These lines are (sadly) needed to avoid pyright errors due to the use of self.hparams
+# pyright: reportAttributeAccessIssue=false
+# pyright: reportAssignmentType=false
+# pyright: reportArgumentType=false
+# pyright: reportOptionalIterable=false
 # TODO add collate_fn to dataloader
-# TODO add neighbor sampler
+# TODO integrate dynamic batch and imbalanced sampling
+# TODO integrate node loader
 class CEGANNDataModule(LightningDataModule):
     """CEGANNDataModule is a LightningDataModule subclass that provides data loading and processing
     functionality for the CEGANN model.
@@ -40,6 +46,7 @@ class CEGANNDataModule(LightningDataModule):
         batch_size (int, optional): The batch size for data loading. Defaults to 64.
         num_workers (int, optional): The number of workers for data loading. Defaults to 0.
         pin_memory (bool, optional): Whether to pin memory for faster data transfer. Defaults to False.
+        seed (int, optional): The seed to use for the random split. Defaults to 42.
         **kwargs: Additional keyword arguments.
 
     Methods:
@@ -62,8 +69,6 @@ class CEGANNDataModule(LightningDataModule):
         __repr__: Return a string representation of the datamodule.
     """
 
-    _repr_indent = _REPR_INDENT
-
     def __init__(
         self,
         root: PathLike = "data",
@@ -71,16 +76,18 @@ class CEGANNDataModule(LightningDataModule):
         train_val_test_split: tuple[int, int, int] | tuple[float, float, float] = (0.8, 0.1, 0.1),
         transforms: Sequence[Any] | None = None,
         struct_transforms: Sequence[Any] | None = None,
+        sampler: Any | None = None,
         batch_size: int = 64,
         num_workers: int = 0,
         pin_memory: bool = False,
+        seed: int = 42,
         **kwargs,
     ) -> None:
         super().__init__()
-        
+
         if isinstance(datasets, str):
             datasets = [datasets]
-            
+
         if any(dataset not in DATASET_MAP for dataset in datasets):
             raise ValueError(f"Invalid dataset. Available datasets are {list(DATASET_MAP.keys())}")
 
@@ -113,8 +120,10 @@ class CEGANNDataModule(LightningDataModule):
         # Once setup has been called, either `self.data_train` or `self.data_predict` will be set
         if self.data_train:
             return len(self.data_train.classes)
-        if self.data_predict:
+        elif self.data_predict:
             return len(self.data_predict.classes)
+        else:
+            return None
 
     def prepare_data(self) -> None:
         """Safely download and save the dataset.
@@ -123,7 +132,7 @@ class CEGANNDataModule(LightningDataModule):
         In case of multi-node training, the execution of this hook depends upon `prepare_data_per_node`.
         """
         for dataset in self.hparams.datasets:
-            DATASET_MAP[dataset](self.hparams.root, download=True, load=False)
+            DATASET_MAP[dataset](self.hparams.root, download=True)
 
     def setup(self, stage: StageType) -> None:
         """Load data in memory. If stage is either `"fit"`, `"validate"` or `"test"`, then
@@ -152,7 +161,7 @@ class CEGANNDataModule(LightningDataModule):
             self.data_train, self.data_val, self.data_test = random_split(
                 dataset=dataset,
                 lengths=self.hparams.train_val_test_split,
-                generator=torch.Generator().manual_seed(42),
+                generator=torch.Generator().manual_seed(self.hparams.seed),
             )
 
         if stage == "predict":
@@ -224,6 +233,21 @@ class CEGANNDataModule(LightningDataModule):
             shuffle=False,
         )
 
+    def on_before_batch_transfer(self, batch: Any, dataloader_idx: int) -> Any:
+        """Apply batch augmentations to the batch before it is transferred to the device.
+        Both the structure and the data transformations are applied (in this order).
+        
+        Args:
+            batch: The batch to augment.
+            dataloader_idx: The index of the dataloader.
+        """
+        if self.trainer.training:  # type: ignore
+            if self.struct_transforms is not None:
+                batch = self.struct_transforms(batch)
+            if self.transforms is not None:
+                batch = self.transforms(batch)
+        return batch
+
     def teardown(self, stage: StageType) -> None:
         """Cleans up the data after a specific stage. Note that the test dataloader is the last to
         be used before performing predictions. Meaning that if the stage is `"test"`, then
@@ -242,80 +266,9 @@ class CEGANNDataModule(LightningDataModule):
         if stage == "predict":
             self.data_predict = None
 
-    def transfer_batch_to_device(
-        self, batch: Any, device: torch.device, dataloader_idx: int
-    ) -> Any:
-        """Override this hook if your DataLoader returns tensors wrapped in a custom data
-        structure. The data types listed below (and any arbitrary nesting of them) are supported
-        out of the box: `torch.Tensor` or anything that implements .to(…) `list` `dict` `tuple` For
-        anything else, you need to define how the data is moved to the target device (CPU, GPU,
-        TPU, …).
-
-        Args:
-            batch: The output of the DataLoader.
-            device: The target device.
-            dataloader_idx: The index of the DataLoader producing the batch.
-
-        Returns:
-            The batch after applying the batch augmentations.
-        """
-        return super().transfer_batch_to_device(batch, device, dataloader_idx)
-
-    def on_before_batch_transfer(self, batch: Any, dataloader_idx: int) -> Any:
-        """Override to alter or apply batch augmentations to your batch before it is transferred to
-        the device.
-
-        Args:
-            batch: The output of the DataLoader.
-            dataloader_idx: The index of the DataLoader producing the batch.
-
-        Returns:
-            The batch after applying the batch augmentations.
-        """
-        return super().on_before_batch_transfer(batch, dataloader_idx)
-
-    def on_after_batch_transfer(self, batch: Any, dataloader_idx: int) -> Any:
-        """Override to alter or apply batch augmentations to your batch after it is transferred to
-        the device.
-
-        Args:
-            batch: The output of the DataLoader.
-            dataloader_idx: The index of the DataLoader producing the batch.
-
-        Returns:
-            The batch after applying the batch augmentations.
-        """
-        return super().on_after_batch_transfer(batch, dataloader_idx)
-
-    def state_dict(self) -> dict[Any, Any]:
-        """Called when saving a checkpoint. Implement to generate and save the datamodule state.
-
-        Returns:
-            A dictionary containing the datamodule state that you want to save.
-        """
-        return {}
-
-    def load_state_dict(self, state_dict: dict[str, Any]) -> None:
-        """Called when loading a checkpoint. Implement to reload datamodule state given datamodule
-        `state_dict()`.
-
-        Args:
-            state_dict: The datamodule state returned by `self.state_dict()`.
-        """
-        pass
-
     def __repr__(self) -> str:
-        # TODO check it's complete
         format_string = f"{self.__class__.__name__}(\n"
         for k, v in self.hparams.items():
             if v is not None:
-                format_string += " " * self._repr_indent + f"{k}={v}\n"
+                format_string += " " * REPR_INDENT + f"{k}={v}\n"
         return format_string + ")"
-
-
-def kwargs_repr(**kwargs: Any) -> str:
-    return ", ".join([f"{k}={v}" for k, v in kwargs.items() if v is not None])
-
-
-if __name__ == "__main__":
-    CEGANNDataModule()
