@@ -4,8 +4,8 @@ from typing import Any
 
 from torch.utils.data import Dataset
 
-from src.data import _REPR_INDENT
 from src.processing.graph import KNNGraph
+from src.utils.constants import REPR_INDENT
 from src.utils.typing import PathLike
 
 
@@ -23,7 +23,6 @@ class GraphDataset(Dataset):
             target and transforms it.
     """
 
-    _repr_indent = _REPR_INDENT
     resources = []
 
     def __init__(
@@ -67,7 +66,7 @@ class GraphDataset(Dataset):
         body += self.extra_repr().splitlines()
         if hasattr(self, "transform") and self.transform is not None:
             body += [repr(self.transform)]
-        lines = [head] + [" " * self._repr_indent + line for line in body]
+        lines = [head] + [" " * REPR_INDENT + line for line in body]
         return "\n".join(lines)
 
     @property

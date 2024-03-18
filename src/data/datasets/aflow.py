@@ -10,6 +10,7 @@ from tqdm.auto import tqdm
 from src.api import AflowAPI
 from src.data.datasets.base import GraphDataset
 from src.data.datasets.utils import poscar_from_entry
+from src.utils.constants import AFLOW_CLASSES
 
 
 class Aflow(GraphDataset):
@@ -38,8 +39,7 @@ class Aflow(GraphDataset):
     """
 
     API = AflowAPI()
-
-    classes = list(range(1, 231))  # space groups numbers
+    classes = AFLOW_CLASSES
 
     resources = [f"data_{class_idx}.json" for class_idx in classes]
 

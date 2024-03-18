@@ -8,6 +8,7 @@ from torch_geometric.data import Data
 
 from src.data.datasets.base import GraphDataset
 from src.data.datasets.utils import check_integrity
+from src.utils.constants import CSG_CLASSES
 
 
 class CSG(GraphDataset):
@@ -51,7 +52,7 @@ class CSG(GraphDataset):
     KAGGLE_DATASET = "gaelhuynh/space-group"
     API = KaggleApi()
 
-    classes = list(range(1, 231))  # TODO refine classes
+    classes = CSG_CLASSES
 
     resources = ("CSG.csv",)
     md5_checksums = ("685236d6e7fd6677d3dd809897ecb393",)

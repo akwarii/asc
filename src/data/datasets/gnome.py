@@ -13,6 +13,7 @@
 # limitations under the License.
 import os
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 from zipfile import ZipFile
 
@@ -21,6 +22,7 @@ import requests
 from pymatgen.core import Structure
 
 from src.data.datasets.base import GraphDataset
+from src.utils.constants import GNOME_CLASSES
 from src.utils.typing import PathLike
 
 
@@ -69,7 +71,7 @@ class Gnome(GraphDataset):
     _BUCKET_NAME = "gdm_materials_discovery"
     _FOLDER_NAME = "gnome_data"
 
-    classes = list(range(1, 231))  # TODO refine classes
+    classes = GNOME_CLASSES
 
     # Note that other datasets exists in the same bucket
     resources = (
@@ -99,11 +101,7 @@ class Gnome(GraphDataset):
     def __getitem__(self, index: int) -> tuple[Any, Any]:
         fname, target = self.data[index], self.targets[index]
 
-        with ZipFile(self.raw_folder / "by_id.zip", "r") as zip_ref:
-            with zip_ref.open(fname) as file:
-                cif = file.read().decode("utf-8")
-
-        struct = Structure.from_str(cif, fmt="cif")
+        struct = Structure.from_file(fname, fmt="cif")
         if self.struct_transform is not None:
             struct = self.struct_transform(struct)
 
@@ -119,18 +117,20 @@ class Gnome(GraphDataset):
     def __len__(self) -> int:
         return len(self.data)
 
-    # TODO: efficient implementation of _load_data
-    # as of now, there is a mismatch between the data and targets
-    def load(self) -> tuple[list[str], list[int]]:
+    def load(self) -> tuple[list[Path], list[int]]:
         df = pd.read_csv(self.raw_folder / "stable_materials_summary.csv")
         targets = df["Space Group Number"].values.tolist()
 
         # Load the zip file and extract the contents
         data = []
-        with ZipFile(self.raw_folder / "by_id.zip", "r") as zip_ref:
-            data = [f for f in zip_ref.namelist() if f.endswith(".CIF")]
+        unzipped_folder = self.raw_folder / "by_id"
+        if not unzipped_folder.exists():
+            with ZipFile(self.raw_folder / "by_id.zip", "r") as zip:
+                zip.extractall(self.raw_folder)
 
-        # assert len(data) == len(targets), "Data and targets length mismatch"
+        # Filter out the files that are not in the stable materials summary.
+        # This is to ensure that the data and targets are aligned (not the case for the original dataset)
+        data = [unzipped_folder / f"{fid}.CIF" for fid in df["MaterialId"].to_list()]
 
         return data, targets
 

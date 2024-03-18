@@ -10,6 +10,7 @@ from tqdm.auto import tqdm
 
 from src.data.datasets.base import GraphDataset
 from src.processing.graph import KNNGraph
+from src.utils.constants import MP_CLASSES
 
 
 class MaterialProject(GraphDataset):
@@ -43,7 +44,7 @@ class MaterialProject(GraphDataset):
     API_KEY = get_key(_dotenv_path, _dotenv_key)
     API = MPRester(API_KEY, mute_progress_bars=True, use_document_model=False)
 
-    classes = list(range(1, 231))  # space groups numbers
+    classes = MP_CLASSES
 
     resources = [f"data_{class_idx}.json" for class_idx in classes]
 
@@ -139,11 +140,11 @@ class MaterialProject(GraphDataset):
 
             filtered_data = [
                 {
-                    "structure": entry["structure"].to(fmt="poscar"),
-                    "spacegroup": entry["symmetry"]["number"],
+                    "structure": entry["structure"].to(fmt="poscar"),  # type: ignore
+                    "spacegroup": entry["symmetry"]["number"],  # type: ignore
                 }
                 for entry in docs
-                if not entry["deprecated"] and not entry["warnings"]
+                if not entry["deprecated"] and not entry["warnings"]  # type: ignore
             ]
 
             with open(file, "w") as f:
