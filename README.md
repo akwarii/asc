@@ -108,34 +108,38 @@ _For more examples, please refer to the [Documentation](https://example.com)_
   - [ ] Trainer for optimal hyperparameter tuning and training execution.
 - [ ] Transition from pure PyTorch to PyG
   - [x] Sparse graphs
-  - [ ] Neighbour sampler to enable mini-batching
-  - [ ] Conv modules
-  - [ ] Model compilation
+  - [ ] Neighbour loader to enable inference on large graphs
+  - [ ] Dynamic batch sampling yo train the model on graphs with variable number of nodes without OOM
+  - [ ] Change existing modules to PyG MessagePassing subclass
+  - [ ] Model compilation, out of the box with PyG >= 2.4
 
 **Model Optimizations:**
 
-- [x] Adoption of GATv2 attention mechanism.
-- [x] Replacement of LayerNorm with GraphNorm for enhanced graph data handling.
-- [x] Planned RBF optimization for potentially improved performance.
-- [x] Integration of Angular Basis Function inspired by GemNet and DimeNet for potentially improved feature representation.
+- [x] GATv2 attention mechanism
+- [x] Looking for a better normalization than LayerNorm
+- [x] Radial basis
+  - [x] Gaussian expansion
+  - [x] Circular Bessel expansion
+- [x] Angular Basis Function inspired by eg. GemNet and DimeNet
+  - [x] Gaussian expansion
+  - [x] Spherical harmonics (m=0)
 
 **Datasets**
 
-- [x] Aflow data with a custom API wrapper.
-- [x] Material Project data (need an API key).
-- [x] GNoMe summary dataset.
-- [x] Cleaning and merging the mentioned datasets and upload it to Kaggle.
-- [ ] User-defined dataset for structures readable by pymatgen.
-- [ ] In memory dataset, mostly to load previously saved Data objects
+- [x] Aflow data with a custom API wrapper
+- [x] Material Project data
+- [x] GNoMe summary dataset
+- [x] Cleaning and merging the mentioned datasets and upload it to Kaggle
+- [x] User-defined dataset for structures readable by pymatgen
 
 **Data augmentation/transformations**
 
 - [x] Data transformations techniques:
-  - [x] Normalization transformation.
-  - [ ] Tags to remove atoms from structure
+  - [x] Normalization transformation
+  - [ ] Tags to remove atoms from structure (pre-transformation)
 - [ ] Data augmentation techniques:
-  - [ ] Incorporation of Gaussian noise (with ASE).
-  - [ ] Incorporation of MD simulations (with ASE).
+  - [ ] Incorporation of Gaussian noise (with ASE)
+  - [ ] Incorporation of MD simulations (with ASE)
   - [ ] Drop random nodes to simulate defects.
 
 **Graph Creation Optimization:**
