@@ -22,7 +22,6 @@ class MaterialProject(GraphDataset):
         struct_transform (Callable | None): A function/transform that takes in a structure and returns a transformed version.
         target_transform (Callable | None): A function/transform that takes in a target and returns a transformed version.
         download (bool): Whether to download the dataset if it doesn't exist.
-        load (bool): Whether to load the dataset.
         **graph_kwargs: Additional keyword arguments to be passed to the Graph class.
 
     Attributes:
