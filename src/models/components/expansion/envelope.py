@@ -46,7 +46,7 @@ class PolynomialEnvelope(torch.nn.Module):
         self.degree = degree
 
     @cached_property
-    def _coeffs(self) -> tuple[float]:
+    def _coeffs(self) -> tuple[float, ...]:
         d = float(self.degree)
         a = -(d + 1) * (d + 2) / 2
         b = d * (d + 2)
