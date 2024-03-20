@@ -3,7 +3,7 @@ from typing import Any
 
 import torch
 
-from .envelope import DummyEnvelope, ExponentialEnvelope, PolynomialEnvelope
+from .envelope import ExponentialEnvelope, PolynomialEnvelope
 
 
 class GaussianBasis(torch.nn.Module):
@@ -85,11 +85,9 @@ RADIAL_FUNCTIONS = {
 ENVELOPE_FUNCTIONS = {
     "exponential": ExponentialEnvelope,
     "polynomial": PolynomialEnvelope,
-    "dummy": DummyEnvelope,
 }
 
 
-# TODO use envelope and expansion factories and use the default values if not provided here
 class RadialBasisExpansion(torch.nn.Module):
     """Radial basis expansion module. This module can be used either as the radial part of the
     3-body basis expansion or as the 2-body basis expansion.
@@ -116,21 +114,24 @@ class RadialBasisExpansion(torch.nn.Module):
 
         self.icutoff = 1 / cutoff
 
-        if envelope is None:
-            envelope = "dummy"
         if envelope_kwargs is None:
             envelope_kwargs = {}
-        if envelope not in ENVELOPE_FUNCTIONS:
-            raise ValueError(
-                f"Unknown envelope function '{envelope}'. Available options are {ENVELOPE_FUNCTIONS.keys()}."
-            )
 
-        self.envelope = ENVELOPE_FUNCTIONS[envelope](**envelope_kwargs)
+        if envelope is None:
+            self.envelope = None
+        elif envelope in ENVELOPE_FUNCTIONS:
+            self.envelope = ENVELOPE_FUNCTIONS[envelope](**envelope_kwargs)
+        else:
+            raise ValueError(
+                f"Unknown envelope function '{envelope}'. Available options are {ENVELOPE_FUNCTIONS.keys()} or None."
+            )
 
         if expansion_kwargs is None:
             expansion_kwargs = {}
         if expansion not in RADIAL_FUNCTIONS:
-            raise ValueError(f"Unknown expansion function '{expansion}'.")
+            raise ValueError(
+                f"Unknown expansion function '{expansion}'. Available options are {RADIAL_FUNCTIONS.keys()}."
+            )
 
         self.expansion = RADIAL_FUNCTIONS[expansion](
             num_radial=num_radial,
@@ -151,5 +152,9 @@ class RadialBasisExpansion(torch.nn.Module):
                 The output tensor is of shape (len(dist), num_radial).
         """
         d_scaled = dist * self.icutoff
+
+        if self.envelope is None:
+            return self.expansion(d_scaled)
+
         env = self.envelope(d_scaled)
         return self.expansion(d_scaled) * env[:, None]

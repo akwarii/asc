@@ -67,22 +67,3 @@ class PolynomialEnvelope(torch.nn.Module):
             + c * d_scaled ** (self.degree + 2)
         )
         return torch.where(d_scaled < 1, env, torch.zeros_like(d_scaled))
-
-
-class DummyEnvelope(torch.nn.Module):
-    """Dummy envelope function that does not apply any envelope.
-
-    Using this envelope function is equivalent to using no envelope, meaning the bases
-    orthonormality is conserved.
-    """
-
-    def __init__(self) -> None:
-        super().__init__()
-
-    def forward(self, d_scaled: torch.Tensor) -> torch.Tensor:
-        """Forward pass of the dummy envelope function.
-
-        Args:
-            d_scaled (torch.Tensor): The scaled distance tensor.
-        """
-        return torch.ones_like(d_scaled)

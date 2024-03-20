@@ -41,7 +41,6 @@ ANGULAR_FUNCTIONS = {
 }
 
 
-# TODO use envelope and expansion factories and use the default values if not provided here
 class AngularBasisExpansion(torch.nn.Module):
     def __init__(
         self,
