@@ -145,7 +145,7 @@ if __name__ == "__main__":
     from utils import load_dataset, load_settings
 
     dataset_path = "example/train"
-    settings = load_settings("config/test_config.yaml")
+    settings = load_settings("configs/test_config.yaml")
     graphs = load_dataset(dataset_path, settings)
     print(graphs.graphs[0].edge_features.shape)
     print(graphs.graphs[0].neighbor_list.shape)

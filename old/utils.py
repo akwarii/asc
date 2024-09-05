@@ -71,8 +71,8 @@ def load_settings(config_file: str | Path | None = "custom_config.yaml") -> Sett
             custom_dict = full_load(file)
             settings = Settings(**custom_dict)
     else:
-        print("No custom config found, using default settings")
-        logging.warning("No custom config found, using default settings")
+        print("No custom configs found, using default settings")
+        logging.warning("No custom configs found, using default settings")
         settings = Settings()
 
     return settings
