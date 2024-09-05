@@ -13,7 +13,6 @@
 [![contributors](https://img.shields.io/github/contributors/akwarii/Lightning-CEGANN2.svg)](https://github.com/akwarii/Lightning-CEGANN2/contributors)
 
 <!-- TABLE OF CONTENTS -->
-
 <details>
   <summary>Table of Contents</summary>
   <ol>
@@ -40,63 +39,158 @@
 </details>
 
 <!-- ABOUT THE PROJECT -->
-
 ## About The Project
 
 This work introduces Lightning-CEGANNv2, a novel implementation of a modified Crystal Edge Graph Attention Neural Network (CEGANN) leveraging the modularity and efficiency of the Lightning framework. This research aims to enhance the original CEGANN architecture and data handling pipeline for improved performance and flexibility. The original CEGANN architecture can be found here: <a href="https://www.nature.com/articles/s41524-023-00975-z">CEGANN: Crystal Edge Graph Attention Neural Network for multiscale classification of materials environment</a>
 
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+
+<!-- EXPERIMENTS -->
+<!-- TODO This should be removed in the future -->
+## Experiments
+
+- Local classification of individual space groups within the material.
+- Simultaneous classification of both space groups and grain boundaries within the material.
+
+### Experimental Guidelines
+
+1. Begin with space groups relevant to the target material (e.g., zirconia).
+2. Introduce grain boundaries into the data repository for the combined experiment.
+3. Aim to classify all 230 space groups, prioritizing well-converged structures from the Material Project.
+4. Extend to grain boundary classification if initial space group classification proves successful.
+
+This research presents Lightning-CEGANN2 as a modular and optimized implementation with novel enhancements to the architecture and data handling pipeline. Future work will focus on completing planned developments, conducting comprehensive experiments, and evaluating the effectiveness of the proposed improvements.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- Main Technologies -->
+## Main Technologies
+
+[PyTorch Lightning](https://github.com/Lightning-AI/pytorch-lightning) - a lightweight PyTorch wrapper made to avoid boilerplate code and improve reproductibility.
+
+[PyTorch Geometric](https://github.com/pyg-team/pytorch_geometric) - a flexible library build upon PyTorch to easily handle Graph Neural Networks.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 <!-- GETTING STARTED -->
-
-<!-- TODO Write Getting Started -->
-
 ## Getting Started
-
-This is an example of how you may give instructions on setting up your project locally.
-To get a local copy up and running follow these simple example steps.
 
 ### Prerequisites
 
-This is an example of how to list things you need to use the software and how to install them.
-
-- npm
-  ```sh
-  npm install npm@latest -g
-  ```
+- [Python](https://www.python.org/) 3.8 and newer
+- (OPTIONAL) [Ovito](https://www.ovito.org/) (to visualize the classification results)
 
 ### Installation
 
-_Below is an example of how you can instruct your audience on installing and setting up your app. This template doesn't rely on any external dependencies or services._
+#### Pip
+```bash
+# Clone the repo
+git clone https://github.com/akwarii/Lightning-CEGANN2.git
+cd Lightning-CEGANN2
 
-1. Get a free API Key at [https://example.com](https://example.com)
-2. Clone the repo
-   ```sh
-   git clone https://github.com/your_username_/Project-Name.git
-   ```
-3. Install NPM packages
-   ```sh
-   npm install
-   ```
-4. Enter your API in `config.js`
-   ```js
-   const API_KEY = 'ENTER YOUR API';
-   ```
+# (OPTIONAL) Create a conda environment
+conda create -n cegann
+conda activate cegann
+
+# Install the requirements
+pip install -r requirements.txt
+```
+
+### Conda
+
+*The environment.yaml file is not ready to use, please use pip*
+```bash
+# Clone the repo
+git clone https://github.com/akwarii/Lightning-CEGANN2.git
+cd Lightning-CEGANN2
+
+# (OPTIONAL) Create a conda environment
+conda create -f environment.yaml -n cegann
+conda activate cegann
+```
+
+### Get your free API keys (optional)
+**Materials Project**: If you intend to use the Materials Project dataset, get your API key [here](https://next-gen.materialsproject.org/api#api-key)
+
+**Crystal Space Group**: To use our preprocessed dataset build upon Materials Project, AFLOW and GNoME databases, you need Kaggle account
+
+ 1. Create an account on the [Kaggle website](https://www.kaggle.com/)
+ 2. Go to your [User profile](https://www.kaggle.com/settings/account) and click on `Create New Token`
+ 3. Move the downloaded `kaggle.json` file to the `$HOME/.kaggle` folder (if needed, create it with `mkdir $HOME/.kaggle`)
+
+Once you got your credentials, create a `.env` file (using `cp .env.example .env` for example) and enter your credentials. Remember to not share this file with others.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- USAGE EXAMPLES -->
+## Usage
 
 <!-- TODO Write Examples -->
 
-## Usage
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-Use this space to show useful examples of how a project can be used. Additional screenshots, code examples and demos work well in this space. You may also link to more resources.
 
-_For more examples, please refer to the [Documentation](https://example.com)_
+<!-- Project Structure -->
+## Project structure
+
+The project is currently organized as follow:
+```
+├── .github                       <- Github Actions workflow
+│
+├── configs                       <- Configs to use to train / test models
+│
+├── data                          <- Project data (dowloaded data will be here)
+│
+├── logs                          <- Logs generated by Lightning loggers
+│
+├── notebooks                     <- Examples notebooks can be found here
+│
+├── old                           <- TO REMOVE, just for reference
+│
+├── src                           <- Source code
+│   ├── api                           <- AFLOW API wrapper
+│   │
+│   ├── data                          <- Data scripts
+│   │   ├── augmentation                  <- Data augmentation (after graph transformations)
+│   │   ├── datasets                      <- Datasets definition
+│   │   ├── pyg_data                      <- TEMPORARY FOLDER, work in progress to handle PyG data with Lightning
+│   │   ├── sampler                       <- Node sampling methods
+│   │   ├── transforms                    <- Transformation to apply to the graphs (before augmentation)
+│   │   │
+│   │   └── cegann_datamodule.py          <- Contains the LightningDataModule
+│   │
+│   ├── models                        <- Model scripts
+│   │   ├── components                    <-
+│   │   │   ├── expansion                     <- Basis expansion blocks
+│   │   │   ├── layers                        <- Building blocks of the models
+│   │   │   │
+│   │   │   └── cegann.py                     <- CEGANN model definition
+│   │   │
+│   │   └── cegann_module.py            <- Contains the LightningModule
+│   │
+│   ├── processing                    <- Graph processing
+│   │
+│   ├── utils                         <- Utilities scripts such (eg constants definition)
+│   │
+│   ├── eval.py                       <- Handles model evaluation
+│   └── train.py                      <- Handles model training
+│
+├── tests                         <- Unit tests
+│
+├── .env.example                  <- Example of file for storing API credentials
+├── .gitignore                    <- List of files ignored by git
+├── .pre-commit-config.yaml       <- pre-commit hooks for code formatting
+├── environment.yml               <- File to install the conda environment
+├── LICENSE                       <- License file
+├── Makefile                      <- Makefile with useful command shortcuts
+├── requirements.txt              <- File to install python dependencies
+└── README.md
+```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- ROADMAP -->
-
 ## Roadmap
 
 **Code and Framework:**
@@ -109,20 +203,23 @@ _For more examples, please refer to the [Documentation](https://example.com)_
 - [ ] Transition from pure PyTorch to PyG
   - [x] Sparse graphs
   - [ ] Neighbour loader to enable inference on large graphs
-  - [ ] Dynamic batch sampling yo train the model on graphs with variable number of nodes without OOM
+  - [ ] Dynamic batch sampling to train the model on graphs with variable number of nodes without OOM
   - [ ] Change existing modules to PyG MessagePassing subclass
-  - [ ] Model compilation, out of the box with PyG >= 2.4
+- [ ] Model compilation
 
 **Model Optimizations:**
 
 - [x] GATv2 attention mechanism
-- [x] Looking for a better normalization than LayerNorm
+- [ ] Looking for a better normalization than LayerNorm
 - [x] Radial basis
   - [x] Gaussian expansion
   - [x] Circular Bessel expansion
 - [x] Angular Basis Function inspired by eg. GemNet and DimeNet
   - [x] Gaussian expansion
   - [x] Spherical harmonics (m=0)
+- [x] Envelope for smooth cutoff, user can to disable it
+  - [x] Exponential
+  - [x] Polynomial
 
 **Datasets**
 
@@ -154,42 +251,35 @@ _For more examples, please refer to the [Documentation](https://example.com)_
 
 - [ ] Integration of Optuna for efficient hyperparameter tuning and model pruning.
 - [ ] Implementation of at least one comprehensive logging system (Neptune/TensorBoard/Wandb) for detailed analysis and reproducibility.
-- [ ] Creation of a user-friendly command-line interface (CLI) based on argparse for ease of use.
+- [ ] Use of a config file to make use of e.g., Hydra + Submitit
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-<!-- EXPERIMENTS -->
+<!-- CONTRIBUTING -->
+<!-- TODO Add more details to the contribution guideline -->
+## Contributing
 
-<!-- TODO This should be removed in the future -->
-
-## Experiments
-
-- Local classification of individual space groups within the material.
-- Simultaneous classification of both space groups and grain boundaries within the material.
-
-### Experimental Guidelines
-
-1. Begin with space groups relevant to the target material (e.g., zirconia).
-2. Introduce grain boundaries into the data repository for the combined experiment.
-3. Aim to classify all 230 space groups, prioritizing well-converged structures from the Material Project.
-4. Extend to grain boundary classification if initial space group classification proves successful.
-
-This research presents Lightning-CEGANN2 as a modular and optimized implementation with novel enhancements to the architecture and data handling pipeline. Future work will focus on completing planned developments, conducting comprehensive experiments, and evaluating the effectiveness of the proposed improvements.
+Follow the generic coding conventions defined in [PEP8](https://peps.python.org/pep-0008/).
+Run pre-commit before submitting a PR by running `make format`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- HOW TO CITE -->
-
-<!-- TODO Add citation -->
-
+<!-- TODO Add reference -->
 ## How to cite
 
 If you use `Lightning-CEGANNv2` in your research, please consider citing the following work:
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-<!-- CONTACT -->
+<!-- LICENSE -->
+## License
 
+Distributed under the GNU GPLv3 License. See `LICENSE.txt` for more information.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- CONTACT -->
 ## Contact
 
 If you have any questions, please contact one of the contributors below:
@@ -207,13 +297,5 @@ If you found a bug or want to request a new feature, please create a new
 [GitHub Issues](https://github.com/akwarii/Lightning-CEGANN2/issues)
 
 Project Link: [https://github.com/akwarii/Lightning-CEGANN2](https://github.com/akwarii/Lightning-CEGANN2)
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- LICENSE -->
-
-## License
-
-Distributed under the GNU GPLv3 License. See `LICENSE.txt` for more information.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
