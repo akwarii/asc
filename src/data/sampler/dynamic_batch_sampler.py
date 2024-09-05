@@ -1,19 +1,18 @@
-from typing import Iterator
+from collections.abc import Iterator
 
 from torch.utils.data.sampler import Sampler
 from torch_geometric.data import Dataset
 
 
 class DynamicBatchSampler(Sampler):
-    r"""Dynamically adds samples to a mini-batch up to a maximum size (based
-    on number of nodes). When data samples have a wide range in sizes,
-    specifying a mini-batch size in terms of number of samples is not ideal
-    and can cause CUDA OOM errors.
+    """Dynamically adds samples to a mini-batch up to a maximum size (based on number of nodes).
+    When data samples have a wide range in sizes, specifying a mini-batch size in terms of number
+    of samples is not ideal and can cause CUDA OOM errors.
 
-    Within the :class:`DynamicBatchSampler`, the number of steps per epoch is
+    Within the `DynamicBatchSampler`, the number of steps per epoch is
     ambiguous, depending on the order of the samples. By default the
-    :meth:`__len__` will be undefined. This is fine for most cases but
-    progress bars will be infinite. Alternatively, :obj:`num_steps` can be
+    `__len__` will be undefined. This is fine for most cases but
+    progress bars will be infinite. Alternatively, `num_steps` can be
     supplied to cap the number of mini-batches produced by the sampler.
 
     .. code-block:: python
@@ -27,13 +26,14 @@ class DynamicBatchSampler(Sampler):
         dataset (Dataset): Dataset to sample from.
         max_num (int): Size of mini-batch to aim for in number of nodes or
             edges.
-        skip_too_big (bool, optional): If set to :obj:`True`, skip samples
-            which cannot fit in a batch by itself. (default: :obj:`False`)
+        skip_too_big (bool, optional): If set to `True`, skip samples
+            which cannot fit in a batch by itself. (default: `False`)
         num_steps (int, optional): The number of mini-batches to draw for a
-            single epoch. If set to :obj:`None`, will iterate through all the
-            underlying examples, but :meth:`__len__` will be :obj:`None` since
-            it is ambiguous. (default: :obj:`None`)
+            single epoch. If set to `None`, will iterate through all the
+            underlying examples, but `__len__` will be `None` since
+            it is ambiguous. (default: `None`)
     """
+
     def __init__(
         self,
         dataset: Dataset,
@@ -58,12 +58,11 @@ class DynamicBatchSampler(Sampler):
         num_steps: int = 0
         num_processed: int = 0
 
-        while (num_processed < len(self.dataset)
-               and num_steps < self.max_steps):
+        while num_processed < len(self.dataset) and num_steps < self.max_steps:
 
             for i in indices[num_processed:]:
-                data = self.dataset[i] # type: ignore
-                num: int = data.num_nodes # type: ignore
+                data = self.dataset[i]  # type: ignore
+                num: int = data.num_nodes  # type: ignore
 
                 if current_num + num > self.max_num:
                     if current_num == 0:
@@ -83,9 +82,11 @@ class DynamicBatchSampler(Sampler):
 
     def __len__(self) -> int:
         if self.num_steps is None:
-            raise ValueError(f"The length of '{self.__class__.__name__}' is "
-                             f"undefined since the number of steps per epoch "
-                             f"is ambiguous. Either specify `num_steps` or "
-                             f"use a static batch sampler.")
+            raise ValueError(
+                f"The length of '{self.__class__.__name__}' is "
+                f"undefined since the number of steps per epoch "
+                f"is ambiguous. Either specify `num_steps` or "
+                f"use a static batch sampler."
+            )
 
         return self.num_steps

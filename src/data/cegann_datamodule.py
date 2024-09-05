@@ -2,11 +2,11 @@ from collections.abc import Sequence
 from typing import Any
 
 import torch
+import torch_geometric.transforms as T
 from lightning import LightningDataModule
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, random_split
 
 import src.data.datasets as datasets
-from src.data import transforms as T
 from src.utils.constants import REPR_INDENT
 from src.utils.typing import PathLike, StageType
 
@@ -234,9 +234,9 @@ class CEGANNDataModule(LightningDataModule):
         )
 
     def on_before_batch_transfer(self, batch: Any, dataloader_idx: int) -> Any:
-        """Apply batch augmentations to the batch before it is transferred to the device.
-        Both the structure and the data transformations are applied (in this order).
-        
+        """Apply batch augmentations to the batch before it is transferred to the device. Both the
+        structure and the data transformations are applied (in this order).
+
         Args:
             batch: The batch to augment.
             dataloader_idx: The index of the dataloader.

@@ -26,10 +26,10 @@ class Compose:
     def __init__(self, transforms) -> None:
         self.transforms = transforms
 
-    def __call__(self, data_object) -> Any:
+    def __call__(self, data) -> Any:
         for t in self.transforms:
-            data_object = t(data_object)
-        return data_object
+            data = t(data)
+        return data
 
     def __repr__(self) -> str:
         format_string = f"{self.__class__.__name__}(\n"
