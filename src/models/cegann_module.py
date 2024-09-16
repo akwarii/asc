@@ -30,6 +30,8 @@ class CEGANNModule(LightningModule):
         self.save_hyperparameters(logger=False, ignore=["model", "criterion", "metrics"])
 
         # TODO add model compilation
+        # DB : https://lightning.ai/docs/pytorch/latest/advanced/compile.html
+        # DB : https://lightning.ai/docs/pytorch/latest/common/lightning_module.html
         self.model = model
         self.optimizer = optimizer
         self.scheduler = scheduler
