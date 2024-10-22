@@ -117,6 +117,7 @@ class CEGANNDataModule(LightningDataModule):
 
         If the dataset is not loaded, return None.
         """
+        # TODO: Change the function as self.data_xxxx are Subsets, not Datasets and have different attributes
         # Once setup has been called, either `self.data_train` or `self.data_predict` will be set
         if self.data_train:
             return len(self.data_train.classes)

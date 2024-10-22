@@ -91,7 +91,7 @@ class KNNGraph:
                 raise FileNotFoundError(f"The file {struct_repr} does not exist.")
             struct = Structure.from_file(struct_repr)
         elif isinstance(struct_repr, Structure):
-            pass
+            struct=struct_repr # modified by DB (previously pass)
         else:
             raise ValueError("The input must be a pymatgen structure object, a string or a path.")
 
@@ -114,7 +114,8 @@ class KNNGraph:
             data (torch_geometric.data.Data): A torch geometic data object with positions, cell matrix,
                 edge index, edge distances and an optional mask.
         """
-        struct = self._to_pymatgen_struct(struct)
+        if isinstance(struct, str) or isinstance(struct, Path): # if added by DB
+            struct = self._to_pymatgen_struct(struct)
 
         edge_index, edge_distances = self._get_graph_data(struct)
         num_nodes = len(struct)
@@ -210,7 +211,7 @@ class KNNGraph:
         graphs = list(self.batch_conversion(structs, mask_struct_sites, progress_bar))
         data, slices = self.collate(graphs)
 
-        torch.save((data.to_dict(), slices), path)
+        torch.save((data.to_dict(), slices), path) 
 
     @staticmethod
     def collate(data_list: Sequence[Data]) -> tuple[Data, SliceDictType | None]:
