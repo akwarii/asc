@@ -237,10 +237,10 @@ The project is currently organized as follow:
 - [x] Data transformations techniques:
   - [x] Normalization transformation
   - [ ] Tags to remove atoms from structure (pre-transformation)
-- [ ] Data augmentation techniques:
+- [x] Data augmentation techniques:
   - [x] Incorporation of Gaussian noise (directly on graphs or with ASE).
   - [x] Incorporation random box expansion/compression (directly on graphs).
-  - [ ] Incorporation of MD simulations (with ASE)
+  - [ ] Incorporation of MD simulations (with ASE - postponed).
   - [x] Drop random nodes to simulate defects (directly on graphs).
 
 **Graph Creation Optimization:**
