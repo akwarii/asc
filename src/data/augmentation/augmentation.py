@@ -6,8 +6,6 @@ import torch
 import itertools
 from torch_geometric.data import Data
 
-# TODO implement the gaussian noise augmentation
-# DB : https://wiki.fysik.dtu.dk/ase/ase/atoms.html#ase.Atoms.rattle
 class RandomDisplacement(torch.nn.Module):
     """Class to apply random displacement to atoms in structures.
     
