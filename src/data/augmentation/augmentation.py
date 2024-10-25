@@ -205,7 +205,7 @@ class RandomExpansion(torch.nn.Module):
         seed (int): Random seed (default=42).
     """
     def __init__(
-            self, 
+            self,
             stddev: float = 0.05, 
             seed: int = 42,
     ) -> None:
@@ -246,6 +246,92 @@ class RandomExpansion(torch.nn.Module):
              pbar.close()
 
         return scaled_graphs
+
+class RandomNodeDrop(torch.nn.Module):
+    """Class to apply random node dropout to boxes.
+    
+    Randomly drops every node of a graph with probability p.
+    This mimics crystalline defects in units cells (without
+    relaxation).
+    
+    Args:
+        p (float): dropout probability in [0.,1.] (default=0.05).
+        seed (int): Random seed (default=42).
+    """
+    def __init__(
+            self, 
+             p: float = 0.05, 
+            seed: int = 42,
+    ) -> None:
+        super().__init__()
+        self.p = p
+        self.seed = seed
+        self.rng = np.random.RandomState(seed=self.seed)
+
+    def forward(
+        self, 
+        x: Sequence[Data],
+        keep_undropped: bool=False,
+        progress_bar: bool=True
+    ) -> Sequence[Data] :
+        
+        if progress_bar :
+            from tqdm import tqdm
+            pbar = tqdm(total=len(list(x)), # fastest according to A. Bogdanov and mkrieger-1 on https://stackoverflow.com/questions/393053/length-of-generator-output
+                        desc="Augmenting data (random node drop)")
+        
+        dropped_graphs = []
+
+        for graph in x:
+
+            randDrops = self.rng.choice([0,1],
+                                        size=graph.num_nodes,
+                                        p=[self.p, 1.-self.p]) # 0 for drop, 1 for keep
+            dropout = np.where(randDrops==0)[0]
+            
+            if not any(dropout) :
+                if keep_undropped :
+                    dropped_graphs.append(
+                        Data(
+                            num_nodes=graph.num_nodes,
+                            pos=graph.pos,
+                            cell=graph.cell,
+                            edge_index=graph.edge_index,
+                            edge_dist=graph.edge_dist
+                        )
+                    ) 
+                if progress_bar : pbar.update(1)
+                continue # No dropout to apply, no need to duplicate the graph
+
+            # Updated nodes/positions
+            nodes_tokeep = np.where(randDrops)[0]
+            pos = graph.pos[nodes_tokeep]
+
+            # Need to remove edges involving the dropped nodes
+            edges_tokeep = []
+            for edge in range(graph.edge_index.size()[0]) :
+                if all(idx in nodes_tokeep for idx in graph.edge_index[edge]) :
+                    edges_tokeep.append(edge)
+            edge_index = graph.edge_index[edges_tokeep, :]
+            edge_dist = graph.edge_dist[edges_tokeep]
+
+            dropped_graphs.append(
+                Data(
+                    num_nodes=graph.num_nodes - np.size(dropout),
+                    pos=pos,
+                    cell=graph.cell,
+                    edge_index=edge_index,
+                    edge_dist=edge_dist
+                )
+            )
+
+            if progress_bar :
+                pbar.update(1)
+
+        if progress_bar :
+             pbar.close()
+
+        return dropped_graphs
 
 # TODO (maybe not?) implement molecular dynamics data augmentation
 # DB : https://wiki.fysik.dtu.dk/ase/ase/md.html#module-ase.md
