@@ -28,14 +28,15 @@ class RemoveAtoms(torch.nn.Module) :
     def __init__(
             self
     ) -> None :
-        super.__init__()
+        super().__init__()
 
     def forward(
         self,
         structs: Sequence[Structure] = [],
         species: Sequence[Sequence[str]] = [],
         masks: Sequence[Sequence[int]] = [],
-        indexes: Sequence[Sequence[int]] = []
+        indexes: Sequence[Sequence[int]] = [],
+        progress_bar: bool = True
     ) -> None :
         """Modifies a batch of pymatgen Sequences to remove atomic sites based
         on their internal `site_properties` parameter, under the `"keep-site?"`
@@ -46,6 +47,10 @@ class RemoveAtoms(torch.nn.Module) :
             species (Sequence[Sequence[str]]) : list of chemical species to remove for each Structure.
             masks (Sequence[Sequence[int]]) : list of masks to apply over each Structure individual site (0=remove atom, 1=keep it).
             indexes (Sequence[Sequence[int]]) : list of individual sites to remove from each Structure.
+            progress_bar (bool): whether we show progression with tqdm pbar() (default=True).
+
+        Returns:
+            None
         """
 
         ######################################################################
@@ -69,19 +74,35 @@ class RemoveAtoms(torch.nn.Module) :
         # (2) https://pymatgen.org/pymatgen.core.html#pymatgen.core.structure.Structure.remove_sites
 
         # Change labels on structures, if some instructions are present
-        args = {}
-        if len(species) == len(structs) : args["species"] = species
-        if len(masks)   == len(structs) : args["masks"]   = masks
-        if len(indexes) == len(structs) : args["indexes"] = indexes
-        for struct in structs :
+        
+        use_species = len(structs) == len(species)
+        use_masks   = len(structs) == len(masks)
+        use_indexes = len(structs) == len(indexes)
 
-            self._label_sites(struct=structs, **args)
+        if progress_bar :
+            from tqdm import tqdm
+            pbar = tqdm(total=len(structs),
+                        desc="Removing unwanted sites from structures.")
 
+        for i, struct in enumerate(structs) :
+            
+            args = {}
+            if use_species : args["species"] = species[i]
+            if use_masks   : args["masks"]   = masks[i]
+            if use_indexes : args["indexes"] = indexes[i]
+
+            self._label_sites(struct=struct, **args)
+            
             struct.remove_sites(
                 np.where(
                     np.logical_not(struct.site_properties["keep-site?"])
                 )
             )
+            
+            if progress_bar : pbar.update(1)
+
+        if progress_bar : pbar.close()
+
         
 
 
@@ -109,18 +130,22 @@ class RemoveAtoms(torch.nn.Module) :
         labels = np.ones(n_atoms)
         
         # mask with 0 and 1 for each site
-        assert len(mask) == n_atoms 
-        labels *= mask
+        if len(mask) > 0 :
+            assert len(mask) == n_atoms 
+            labels *= mask
         
         # indexes of atoms to delete from the structure
-        assert len(indexes) <= n_atoms
-        labels[indexes] = 0
+        if len(indexes) > 0 :
+            assert len(indexes) <= n_atoms
+            labels[indexes] = 0
 
         # Using provided species
-        assert len(species) <= n_atoms
-        labels *= [
-            not s in species for s in np.array(struct.species).astype(str)
-        ]
+        if len(species) > 0 :
+            assert len(species) <= n_atoms
+            labels *= [
+                not s in species for s in np.array(struct.species).astype(str)
+            ]
 
+        # Storing sites to keep as booleans
         struct.add_site_property("keep-site?", labels.astype(bool))
 
