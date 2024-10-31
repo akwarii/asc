@@ -236,7 +236,7 @@ The project is currently organized as follow:
 
 - [x] Data transformations techniques:
   - [x] Normalization transformation
-  - [ ] Tags to remove atoms from structure (pre-transformation)
+  - [x] Tags to remove atoms from structure (pre-transformation)
 - [x] Data augmentation techniques:
   - [x] Incorporation of Gaussian noise (directly on graphs or with ASE).
   - [x] Incorporation random box expansion/compression (directly on graphs).
