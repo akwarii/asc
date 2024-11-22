@@ -1,5 +1,5 @@
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Sequence # Sequence added by DB
 from pathlib import Path
 from typing import Any
 
@@ -69,7 +69,7 @@ class MaterialProject(GraphDataset):
         if load:
             self.data, self.targets = self._load_data()
 
-    def __getitem__(self, index: int) -> tuple[Any, Any]:
+    def __getitem__(self, index: int) -> Sequence[Any, Any]:
         if not self.data:
             RuntimeWarning("Dataset not loaded. Use load=True to load the dataset")
             return None, None
@@ -82,7 +82,8 @@ class MaterialProject(GraphDataset):
             struct = self.struct_transform(struct)
 
         graph = KNNGraph(**self.graph_kwargs)
-        graph.convert(struct)
+        self.graphdata = graph.convert(struct) # DB
+        # graph.convert(struct)
 
         if self.transform is not None:
             graph = self.transform(graph)
@@ -90,7 +91,10 @@ class MaterialProject(GraphDataset):
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        return graph, target
+        # return Sequence[data, target] # DB
+        return self.graphdata, target # DB
+        # return Sequence[graph, target] # DB
+        # return graph, target
 
     def __len__(self) -> int:
         return len(self.data)

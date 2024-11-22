@@ -7,6 +7,7 @@ from lightning import LightningDataModule
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, random_split
 
 import src.data.datasets as datasets
+from src.processing.graph import KNNGraph # DB
 from src.utils.constants import REPR_INDENT
 from src.utils.typing import PathLike, StageType
 
@@ -190,6 +191,7 @@ class CEGANNDataModule(LightningDataModule):
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             shuffle=True,
+            collate_fn=KNNGraph.collate, # DB
         )
 
     def val_dataloader(self) -> DataLoader[Any]:

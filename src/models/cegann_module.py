@@ -41,7 +41,8 @@ class CEGANNModule(LightningModule):
         self.train_metrics = metrics.clone(prefix="train/")
         self.val_metrics = metrics.clone(prefix="val/")
         self.test_metrics = metrics.clone(prefix="test/")
-        self.val_best_acc = torchmetrics.MaxMetric(prefix="val/")
+        # self.val_best_acc = torchmetrics.MaxMetric(prefix="val/")
+        self.val_best_acc = torchmetrics.MaxMetric() # modified by DB, no prefix keyword for MaxMetric
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass of the CEGANNModule.

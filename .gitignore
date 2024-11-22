@@ -155,3 +155,6 @@ configs/local/default.yaml
 
 # Aim logging
 .aim
+
+# Lightning log
+/lightning_logs

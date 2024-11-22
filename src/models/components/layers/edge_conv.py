@@ -42,11 +42,20 @@ class EdgeConvLayer(nn.Module):
             torch.Tensor: The output of the ConvEdge module.
         """
         n, m = nbr_idx.shape
+        # DB : DEBUG
+        print("---- New forward ----")
+        print(n,m)
+        print("input len", edge_fea.size())
+        print("squeezed:", edge_fea.unsqueeze(2).size())
+        print("method len", self.edge_fea_len)
+        # DB : END OF DEBUG
 
-        eij = edge_fea.unsqueeze(2).expand(n, m, m, self.edge_fea_len)
+        eij = edge_fea.unsqueeze(2).expand(n, m, m, self.edge_fea_len) # Fails
+        eij = edge_fea
         eik = edge_fea[nbr_idx, :]
+        print(eij.size(), eik.size(), angle_fea.size())
 
-        cat_fea = torch.cat([eij, eik, angle_fea], dim=3)
+        cat_fea = torch.cat([eij, eik, angle_fea], dim=3) # Also seems to fail.
 
         output = self.normalized_activation(
             edge_fea

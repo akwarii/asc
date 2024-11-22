@@ -80,7 +80,46 @@ class KNNGraph:
         edge_index = torch.LongTensor(np.vstack((centers_idx, neighbors_idx)))
         edge_distances = torch.FloatTensor(distances)
 
-        return edge_index, edge_distances
+        # Computing bond angles cosines
+        angle_cos = torch.zeros([edge_distances.size(0), self.k - 1])
+        for ij, pair in enumerate(edge_index.T) :
+            central, neigh1 = [int(idx) for idx in pair]
+            knn_ij = torch.where(
+                (edge_index[0] == central) & # Same central node
+                (edge_index[1] != neigh1)    # All other neighbours
+            )[0]
+            rij_2 = torch.pow(edge_distances[ij],2)
+            for neigh2 in edge_index[1,knn_ij] :
+                knn_ik = torch.where(
+                    (edge_index[0] == central) & # Same central node
+                    (edge_index[1] != neigh2)    # All other neighbours
+                )[0]
+                # ij is the actual index of the pair (central, neigh1)
+                # let's have ik for the pair (central, neigh2)
+                for ik in [
+                    _ik.item() for _ik in torch.where(
+                        (edge_index[0] == central) &
+                        (edge_index[1] == neigh2)
+                    )[0]
+                ] :
+                    k = torch.where(knn_ij == ik)[0].item()
+                    j = torch.where(knn_ik == ij)[0].item()
+                    if angle_cos[ij, k] !=0 and angle_cos[ik,j] != 0 : continue # Triplet already done
+                    ################################ NOTE ################################
+                    # [DB] Al-Kashi theorem ::
+                    #   cos(\alpha) = (r_ij^2 + r_ik^2 - r_jk^2) / (2*r_ij*r_ik)
+                    #      (where i is the central atom)
+                    # can not be computed as in many cases j and k are not neighbors, and
+                    # their distance is not stored anywhere.
+                    # We have to rely on pymatgen.Structure built-in get_angle() instead.
+                    ############################ END OF NOTE #############################
+                    cos_a = np.cos(
+                        struct.get_angle(central, neigh1, neigh2)
+                    )
+                    angle_cos[ij, k] = cos_a
+                    angle_cos[ik, j] = cos_a
+
+        return edge_index, edge_distances, angle_cos
 
     @staticmethod
     def _to_pymatgen_struct(struct_repr: str | Path) -> Structure:
@@ -117,7 +156,7 @@ class KNNGraph:
         if isinstance(struct, str) or isinstance(struct, Path): # if added by DB
             struct = self._to_pymatgen_struct(struct)
 
-        edge_index, edge_distances = self._get_graph_data(struct)
+        edge_index, edge_distances, angle_cos = self._get_graph_data(struct)
         num_nodes = len(struct)
 
         if mask_sites is not None:
@@ -133,6 +172,7 @@ class KNNGraph:
             cell=torch.FloatTensor(struct.lattice.matrix.copy()),
             edge_index=edge_index,
             edge_dist=edge_distances,
+            angle_cos=angle_cos, # TODO: Change rattle ?
             mask=mask_sites,
         )
 
@@ -223,6 +263,7 @@ class KNNGraph:
         In addition, `collate` can handle nested data structures such as
         dictionaries and lists.
         """
+
         if not isinstance(data_list, (list, tuple)):
             data_list = list(data_list)
 
@@ -230,16 +271,17 @@ class KNNGraph:
             raise ValueError("data_list is empty.")
 
         if len(data_list) == 1:
+            # return data_list[0][0], None # DB added [0]
             return data_list[0], None
 
         # Create empty stores
-        out = data_list[0].__class__()
-        out.stores_as(data_list[0])
+        out = data_list[0][0].__class__() # DB added [0]
+        out.stores_as(data_list[0][0]) # DB added [0]
 
         # Group storage objects of every data object by key
-        key_to_stores = {store._key: [] for store in data_list[0].stores}
-        for data in data_list:
-            for store in data.stores:
+        key_to_stores = {store._key: [] for store in data_list[0][0].stores} # DB added [0]
+        for data in data_list: 
+            for store in data[0].stores: # DB added [0]
                 key_to_stores[store._key].append(store)
 
         # Iterate over each list of storage objects and recursively collate all its attributes.
@@ -261,7 +303,7 @@ class KNNGraph:
 
                 # Concatenate a list of `torch.Tensor` along `cat_dim`.
                 # and appropriately take care of incrementing elements.
-                cat_dim = data_list[0].__cat_dim__(attr, values[0], stores[0])
+                cat_dim = data_list[0][0].__cat_dim__(attr, values[0], stores[0])# DB added [0]
                 sizes = torch.tensor([value.size(cat_dim or 0) for value in values])
                 slices = cumsum(sizes)
                 value = torch.cat(values, dim=cat_dim or 0)

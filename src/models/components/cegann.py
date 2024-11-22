@@ -8,7 +8,8 @@ from src.models.components.layers.edge_conv import EdgeConvLayer
 
 # TODO: Investigate the influence of the number of pre/post-process layers
 # TODO: Investigate the influence of BatchNorm, LayerNorm and GraphNorm in the MP layers
-# TODo: Make use of mini-batch
+#           https://doi.org/10.48550/arXiv.2009.03294
+# TODOX: Make use of mini-batch
 class CEGANN(nn.Module):
     """
     Crystal Edge Graph Attention Neural Network (CEGANN) model.
@@ -49,16 +50,21 @@ class CEGANN(nn.Module):
         self.pooling = pooling
         self.embedding = embedding
 
-        edge_features_len = gbf_bond["steps"]
-        angle_features_len = gbf_angle["steps"]
+        edge_features_len = gbf_bond["num_radial"]
+        angle_features_len = gbf_angle["num_radial"]
 
-        self.gbf_edge = GaussianBasis(gbf_bond)
+        # edge_features_len = gbf_bond["steps"] # DB: comment ?
+        # angle_features_len = gbf_angle["steps"] # DB: comment ?
+        # edge_features_len = gbf_bond.pop("steps") # DB as Gaussian Basis does not accept steps
+        # angle_features_len = gbf_angle.pop("steps") # DB as Gaussian Basis does not accept steps
+
+        self.gbf_edge = GaussianBasis(**gbf_bond) # ** added by DB
         self.linear_angle = nn.Linear(angle_features_len, angle_expansion_units)
         self.conv_edge = nn.ModuleList(
             [EdgeConvLayer(edge_features_len, angle_features_len) for _ in range(n_conv_edge)]
         )
 
-        self.gbf_angle = GaussianBasis(gbf_angle)
+        self.gbf_angle = GaussianBasis(**gbf_angle) # ** added by DB
         self.linear_edge = nn.Linear(edge_features_len, edge_expansion_units)
         self.conv_angle = nn.ModuleList(
             [AngleConvLayer(edge_features_len, angle_features_len) for _ in range(n_conv_edge - 1)]
@@ -109,11 +115,13 @@ class CEGANN(nn.Module):
             torch.Tensor: Output of the model.
             torch.Tensor: Embedded features (if self.embedding is set to True).
         """
-        edge_features, angle_features, neigh_idx, crystal_idx = data
+        # returns Data(edge_index=[2, 37932], pos=[2022, 3], num_nodes=2022, cell=[192, 3], edge_dist=[37932], angle_cos=[37932, 19])
+        neigh_idx, _, _, _, edge_features, angle_features = [ d[1] for d in data ] # DB, `data` returns tuples
+        # edge_features, angle_features, neigh_idx, crystal_idx = data
 
         # Create features using Gaussian basis function expansion
         edge_features = self.gbf_edge(edge_features)
-        angle_features = self.gbf_angle(angle_features, bond=False)
+        angle_features = self.gbf_angle(angle_features, bond=False) # DB : should be fixed ?
 
         # Perform message passing
         edge_features, angle_features = self._message_passing(
