@@ -39,6 +39,7 @@ class CEGANN(nn.Module):
         gbf_bond: dict,
         gbf_angle: dict,
         n_conv_edge: int = 3,
+        n_conv_angle: int = None, # DB
         edge_expansion_units: int = 128,
         angle_expansion_units: int = 128,
         n_classes: int = 2,
@@ -66,8 +67,9 @@ class CEGANN(nn.Module):
 
         self.gbf_angle = GaussianBasis(**gbf_angle) # ** added by DB
         self.linear_edge = nn.Linear(edge_features_len, edge_expansion_units)
+        if n_conv_angle is None : n_conv_angle = n_conv_edge - 1 # DB
         self.conv_angle = nn.ModuleList(
-            [AngleConvLayer(edge_features_len, angle_features_len) for _ in range(n_conv_edge - 1)]
+            [AngleConvLayer(edge_features_len, angle_features_len) for _ in range(n_conv_angle)]
         )
 
         self.layer_norm = nn.LayerNorm(

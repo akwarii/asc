@@ -75,11 +75,32 @@ class CEGANNModule(LightningModule):
         Returns:
             tuple[torch.Tensor, torch.Tensor, torch.Tensor]: Tuple containing the loss, predicted labels, and target labels.
         """
-        x, y = batch
+        # x, y = batch
+        # DB
+        x, y, slices = batch
+        _y = torch.cat(
+            [
+                y[i].repeat(
+                    slices["pos"][i+1] - slices["pos"][i]
+                ) for i in range(y.size()[0])
+            ]
+        )
+        # DB
+
         logits = self.forward(x)
-        loss = self.criterion(logits, y)
+
+        # print("LOGITS", logits.size(), logits) #DB
+        # print("Y", _y.size(), _y)
+
+        # loss = self.criterion(logits, y)
+        # print("CRITERION", self.criterion) # DB
+        loss = self.criterion(logits, _y) # DB
+        # print("LOSS") #DB
+        # print(loss.size()) #DB
+        # print(loss)
+        # print("----")
         preds = torch.argmax(logits, dim=1)
-        return loss, preds, y
+        return loss, preds, _y
 
     def training_step(
         self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int
@@ -93,6 +114,8 @@ class CEGANNModule(LightningModule):
         Returns:
             torch.Tensor: Loss value.
         """
+        # print("BATCH", batch) # DB tuple(Data**collated**, {...} = slice_dict)
+        # print("Distances from batch", batch[0].edge_dist) # DB
         loss, preds, targets = self.model_step(batch)
 
         output = self.train_metrics(preds, targets)

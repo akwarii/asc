@@ -41,24 +41,61 @@ class EdgeConvLayer(nn.Module):
         Returns:
             torch.Tensor: The output of the ConvEdge module.
         """
-        n, m = nbr_idx.shape
-        # DB : DEBUG
-        print("---- New forward ----")
-        print(n,m)
-        print("input len", edge_fea.size())
-        print("squeezed:", edge_fea.unsqueeze(2).size())
-        print("method len", self.edge_fea_len)
-        # DB : END OF DEBUG
+        ############################### NOTE ###############################
+        # In comparison to the original CEGANN framework, the tensors used
+        # here have a different build.
+        # In the original CEGANN :
+        #   * nbr_idx.shape   = [N_atoms, N_neigh]
+        #   * edge_fea.shape  = [N_atoms, N_neigh, N_rad_features]
+        #   * angle_fea.shape = [N_atoms, N_neigh, N_neigh, N_ang_features]
+        # Meanwhile, our current framework uses the torch_geometric.data
+        # "Data" object to build its graphs. In such cases the aformentioned
+        # tensors must have the following shape instead :
+        #   * nbr_idx.shape   = [N_atoms*N_neigh,2]
+        #   * edge_fea.shape  = [N_atoms*N_neigh, N_rad_features]
+        #   * angle_fea.shape = [N_atoms*N_neigh*N_neigh, N_ang_features]
+        # This means we first need to rework those tensors to the shape used
+        # in the original framework if we want to use similar layer inputs
+        # and outputs.
+        # The following lines attempt to do just that in as an efficient way
+        # as I can think of. ~DB
+        ############################### NOTE ###############################
 
-        eij = edge_fea.unsqueeze(2).expand(n, m, m, self.edge_fea_len) # Fails
-        eij = edge_fea
-        eik = edge_fea[nbr_idx, :]
-        print(eij.size(), eik.size(), angle_fea.size())
+        # Reshaping the tensors        
+        t, n = torch.unique_consecutive(nbr_idx[0], return_counts=True)
+        n = n[t == 1][0].item() # Number of neighbors, to avoid issues with monoatomic boxes
+        m = nbr_idx.size()[1] // n # Number of atoms
+        _nbr_idx = torch.reshape(
+            nbr_idx[1],
+            (m,n)
+        )
+        # Edge features with the correct shape
+        _edge_fea = torch.reshape(
+            edge_fea,
+            (m, n, edge_fea.size()[-1])
+        )
+        # Angle features with the correct shape
+        _angle_fea = torch.reshape(
+            angle_fea,
+            (m, n, n, angle_fea.size()[-1])
+        )        
 
-        cat_fea = torch.cat([eij, eik, angle_fea], dim=3) # Also seems to fail.
+        # Original code
+        # n, m = nbr_idx.shape
+        # eij = edge_fea.unsqueeze(2).expand(n, m, m, self.edge_fea_len)
+        # eik = edge_fea[nbr_idx, :]
+        # cat_fea = torch.cat([eij, eik, angle_fea], dim=3)
+
+        # Modified code # DB
+        n,m = _nbr_idx.shape
+        eij = _edge_fea.unsqueeze(2).expand(n, m, m, self.edge_fea_len)
+        eik = _edge_fea[_nbr_idx, :]
+        # print(eij.size(), eik.size(), _angle_fea.size()) # DEBUG
+        cat_fea = torch.cat([eij, eik, _angle_fea], dim=3)
 
         output = self.normalized_activation(
-            edge_fea
+            # edge_fea
+            _edge_fea # DB
             + torch.sum(
                 self.normalized_activation(self.attention(cat_fea) * self.linear(cat_fea)),
                 dim=2,

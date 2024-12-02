@@ -25,7 +25,7 @@ DATASET_MAP = {
 # pyright: reportAssignmentType=false
 # pyright: reportArgumentType=false
 # pyright: reportOptionalIterable=false
-# TODO add collate_fn to dataloader
+# TODO add collate_fn to dataloader ~~~~ DONE ?
 # TODO integrate dynamic batch and imbalanced sampling
 # TODO integrate node loader
 class CEGANNDataModule(LightningDataModule):
@@ -185,6 +185,7 @@ class CEGANNDataModule(LightningDataModule):
         Returns:
             The train dataloader.
         """
+        print("DATA_TRAIN", self.data_train)
         return DataLoader(
             dataset=self.data_train,
             batch_size=self.hparams.batch_size,
@@ -206,6 +207,7 @@ class CEGANNDataModule(LightningDataModule):
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             shuffle=False,
+            collate_fn=KNNGraph.collate, # DB
         )
 
     def test_dataloader(self) -> DataLoader[Any]:
@@ -220,6 +222,7 @@ class CEGANNDataModule(LightningDataModule):
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             shuffle=False,
+            collate_fn=KNNGraph.collate, # DB
         )
 
     def predict_dataloader(self) -> DataLoader[Any]:
@@ -234,6 +237,7 @@ class CEGANNDataModule(LightningDataModule):
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             shuffle=False,
+            collate_fn=KNNGraph.collate, # DB
         )
 
     def on_before_batch_transfer(self, batch: Any, dataloader_idx: int) -> Any:
