@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torch_geometric.nn.norm import GraphNorm # DB
 
 from src.models.components.expansion.radial import GaussianBasis
 from src.models.components.layers.angle_conv import AngleConvLayer
@@ -9,7 +10,7 @@ from src.models.components.layers.edge_conv import EdgeConvLayer
 # TODO: Investigate the influence of the number of pre/post-process layers
 # TODO: Investigate the influence of BatchNorm, LayerNorm and GraphNorm in the MP layers
 #           https://doi.org/10.48550/arXiv.2009.03294
-# TODOX: Make use of mini-batch
+# TODO: Make use of mini-batch
 class CEGANN(nn.Module):
     """
     Crystal Edge Graph Attention Neural Network (CEGANN) model.
@@ -39,7 +40,7 @@ class CEGANN(nn.Module):
         gbf_bond: dict,
         gbf_angle: dict,
         n_conv_edge: int = 3,
-        n_conv_angle: int = None, # DB
+        n_conv_angle: int = None, # DB, added a way to specify this parameter
         edge_expansion_units: int = 128,
         angle_expansion_units: int = 128,
         n_classes: int = 2,
@@ -67,14 +68,18 @@ class CEGANN(nn.Module):
 
         self.gbf_angle = GaussianBasis(**gbf_angle) # ** added by DB
         self.linear_edge = nn.Linear(edge_features_len, edge_expansion_units)
-        if n_conv_angle is None : n_conv_angle = n_conv_edge - 1 # DB
+        if n_conv_angle is None : n_conv_angle = n_conv_edge - 1 # DB : added line for default value
         self.conv_angle = nn.ModuleList(
             [AngleConvLayer(edge_features_len, angle_features_len) for _ in range(n_conv_angle)]
         )
 
-        self.layer_norm = nn.LayerNorm(
+        # DB
+        self.layer_norm = GraphNorm(
             edge_expansion_units + angle_expansion_units
-        )  # TODO: change to GraphNorm
+        )
+        # self.layer_norm = nn.LayerNorm(
+        #     edge_expansion_units + angle_expansion_units
+        # )  # TODO: change to GraphNorm
         self.softplus = nn.Softplus()
         self.dropout = nn.Dropout()
 
@@ -82,6 +87,7 @@ class CEGANN(nn.Module):
 
     def _message_passing(
         self,
+        # node_features: torch.Tensor, # DB - GATV2
         edge_features: torch.Tensor,
         angle_features: torch.Tensor,
         neigh_idx: torch.Tensor,
@@ -92,6 +98,7 @@ class CEGANN(nn.Module):
         the angle level.
 
         Args:
+            # node_features (torch.Tensor): The node features. # DB - GATV2
             edge_features (torch.Tensor): The edge features.
             angle_features (torch.Tensor): The angle features.
             neigh_idx (torch.Tensor): The neighbor indices.
@@ -100,10 +107,29 @@ class CEGANN(nn.Module):
             torch.Tensor: The updated edge features.
             torch.Tensor: The updated angle features.
         """
-        edge_features = self.conv_edge[0](edge_features, angle_features, neigh_idx)
+        # edge_features = self.conv_edge[0](edge_features, angle_features, neigh_idx)
+        # for conv_edge, conv_angle in zip(self.conv_edge[1:], self.conv_angle):
+        #     angle_features = conv_angle(angle_features, edge_features, neigh_idx)
+        #     edge_features = conv_edge(edge_features, angle_features, neigh_idx)
+        edge_features = self.conv_edge[0](
+            # node_fea=node_features, # DB - GATV2
+            edge_fea=edge_features,
+            angle_fea=angle_features,
+            nbr_idx=neigh_idx
+        )
         for conv_edge, conv_angle in zip(self.conv_edge[1:], self.conv_angle):
-            angle_features = conv_angle(angle_features, edge_features, neigh_idx)
-            edge_features = conv_edge(edge_features, angle_features, neigh_idx)
+            angle_features = conv_angle(
+                # node_fea=node_features, # DB - GATV2
+                edge_fea=edge_features,
+                angle_fea=angle_features,
+                nbr_idx=neigh_idx
+            )
+            edge_features = conv_edge(
+                # node_fea=node_features, # DB - GATV2
+                edge_fea=edge_features,
+                angle_fea=angle_features,
+                nbr_idx=neigh_idx
+            )
 
         return edge_features, angle_features
 
@@ -117,8 +143,8 @@ class CEGANN(nn.Module):
             torch.Tensor: Output of the model.
             torch.Tensor: Embedded features (if self.embedding is set to True).
         """
-        # returns Data(edge_index=[2, 37932], pos=[2022, 3], num_nodes=2022, cell=[192, 3], edge_dist=[37932], angle_cos=[37932, 19])
-        neigh_idx, _, _, _, edge_features, angle_features = [ d[1] for d in data ] # DB, `data` returns tuples
+        # [DB] TODO: ENSURE ALL IS CLEAN HERE.
+        neigh_idx, pos, num_nodes, cell, edge_features, angle_features = [ d[1] for d in data ] # DB, `data` returns tuples (label, associated-tensor)
         # edge_features, angle_features, neigh_idx, crystal_idx = data
 
         # Create features using Gaussian basis function expansion
@@ -129,6 +155,13 @@ class CEGANN(nn.Module):
         edge_features, angle_features = self._message_passing(
             edge_features, angle_features, neigh_idx
         )
+        # # GATV2 - DB
+        # edge_features, angle_features = self._message_passing(
+        #     node_features=pos,
+        #     neigh_idx=neigh_idx,
+        #     edge_features=edge_features,
+        #     angle_features=angle_features,
+        # )
 
         # Expand edge features and angle features
         edge_features = self.linear_edge(self.dropout(edge_features))

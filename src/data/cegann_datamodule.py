@@ -48,6 +48,7 @@ class CEGANNDataModule(LightningDataModule):
         num_workers (int, optional): The number of workers for data loading. Defaults to 0.
         pin_memory (bool, optional): Whether to pin memory for faster data transfer. Defaults to False.
         seed (int, optional): The seed to use for the random split. Defaults to 42.
+        k_neigh (int, optional): Number of neighbors to use in the K-nearest Neighbors graphs.
         **kwargs: Additional keyword arguments.
 
     Methods:
@@ -82,6 +83,7 @@ class CEGANNDataModule(LightningDataModule):
         num_workers: int = 0,
         pin_memory: bool = False,
         seed: int = 42,
+        k_neigh: int = None, # DB
         **kwargs,
     ) -> None:
         super().__init__()
@@ -95,6 +97,9 @@ class CEGANNDataModule(LightningDataModule):
         # this line allows to access init params with 'self.hparams' attribute
         # also ensures init params will be stored in ckpt
         self.save_hyperparameters(logger=False)
+
+        # DB - Number of neighbors
+        self.k_neigh = k_neigh
 
         # data transformations
         if transforms is None:
@@ -147,6 +152,9 @@ class CEGANNDataModule(LightningDataModule):
         Args:
             stage: The stage to load the data for. Either `"fit"`, `"validate"`, `"test"`, or `"predict"`.
         """
+        # DB - Number of neighbors management
+        graph_kwargs = {}
+        if self.k_neigh : graph_kwargs["k"] = self.k_neigh
         # We only test for self.data_test because if self.data_train is set,
         # then self.data_val and self.data_test are also set
         if stage != "predict" and not self.data_test:
@@ -156,6 +164,7 @@ class CEGANNDataModule(LightningDataModule):
                         self.hparams.root,
                         transform=self.transforms,
                         struct_transform=self.struct_transforms,
+                        **graph_kwargs
                     )
                     for dataset in self.hparams.datasets
                 ]
@@ -173,6 +182,7 @@ class CEGANNDataModule(LightningDataModule):
                         self.hparams.root,
                         transform=self.transforms,
                         struct_transform=self.struct_transforms,
+                        **graph_kwargs
                     )
                     for dataset in self.hparams.datasets
                 ]
@@ -185,7 +195,6 @@ class CEGANNDataModule(LightningDataModule):
         Returns:
             The train dataloader.
         """
-        print("DATA_TRAIN", self.data_train)
         return DataLoader(
             dataset=self.data_train,
             batch_size=self.hparams.batch_size,

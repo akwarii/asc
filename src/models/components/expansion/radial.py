@@ -38,9 +38,11 @@ class GaussianBasis(torch.nn.Module):
             torch.Tensor: The smearing output tensor.
         """
         if bond :
+            # print("DISTANCES", torch.min(dist_scaled), torch.max(dist_scaled))
             dist_scaled = dist_scaled.view(-1, 1) - self.offset.view(1, -1)
         else :
             # DB, more general to account for >1D (2D in fact) tensors like for angles
+            # print("   ANGLES", torch.min(dist_scaled), torch.max(dist_scaled))
             dist_scaled = (dist_scaled.unsqueeze(-1).repeat(1, 1, self.offset.size()[0]) 
                            - self.offset.view(1,-1).unsqueeze(1).repeat(1,dist_scaled.size()[-1],1))
         return torch.exp(self.coeff * dist_scaled**2)

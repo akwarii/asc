@@ -14,6 +14,7 @@ class CEGANNModule(LightningModule):
         criterion (torch.nn.Module): The loss criterion for training the model.
         metrics (torchmetrics.MetricCollection): Collection of metrics to evaluate the model performance.
         compile (bool, optional): Whether to compile the model using torch.compile(). Defaults to True.
+        scheduler_params (dict, optional): parameters for the scheduler.
     """
 
     def __init__(
@@ -24,6 +25,7 @@ class CEGANNModule(LightningModule):
         criterion: torch.nn.Module,
         metrics: torchmetrics.MetricCollection,
         compile: bool = True,
+        scheduler_params: dict = {},
     ) -> None:
         super().__init__()
 
@@ -41,7 +43,7 @@ class CEGANNModule(LightningModule):
         self.train_metrics = metrics.clone(prefix="train/")
         self.val_metrics = metrics.clone(prefix="val/")
         self.test_metrics = metrics.clone(prefix="test/")
-        # self.val_best_acc = torchmetrics.MaxMetric(prefix="val/")
+        # # self.val_best_acc = torchmetrics.MaxMetric(prefix="val/")
         self.val_best_acc = torchmetrics.MaxMetric() # modified by DB, no prefix keyword for MaxMetric
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -89,16 +91,7 @@ class CEGANNModule(LightningModule):
 
         logits = self.forward(x)
 
-        # print("LOGITS", logits.size(), logits) #DB
-        # print("Y", _y.size(), _y)
-
-        # loss = self.criterion(logits, y)
-        # print("CRITERION", self.criterion) # DB
         loss = self.criterion(logits, _y) # DB
-        # print("LOSS") #DB
-        # print(loss.size()) #DB
-        # print(loss)
-        # print("----")
         preds = torch.argmax(logits, dim=1)
         return loss, preds, _y
 
@@ -126,7 +119,8 @@ class CEGANNModule(LightningModule):
 
     def on_train_epoch_end(self) -> None:
         """Hook method called at the end of each training epoch."""
-        pass
+        print("") # DB, to avoid overlap between progress bars
+        # pass
 
     def validation_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> None:
         """Validation step of the CEGANNModule.
@@ -141,7 +135,7 @@ class CEGANNModule(LightningModule):
     def on_validation_epoch_end(self) -> None:
         """Hook method called at the end of each validation epoch."""
         output = self.val_metrics.compute()
-        self.val_best_acc(output["val/acc"])
+        self.val_best_acc(output["val/accuracy"])
 
         self.log("val/acc_best", self.val_best_acc.compute(), sync_dist=True, prog_bar=True)
         self.log_dict(output)
@@ -163,6 +157,34 @@ class CEGANNModule(LightningModule):
         self.log_dict(output)
         self.test_metrics.reset()
 
+    # DB
+    # def predict_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> None:
+    def predict_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
+        """Predict step of the CEGANNModule.
+
+        Args:
+            batch (tuple[torch.Tensor, torch.Tensor]): Input batch.
+            batch_idx (int): Index of the current batch.
+        """
+        preds = self.model_inference(batch)
+        return preds
+    
+    # DB
+    def model_inference(
+        self, batch: tuple[torch.Tensor, torch.Tensor]
+    ) -> torch.Tensor:
+        """Perform an inference step of the model.
+
+        Args:
+            batch (tuple[torch.Tensor, torch.Tensor]): Input batch.
+
+        Returns:
+            torch.Tensor: Predicted labels.
+        """
+        x, _, _ = batch
+        logits = self.forward(x)
+        return torch.argmax(logits, dim=1)
+    
     def setup(self, stage: str) -> None:
         """Setup method called at the beginning of training/evaluation.
 
@@ -180,7 +202,10 @@ class CEGANNModule(LightningModule):
         """
         optimizer = self.hparams.optimizer(params=self.parameters())
         if self.hparams.scheduler is not None:
-            scheduler = self.hparams.scheduler(optimizer=optimizer)
+            scheduler = self.hparams.scheduler(
+                optimizer=optimizer,
+                **self.hparams.scheduler_params, # DB
+            )
             return {
                 "optimizer": optimizer,
                 "lr_scheduler": {
