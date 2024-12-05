@@ -25,6 +25,8 @@ from src.data.datasets.base import GraphDataset
 from src.utils.constants import GNOME_CLASSES
 from src.utils.typing import PathLike
 
+from src.processing.graph import KNNGraph # DB
+
 
 def download_from_link(link: str, output_dir: PathLike):
     """Download a file from a public link using requests."""
@@ -84,9 +86,13 @@ class Gnome(GraphDataset):
         struct_transform: Callable | None = None,
         target_transform: Callable | None = None,
         download: bool = False,
-        graph_kwargs: dict[str, Any] = {},
+        # graph_kwargs: dict[str, Any] = {},
+        **graph_kwargs, # DB
     ) -> None:
-        super().__init__(root, transform, struct_transform, target_transform, graph_kwargs)
+        # super().__init__(root, transform, struct_transform, target_transform, graph_kwargs)
+        super().__init__(root, transform, struct_transform, target_transform) # DB
+
+        self.graph_kwargs = graph_kwargs
 
         if download:
             self.download()
@@ -99,18 +105,24 @@ class Gnome(GraphDataset):
     def __getitem__(self, index: int) -> tuple[Any, Any]:
         fname, target = self.data[index], self.targets[index]
 
-        struct = Structure.from_file(fname, fmt="cif")
+        # struct = Structure.from_file(fname, fmt="cif")
+        struct = Structure.from_file(fname)
         if self.struct_transform is not None:
             struct = self.struct_transform(struct)
 
-        graph = self.knn.convert(struct)
+        # graph = self.knn.convert(struct)
+        graph = KNNGraph(**self.graph_kwargs) # DB
+        self.graphdata = graph.convert(struct) # DB
+
         if self.transform is not None:
-            graph = self.transform(graph)
+            # graph = self.transform(graph)
+            self.graphdata = self.transform(self.graphdata) # DB
 
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        return graph, target
+        # return graph, target
+        return self.graphdata, target # DB
 
     def __len__(self) -> int:
         return len(self.data)

@@ -65,9 +65,8 @@ class RandomDisplacement(torch.nn.Module):
             # Computing distances
             distances = torch.zeros(size=graph.edge_dist.size())
             for i, at_idx in enumerate(graph.edge_index[0]) :
-                neigh_idx = graph.edge_index[1,i]
                 # Distances in all closest periodic images
-                d = self._distance(pos[at_idx], pos[neigh_idx], trans)
+                d = self._distance(pos[at_idx], pos[graph.edge_index[1,i]], trans)
                 # We identify which computed PBC distance corresponds (ie.
                 # is the closest) to the distance before rattling positions.
                 distances[i] = d[torch.argmin(
@@ -78,7 +77,7 @@ class RandomDisplacement(torch.nn.Module):
                 #     above to better employ all other distances stored in `d`. #
                 #     Indeed, it is possible to identify all indexes related to #
                 #     [at_idx, neigh_idx] atoms, and we can update them at once #
-                #     but as it KNN graphs, there are many cases where J belong #
+                #     but with KNN graphs, there are many cases where J belongs #
                 #     to I's neighbors but the opposite is not True.            #
                 #     Therefore, we have to check every distances individually, #
                 #     and among all the trials I have made the "naive" approach #
@@ -86,14 +85,44 @@ class RandomDisplacement(torch.nn.Module):
                 #     If one thinks of another clever way to improve this, with #
                 #     numerical performance improvements, I would be curious to #
                 #     see it in detail. DB                                      #
-                ###############################################################
+                #################################################################
+            
+            # Angles cosine
+            m = pos.size()[0] # Number of atoms
+            k = graph.edge_index[1].size()[0] // m # Number of nearest neighbors
+            _nbr_idx = torch.reshape(
+                torch.LongTensor(
+                    graph.edge_index[1]
+                ), (m, k)
+            )
+            bond = torch.reshape(
+                distances,
+                (m, k)
+            )
+            atom_nbr_fea = torch.Tensor(np.array(
+                [
+                    [pos[j] for j in _nbr_idx[i]]
+                    for i in range(m)
+                ]
+            ))
+            centre_coords = pos.unsqueeze(1).expand(
+                m, k, 3
+            )
+            dxyz = atom_nbr_fea - centre_coords
+            r = bond.unsqueeze(2)
+            angle_cos = torch.matmul(
+                dxyz, torch.swapaxes(dxyz, 1, 2)
+            ) / torch.matmul(r, torch.swapaxes(r, 1, 2))
+            angle_cos = angle_cos.flatten(0,1) # To fit into collate
+
             rattled_graphs.append(
                 Data(
                     num_nodes=graph.num_nodes,
                     pos=pos,
                     cell=graph.cell,
                     edge_index=graph.edge_index,
-                    edge_dist=distances   
+                    edge_dist=distances,
+                    angle_cos=angle_cos,
                 )
             )
 
@@ -233,7 +262,8 @@ class RandomExpansion(torch.nn.Module):
                     pos=graph.pos * random_scale[i],
                     cell=graph.cell * random_scale[i],
                     edge_index=graph.edge_index,
-                    edge_dist=graph.edge_dist * random_scale[i]
+                    edge_dist=graph.edge_dist * random_scale[i],
+                    angle_cos=graph.angle_cos, # unchanged by box scaling
                 )
             )
 
@@ -295,7 +325,8 @@ class RandomNodeDrop(torch.nn.Module):
                             pos=graph.pos,
                             cell=graph.cell,
                             edge_index=graph.edge_index,
-                            edge_dist=graph.edge_dist
+                            edge_dist=graph.edge_dist,
+                            angle_cos=graph.angle_cos,
                         )
                     ) 
                 if progress_bar : pbar.update(1)
@@ -312,6 +343,7 @@ class RandomNodeDrop(torch.nn.Module):
                     edges_tokeep.append(edge)
             edge_index = graph.edge_index[edges_tokeep, :]
             edge_dist = graph.edge_dist[edges_tokeep]
+            angle_cos = graph.angle_cos[edges_tokeep] # DB, TODO: verify
 
             dropped_graphs.append(
                 Data(
@@ -319,7 +351,8 @@ class RandomNodeDrop(torch.nn.Module):
                     pos=pos,
                     cell=graph.cell,
                     edge_index=edge_index,
-                    edge_dist=edge_dist
+                    edge_dist=edge_dist,
+                    angle_cos=angle_cos,
                 )
             )
 

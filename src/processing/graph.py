@@ -90,11 +90,9 @@ class KNNGraph:
 
         # DB: Angle cosine computation, directly adapted from OG CEGANN
         # see /CEGANN/graph.py @ SetGraphFea
-        centers_idx   = torch.LongTensor(centers_idx)
-        neighbors_idx = torch.LongTensor(neighbors_idx)
         m = len(struct)
         _nbr_idx = torch.reshape(
-            neighbors_idx,
+            torch.LongTensor(neighbors_idx),
             (m,self.k)
         )
         bond = torch.reshape(
@@ -102,16 +100,16 @@ class KNNGraph:
             (m, self.k)
         )
         cart_coords = torch.Tensor(np.array(
-            [struct[i].coords for i in range(len(struct))]
+            [struct[i].coords for i in range(m)]
         ))
         atom_nbr_fea = torch.Tensor(np.array(
             [
                 [struct[j].coords for j in _nbr_idx[i]] # DB : error sometimes but not always here
-                for i in range(len(struct))
+                for i in range(m)
             ]
         ))
         centre_coords = cart_coords.unsqueeze(1).expand(
-            len(struct), self.k, 3
+            m, self.k, 3
         )
         dxyz = atom_nbr_fea - centre_coords
         r = bond.unsqueeze(2)

@@ -12,6 +12,8 @@ from src.data.datasets.base import GraphDataset
 from src.data.datasets.utils import poscar_from_entry
 from src.utils.constants import AFLOW_CLASSES
 
+from src.processing.graph import KNNGraph # DB
+
 
 class Aflow(GraphDataset):
     """A dataset class for the Aflow dataset.
@@ -52,9 +54,12 @@ class Aflow(GraphDataset):
         chunk_size: int = 50_000,
         stress_threshold: int | None = None,
         force_threshold: float | None = None,
-        graph_kwargs: dict[str, Any] = {},
+        # graph_kwargs: dict[str, Any] = {},
+        **graph_kwargs,
     ) -> None:
-        super().__init__(root, transform, struct_transform, target_transform, graph_kwargs)
+        # super().__init__(root, transform, struct_transform, target_transform, graph_kwargs)
+        super().__init__(root, transform, struct_transform, target_transform) # DB
+        self.graph_kwargs = graph_kwargs
 
         if download:
             self.download(chunk_size, stress_threshold, force_threshold)
@@ -71,14 +76,19 @@ class Aflow(GraphDataset):
         if self.struct_transform is not None:
             struct = self.struct_transform(struct)
 
-        graph = self.knn.convert(struct)
+        # graph = self.knn.convert(struct)
+        graph = KNNGraph(**self.graph_kwargs) # DB
+        self.graphdata = graph.convert(struct) # DB
+        
         if self.transform is not None:
-            graph: Data = self.transform(graph)
+            # graph: Data = self.transform(graph)
+            self.graphdata = self.transform(self.graphdata)
 
         if self.target_transform is not None:
             target: int = self.target_transform(target)
 
-        return graph, target
+        # return graph, target
+        return self.graphdata, target # DB
 
     def __len__(self) -> int:
         return len(self.data)

@@ -92,9 +92,7 @@ class MaterialProject(GraphDataset):
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        # return Sequence[data, target] # DB
         return self.graphdata, target # DB, unc
-        # return Sequence[graph, target] # DB
         # return graph, target
 
     def __len__(self) -> int:

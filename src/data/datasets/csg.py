@@ -10,6 +10,8 @@ from src.data.datasets.base import GraphDataset
 from src.data.datasets.utils import check_integrity
 from src.utils.constants import CSG_CLASSES
 
+from src.processing.graph import KNNGraph # DB
+
 
 class CSG(GraphDataset):
     """The Crystal Space Group (CSG) dataset is a preprocessed version of the AFLOW, GNoME and Material Project datasets.
@@ -63,9 +65,13 @@ class CSG(GraphDataset):
         struct_transform: Callable | None = None,
         target_transform: Callable | None = None,
         download: bool = False,
-        graph_kwargs: dict[str, Any] = {},
+        # graph_kwargs: dict[str, Any] = {},
+        **graph_kwargs, # DB
     ) -> None:
-        super().__init__(root, transform, struct_transform, target_transform, graph_kwargs)
+        # super().__init__(root, transform, struct_transform, target_transform, graph_kwargs)
+        super().__init__(root, transform, struct_transform, target_transform) # DB
+
+        self.graph_kwargs = graph_kwargs # DB
 
         if download:
             self.download()
@@ -82,14 +88,19 @@ class CSG(GraphDataset):
         if self.struct_transform is not None:
             struct = self.struct_transform(struct)
 
-        graph = self.knn.convert(struct)
+        # graph = self.knn.convert(struct)
+        graph = KNNGraph(**self.graph_kwargs) # DB
+        self.graphdata = graph.convert(struct) # DB
+
         if self.transform is not None:
-            graph: Data = self.transform(graph)
+            # graph: Data = self.transform(graph)
+            self.graphdata = self.transform(self.graphdata) # DB
 
         if self.target_transform is not None:
             target: int = self.target_transform(target)
 
-        return graph, target
+        # return graph, target
+        return self.graphdata, target # DB
 
     def __len__(self) -> int:
         return len(self.data)

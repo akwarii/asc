@@ -83,6 +83,7 @@ class CEGANNDataModule(LightningDataModule):
         num_workers: int = 0,
         pin_memory: bool = False,
         seed: int = 42,
+        download: bool = False, # DB
         k_neigh: int = None, # DB
         **kwargs,
     ) -> None:
@@ -100,6 +101,9 @@ class CEGANNDataModule(LightningDataModule):
 
         # DB - Number of neighbors
         self.k_neigh = k_neigh
+
+        # DB - Download datasets ?
+        self.download_datasets = download
 
         # data transformations
         if transforms is None:
@@ -162,6 +166,7 @@ class CEGANNDataModule(LightningDataModule):
                 [
                     DATASET_MAP[dataset](
                         self.hparams.root,
+                        download=self.download_datasets,
                         transform=self.transforms,
                         struct_transform=self.struct_transforms,
                         **graph_kwargs
@@ -180,6 +185,7 @@ class CEGANNDataModule(LightningDataModule):
                 [
                     DATASET_MAP[dataset](
                         self.hparams.root,
+                        download=self.download_datasets,
                         transform=self.transforms,
                         struct_transform=self.struct_transforms,
                         **graph_kwargs
