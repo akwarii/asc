@@ -140,7 +140,11 @@ class Gnome(GraphDataset):
 
         # Filter out the files that are not in the stable materials summary.
         # This is to ensure that the data and targets are aligned (not the case for the original dataset)
-        data = [unzipped_folder / f"{fid}.CIF" for fid in df["MaterialId"].to_list()]
+        data = [
+            unzipped_folder / f"{fid}.CIF"
+            for fid in df["MaterialId"].to_list()
+            if os.path.isfile(unzipped_folder / f"{fid}.CIF") # DB, some IDs in stable materials summary don't exist.
+        ]
 
         return data, targets
 

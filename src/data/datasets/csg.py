@@ -50,7 +50,7 @@ class CSG(GraphDataset):
         download: Downloads the dataset if it doesn't exist already.
     """
 
-    KAGGLE_DATASET = "gaelhuynh/space-group"
+    KAGGLE_DATASET = "gaelhuynh/space-group" # DB : Dataset doesn't exist.
     API = KaggleApi()
 
     classes = CSG_CLASSES

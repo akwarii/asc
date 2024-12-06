@@ -100,8 +100,11 @@ class Aflow(GraphDataset):
         for file in files:
             with file.open("r") as json_file:
                 json_data = json.load(json_file)
-            data += [entry["CONTCAR.relax"] for entry in json_data]
-            targets += [entry["spacegroup_relax"] for entry in json_data]
+                # json_file.close() # DB
+            # data += [entry["CONTCAR.relax"] for entry in json_data]
+            data += [entry["structure"] for entry in json_data] # DB
+            # targets += [entry["spacegroup_relax"] for entry in json_data]
+            targets += [entry["spacegroup"] for entry in json_data] # DB
 
         return data, targets
 

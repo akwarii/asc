@@ -16,7 +16,8 @@ DATASET_MAP = {
     "mp": datasets.MaterialProject,
     "gnome": datasets.Gnome,
     "csg": datasets.CSG,
-    "custom": datasets.PymatgenDataset,
+    # "custom": datasets.PymatgenDataset,
+    "custom": datasets.CustomDataset,
 }
 
 
@@ -105,6 +106,9 @@ class CEGANNDataModule(LightningDataModule):
         # DB - Download datasets ?
         self.download_datasets = download
 
+        # DB - other arguments
+        self.kwargs = kwargs
+
         # data transformations
         if transforms is None:
             self.transforms = None
@@ -159,6 +163,7 @@ class CEGANNDataModule(LightningDataModule):
         # DB - Number of neighbors management
         graph_kwargs = {}
         if self.k_neigh : graph_kwargs["k"] = self.k_neigh
+        if self.kwargs : kwargs = self.kwargs
         # We only test for self.data_test because if self.data_train is set,
         # then self.data_val and self.data_test are also set
         if stage != "predict" and not self.data_test:
@@ -169,7 +174,8 @@ class CEGANNDataModule(LightningDataModule):
                         download=self.download_datasets,
                         transform=self.transforms,
                         struct_transform=self.struct_transforms,
-                        **graph_kwargs
+                        **graph_kwargs,
+                        **kwargs
                     )
                     for dataset in self.hparams.datasets
                 ]
@@ -188,7 +194,8 @@ class CEGANNDataModule(LightningDataModule):
                         download=self.download_datasets,
                         transform=self.transforms,
                         struct_transform=self.struct_transforms,
-                        **graph_kwargs
+                        **graph_kwargs,
+                        **kwargs,
                     )
                     for dataset in self.hparams.datasets
                 ]

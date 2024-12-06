@@ -68,7 +68,8 @@ class AflowAPI:
 
     def __init__(
         self,
-        max_retries: int | None = None,
+        # max_retries: int | None = None,
+        max_retries: int | None = 5, # DB
     ) -> None:
         """
         Args:
