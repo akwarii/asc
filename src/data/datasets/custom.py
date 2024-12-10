@@ -51,6 +51,7 @@ class CustomDataset(GraphDataset) :
         **graph_kwargs,
     ) -> None:
         super().__init__(root, transform, struct_transform, target_transform)
+        del graph_kwargs["download"] # Key imposed by the parent class
         self.graph_kwargs = graph_kwargs
 
         if pretreat:

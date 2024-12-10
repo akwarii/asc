@@ -163,7 +163,8 @@ class CEGANNDataModule(LightningDataModule):
         # DB - Number of neighbors management
         graph_kwargs = {}
         if self.k_neigh : graph_kwargs["k"] = self.k_neigh
-        if self.kwargs : kwargs = self.kwargs
+        kwargs, keys_tokeep = {}, ["pretreat", "origin_dir"]
+        if self.kwargs : kwargs = {key: self.kwargs[key] for key in keys_tokeep}
         # We only test for self.data_test because if self.data_train is set,
         # then self.data_val and self.data_test are also set
         if stage != "predict" and not self.data_test:
