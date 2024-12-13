@@ -86,7 +86,7 @@ class CSG(GraphDataset):
         graph = self.knn.convert(struct)
 
         if self.transform is not None:
-            self.graphdata = self.transform(self.graphdata)  # DB
+            graph = self.transform(graph)
 
         if self.target_transform is not None:
             target: int = self.target_transform(target)
