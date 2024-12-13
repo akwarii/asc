@@ -11,8 +11,8 @@ from src.utils.typing import PathLike
 
 class GraphDataset(Dataset):
     """Base class for making datasets which are compatible with crystal graphs. It is necessary to
-    override the ``__getitem__``, ``__len__`` and ``load`` method. A ``download`` method can also
-    be implemented to download the dataset. (This class implementation is based on the torchvision
+    override the ``__getitem__``, ``__len__`` and ``load`` method. A ``fetch_data`` method can also
+    be implemented to get the dataset. (This class implementation is based on the torchvision
     VisionDataset class)
 
     Args:
@@ -85,8 +85,8 @@ class GraphDataset(Dataset):
         """Check if every file in the resources attribute exists in the raw folder."""
         return all((self.raw_folder / fname).is_file() for fname in self.resources)
 
-    def download(self) -> None:
-        """Download the dataset if it doesn't exist."""
+    def fetch_data(self) -> None:
+        """Fetch the dataset if it doesn't exist."""
         raise NotImplementedError
 
     def load(self) -> tuple[list[str], list[int]]:

@@ -25,8 +25,6 @@ from src.data.datasets.base import GraphDataset
 from src.utils.constants import GNOME_CLASSES
 from src.utils.typing import PathLike
 
-from src.processing.graph import KNNGraph # DB
-
 
 def download_from_link(link: str, output_dir: PathLike):
     """Download a file from a public link using requests."""
@@ -52,7 +50,7 @@ class Gnome(GraphDataset):
         transform (Callable | None): A function/transform that takes in a graph and returns a transformed version.
         struct_transform (Callable | None): A function/transform that takes in a structure and returns a transformed version.
         target_transform (Callable | None): A function/transform that takes in a target and returns a transformed version.
-        download (bool): Whether to download the dataset if it doesn't exist.
+        fetch_data (bool): Whether to download the dataset if it doesn't exist.
         **graph_kwargs: Additional keyword arguments to be passed to the Graph class.
 
     Attributes:
@@ -64,7 +62,7 @@ class Gnome(GraphDataset):
         __getitem__: Retrieves a graph and its corresponding target from the dataset.
         __len__: Returns the length of the dataset.
         load: Loads the data from the resource files.
-        download: Downloads the Aflow dataset if it doesn't exist already.
+        fetch_data: Downloads the Aflow dataset if it doesn't exist already.
     """
 
     API = "https://storage.googleapis.com/"
@@ -85,44 +83,35 @@ class Gnome(GraphDataset):
         transform: Callable | None = None,
         struct_transform: Callable | None = None,
         target_transform: Callable | None = None,
-        download: bool = False,
-        # graph_kwargs: dict[str, Any] = {},
-        **graph_kwargs, # DB
+        fetch_data: bool = False,
+        graph_kwargs: dict[str, Any] = {},
     ) -> None:
-        # super().__init__(root, transform, struct_transform, target_transform, graph_kwargs)
-        super().__init__(root, transform, struct_transform, target_transform) # DB
+        super().__init__(root, transform, struct_transform, target_transform, graph_kwargs)
 
-        self.graph_kwargs = graph_kwargs
-
-        if download:
-            self.download()
+        if fetch_data:
+            self.fetch_data()
 
         if not self.check_exists():
-            raise RuntimeError("Dataset not found. You can use download=True to download it")
+            raise RuntimeError("Dataset not found. You can use fetch_data=True to download it")
 
         self.data, self.targets = self.load()
 
     def __getitem__(self, index: int) -> tuple[Any, Any]:
         fname, target = self.data[index], self.targets[index]
 
-        # struct = Structure.from_file(fname, fmt="cif")
         struct = Structure.from_file(fname)
         if self.struct_transform is not None:
             struct = self.struct_transform(struct)
 
-        # graph = self.knn.convert(struct)
-        graph = KNNGraph(**self.graph_kwargs) # DB
-        self.graphdata = graph.convert(struct) # DB
+        graph = self.knn.convert(struct)
 
         if self.transform is not None:
-            # graph = self.transform(graph)
-            self.graphdata = self.transform(self.graphdata) # DB
+            graph = self.transform(graph)
 
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        # return graph, target
-        return self.graphdata, target # DB
+        return graph, target
 
     def __len__(self) -> int:
         return len(self.data)
@@ -140,15 +129,16 @@ class Gnome(GraphDataset):
 
         # Filter out the files that are not in the stable materials summary.
         # This is to ensure that the data and targets are aligned (not the case for the original dataset)
+        # Some files are missing in the stable materials summary, so we need to check if the file exists.
         data = [
             unzipped_folder / f"{fid}.CIF"
             for fid in df["MaterialId"].to_list()
-            if os.path.isfile(unzipped_folder / f"{fid}.CIF") # DB, some IDs in stable materials summary don't exist.
+            if os.path.isfile(unzipped_folder / f"{fid}.CIF")
         ]
 
         return data, targets
 
-    def download(self) -> None:
+    def fetch_data(self) -> None:
         if self.check_exists():
             print(f"Dataset already exists at {self.root}")
             return

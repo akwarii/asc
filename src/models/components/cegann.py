@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torch_geometric.nn.norm import GraphNorm # DB
+from torch_geometric.nn.norm import GraphNorm  # DB
 
 from src.models.components.expansion.radial import GaussianBasis
 from src.models.components.layers.angle_conv import AngleConvLayer
@@ -23,7 +23,6 @@ class CEGANN(nn.Module):
         edge_expansion_units (int): Number of units for expanding edge features.
         angle_expansion_units (int): Number of units for expanding angle features.
         n_classes (int): Number of output classes.
-        pooling (bool): Whether to perform pooling on crystal features.
         embedding (bool): Whether to return embedded features.
 
     Methods:
@@ -31,8 +30,6 @@ class CEGANN(nn.Module):
             Performs message passing on the edge features and angle features.
         forward(data):
             Forward pass of the CEGANN model.
-        pool(atom_fea, crys_idx):
-            Pooling function for crystal features.
     """
 
     def __init__(
@@ -40,16 +37,14 @@ class CEGANN(nn.Module):
         gbf_bond: dict,
         gbf_angle: dict,
         n_conv_edge: int = 3,
-        n_conv_angle: int = None, # DB, added a way to specify this parameter
+        n_conv_angle: int | None = None,  # DB, added a way to specify this parameter
         edge_expansion_units: int = 128,
         angle_expansion_units: int = 128,
         n_classes: int = 2,
-        pooling: bool = False,
         embedding: bool = False,
     ) -> None:
         super().__init__()
 
-        self.pooling = pooling
         self.embedding = embedding
 
         edge_features_len = gbf_bond["num_radial"]
@@ -60,23 +55,22 @@ class CEGANN(nn.Module):
         # edge_features_len = gbf_bond.pop("steps") # DB as Gaussian Basis does not accept steps
         # angle_features_len = gbf_angle.pop("steps") # DB as Gaussian Basis does not accept steps
 
-        self.gbf_edge = GaussianBasis(**gbf_bond) # ** added by DB
+        self.gbf_edge = GaussianBasis(**gbf_bond)  # ** added by DB
         self.linear_angle = nn.Linear(angle_features_len, angle_expansion_units)
         self.conv_edge = nn.ModuleList(
             [EdgeConvLayer(edge_features_len, angle_features_len) for _ in range(n_conv_edge)]
         )
 
-        self.gbf_angle = GaussianBasis(**gbf_angle) # ** added by DB
+        self.gbf_angle = GaussianBasis(**gbf_angle)  # ** added by DB
         self.linear_edge = nn.Linear(edge_features_len, edge_expansion_units)
-        if n_conv_angle is None : n_conv_angle = n_conv_edge - 1 # DB : added line for default value
+        if n_conv_angle is None:
+            n_conv_angle = n_conv_edge - 1  # DB : added line for default value
         self.conv_angle = nn.ModuleList(
             [AngleConvLayer(edge_features_len, angle_features_len) for _ in range(n_conv_angle)]
         )
 
         # DB
-        self.layer_norm = GraphNorm(
-            edge_expansion_units + angle_expansion_units
-        )
+        self.layer_norm = GraphNorm(edge_expansion_units + angle_expansion_units)
         # self.layer_norm = nn.LayerNorm(
         #     edge_expansion_units + angle_expansion_units
         # )  # TODO: change to GraphNorm
@@ -115,20 +109,20 @@ class CEGANN(nn.Module):
             # node_fea=node_features, # DB - GATV2
             edge_fea=edge_features,
             angle_fea=angle_features,
-            nbr_idx=neigh_idx
+            nbr_idx=neigh_idx,
         )
         for conv_edge, conv_angle in zip(self.conv_edge[1:], self.conv_angle):
             angle_features = conv_angle(
                 # node_fea=node_features, # DB - GATV2
                 edge_fea=edge_features,
                 angle_fea=angle_features,
-                nbr_idx=neigh_idx
+                nbr_idx=neigh_idx,
             )
             edge_features = conv_edge(
                 # node_fea=node_features, # DB - GATV2
                 edge_fea=edge_features,
                 angle_fea=angle_features,
-                nbr_idx=neigh_idx
+                nbr_idx=neigh_idx,
             )
 
         return edge_features, angle_features
@@ -144,12 +138,14 @@ class CEGANN(nn.Module):
             torch.Tensor: Embedded features (if self.embedding is set to True).
         """
         # [DB] TODO: ENSURE ALL IS CLEAN HERE.
-        neigh_idx, pos, num_nodes, cell, edge_features, angle_features = [ d[1] for d in data ] # DB, `data` returns tuples (label, associated-tensor)
+        neigh_idx, pos, num_nodes, cell, edge_features, angle_features = [
+            d[1] for d in data
+        ]  # DB, `data` returns tuples (label, associated-tensor)
         # edge_features, angle_features, neigh_idx, crystal_idx = data
 
         # Create features using Gaussian basis function expansion
         edge_features = self.gbf_edge(edge_features)
-        angle_features = self.gbf_angle(angle_features, bond=False) # DB : should be fixed ?
+        angle_features = self.gbf_angle(angle_features, bond=False)  # DB : should be fixed ?
 
         # Perform message passing
         edge_features, angle_features = self._message_passing(
@@ -177,9 +173,6 @@ class CEGANN(nn.Module):
         # Concatenate edge features and angle features
         crystal_features = torch.cat([edge_features, angle_features], dim=1)
 
-        if self.pooling:
-            crystal_features = self.pool(crystal_features, crystal_idx)
-
         # Normalize and apply softplus activation
         crystal_features = self.softplus(self.layer_norm(crystal_features))
 
@@ -193,19 +186,3 @@ class CEGANN(nn.Module):
             return output, embedded_features
         else:
             return output
-
-    def pool(self, atom_fea, crys_idx):
-        """Pooling function for crystal features.
-
-        Args:
-            atom_fea (torch.Tensor): Atom-level features.
-            crys_idx (list): List of indices mapping crystal features to atom features.
-
-        Returns:
-            torch.Tensor: Pooled crystal features.
-        """
-        summed_fea = [
-            torch.mean(atom_fea[idx_map[0] : idx_map[1], :], dim=0, keepdim=True)
-            for idx_map in crys_idx
-        ]
-        return torch.cat(summed_fea, dim=0)

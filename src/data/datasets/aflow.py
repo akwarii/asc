@@ -12,8 +12,6 @@ from src.data.datasets.base import GraphDataset
 from src.data.datasets.utils import poscar_from_entry
 from src.utils.constants import AFLOW_CLASSES
 
-from src.processing.graph import KNNGraph # DB
-
 
 class Aflow(GraphDataset):
     """A dataset class for the Aflow dataset.
@@ -23,7 +21,7 @@ class Aflow(GraphDataset):
         transform (Callable | None): A function/transform that takes in a graph and returns a transformed version.
         struct_transform (Callable | None): A function/transform that takes in a structure and returns a transformed version.
         target_transform (Callable | None): A function/transform that takes in a target and returns a transformed version.
-        download (bool): Whether to download the dataset if it doesn't exist.
+        fetch_data (bool): Whether to download the dataset if it doesn't exist.
         chunk_size (int): Number of entries of each chunk to download.
         **graph_kwargs: Additional keyword arguments to be passed to the Graph class.
 
@@ -36,7 +34,7 @@ class Aflow(GraphDataset):
         __getitem__: Retrieves a graph and its corresponding target from the dataset.
         __len__: Returns the length of the dataset.
         load: Loads the data from the resource files.
-        download: Downloads the Aflow dataset if it doesn't exist already.
+        fetch_data: Downloads the Aflow dataset if it doesn't exist already.
     """
 
     API = AflowAPI()
@@ -50,22 +48,19 @@ class Aflow(GraphDataset):
         transform: Callable | None = None,
         struct_transform: Callable | None = None,
         target_transform: Callable | None = None,
-        download: bool = False,
+        fetch_data: bool = False,
         chunk_size: int = 50_000,
         stress_threshold: int | None = None,
         force_threshold: float | None = None,
-        # graph_kwargs: dict[str, Any] = {},
-        **graph_kwargs,
+        graph_kwargs: dict[str, Any] = {},
     ) -> None:
-        # super().__init__(root, transform, struct_transform, target_transform, graph_kwargs)
-        super().__init__(root, transform, struct_transform, target_transform) # DB
-        self.graph_kwargs = graph_kwargs
+        super().__init__(root, transform, struct_transform, target_transform, graph_kwargs)
 
-        if download:
-            self.download(chunk_size, stress_threshold, force_threshold)
+        if fetch_data:
+            self.fetch_data(chunk_size, stress_threshold, force_threshold)
 
         if not self.check_exists():
-            raise RuntimeError("Dataset not found. You can use download=True to download it")
+            raise RuntimeError("Dataset not found. You can use fetch_data=True to download it")
 
         self.data, self.targets = self.load()
 
@@ -76,19 +71,15 @@ class Aflow(GraphDataset):
         if self.struct_transform is not None:
             struct = self.struct_transform(struct)
 
-        # graph = self.knn.convert(struct)
-        graph = KNNGraph(**self.graph_kwargs) # DB
-        self.graphdata = graph.convert(struct) # DB
-        
+        graph = self.knn.convert(struct)
+
         if self.transform is not None:
-            # graph: Data = self.transform(graph)
-            self.graphdata = self.transform(self.graphdata)
+            graph: Data = self.transform(graph)
 
         if self.target_transform is not None:
             target: int = self.target_transform(target)
 
-        # return graph, target
-        return self.graphdata, target # DB
+        return graph, target
 
     def __len__(self) -> int:
         return len(self.data)
@@ -100,15 +91,13 @@ class Aflow(GraphDataset):
         for file in files:
             with file.open("r") as json_file:
                 json_data = json.load(json_file)
-                # json_file.close() # DB
-            # data += [entry["CONTCAR.relax"] for entry in json_data]
-            data += [entry["structure"] for entry in json_data] # DB
-            # targets += [entry["spacegroup_relax"] for entry in json_data]
-            targets += [entry["spacegroup"] for entry in json_data] # DB
+
+            data += [entry["structure"] for entry in json_data]
+            targets += [entry["spacegroup"] for entry in json_data]
 
         return data, targets
 
-    def download(
+    def fetch_data(
         self,
         chunk_size: int,
         stress_threshold: int | None = None,

@@ -6,8 +6,8 @@ from ase import Atoms
 from pymatgen.io.ase import AseAtomsAdaptor
 import json
 
-# mp = MaterialProject(root="./data/mp-data", download=True)
-mp = MaterialProject(root="data/mp-data", download=False)
+# mp = MaterialProject(root="./data/mp-data", fetch_data=True)
+mp = MaterialProject(root="data/mp-data", fetch_data=False)
 
 rattledAtoms = []
 for i, data in enumerate(mp.data[:3]) :

@@ -1,15 +1,13 @@
 from src.data.datasets.material_project import MaterialProject
 from src.processing.graph import KNNGraph
 from src.data.augmentation.augmentation import RandomDisplacement, RandomExpansion, RandomNodeDrop
-from pprint import pp
-import numpy as np
 
 from tqdm import tqdm
 
 import torch
 
 # Source data
-# mp = MaterialProject(root="data/mp-data", download=False)
+# mp = MaterialProject(root="data/mp-data", fetch_data=False)
 # # Computing graphs
 # graph_builder = KNNGraph()
 # graphs = []

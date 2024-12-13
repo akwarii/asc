@@ -10,8 +10,6 @@ from src.data.datasets.base import GraphDataset
 from src.data.datasets.utils import check_integrity
 from src.utils.constants import CSG_CLASSES
 
-from src.processing.graph import KNNGraph # DB
-
 
 class CSG(GraphDataset):
     """The Crystal Space Group (CSG) dataset is a preprocessed version of the AFLOW, GNoME and Material Project datasets.
@@ -35,7 +33,7 @@ class CSG(GraphDataset):
         transform (Callable | None): A function/transform that takes in a graph and returns a transformed version.
         struct_transform (Callable | None): A function/transform that takes in a structure and returns a transformed version.
         target_transform (Callable | None): A function/transform that takes in a target and returns a transformed version.
-        download (bool): Whether to download the dataset if it doesn't exist.
+        fetch_data (bool): Whether to download the dataset if it doesn't exist.
         **graph_kwargs: Additional keyword arguments to be passed to the Graph class.
 
     Attributes:
@@ -47,16 +45,16 @@ class CSG(GraphDataset):
         __getitem__: Retrieves a graph and its corresponding target from the dataset.
         __len__: Returns the length of the dataset.
         load: Loads the data from the resource files.
-        download: Downloads the dataset if it doesn't exist already.
+        fetch_data: Downloads the dataset if it doesn't exist already.
     """
 
-    KAGGLE_DATASET = "gaelhuynh/space-group" # DB : Dataset doesn't exist.
+    KAGGLE_DATASET = "gaelhuynh/space-group"
     API = KaggleApi()
 
     classes = CSG_CLASSES
 
     resources = ("CSG.csv",)
-    md5_checksums = ("685236d6e7fd6677d3dd809897ecb393",)
+    md5_checksums = ("e133c65d75b0d0f9735dca44916e5e7a",)
 
     def __init__(
         self,
@@ -64,20 +62,16 @@ class CSG(GraphDataset):
         transform: Callable | None = None,
         struct_transform: Callable | None = None,
         target_transform: Callable | None = None,
-        download: bool = False,
-        # graph_kwargs: dict[str, Any] = {},
-        **graph_kwargs, # DB
+        fetch_data: bool = False,
+        graph_kwargs: dict[str, Any] = {},
     ) -> None:
-        # super().__init__(root, transform, struct_transform, target_transform, graph_kwargs)
-        super().__init__(root, transform, struct_transform, target_transform) # DB
+        super().__init__(root, transform, struct_transform, target_transform, graph_kwargs)
 
-        self.graph_kwargs = graph_kwargs # DB
-
-        if download:
-            self.download()
+        if fetch_data:
+            self.fetch_data()
 
         if not self.check_exists():
-            raise RuntimeError("Dataset not found. You can use download=True to download it")
+            raise RuntimeError("Dataset not found. You can use fetch_data=True to download it")
 
         self.data, self.targets = self.load()
 
@@ -88,19 +82,15 @@ class CSG(GraphDataset):
         if self.struct_transform is not None:
             struct = self.struct_transform(struct)
 
-        # graph = self.knn.convert(struct)
-        graph = KNNGraph(**self.graph_kwargs) # DB
-        self.graphdata = graph.convert(struct) # DB
+        graph = self.knn.convert(struct)
 
         if self.transform is not None:
-            # graph: Data = self.transform(graph)
-            self.graphdata = self.transform(self.graphdata) # DB
+            self.graphdata = self.transform(self.graphdata)  # DB
 
         if self.target_transform is not None:
             target: int = self.target_transform(target)
 
-        # return graph, target
-        return self.graphdata, target # DB
+        return graph, target
 
     def __len__(self) -> int:
         return len(self.data)
@@ -112,7 +102,7 @@ class CSG(GraphDataset):
 
         return data, targets
 
-    def download(self) -> None:
+    def fetch_data(self) -> None:
         paths = [self.raw_folder / resource for resource in self.resources]
 
         if self.check_exists() and check_integrity(paths, self.md5_checksums):

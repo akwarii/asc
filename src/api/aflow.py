@@ -68,12 +68,11 @@ class AflowAPI:
 
     def __init__(
         self,
-        # max_retries: int | None = None,
-        max_retries: int | None = 5, # DB
+        max_retries: int | None = 5,
     ) -> None:
         """
         Args:
-            max_retries (int | None, optional): The maximum number of retries for HTTP requests. Defaults to None.
+            max_retries (int | None, optional): The maximum number of retries for HTTP requests. Defaults to 5.
         """
         self.max_retries = max_retries
         self.session = self._create_session()

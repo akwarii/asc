@@ -3,7 +3,7 @@ HTTP_PROTOCOLS = ["http://", "https://"]
 
 AFLOW_SERVER = "https://aflow.org"
 AFLOW_API = "/API/aflux/?"
-AFLOW_DEFAULT_PAGING = "0"
+AFLOW_DEFAULT_PAGING = 0
 
 AFLOW_OPERATORS = "(),:!*'$"
 

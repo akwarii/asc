@@ -7,7 +7,7 @@ from lightning import LightningDataModule
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, random_split
 
 import src.data.datasets as datasets
-from src.processing.graph import KNNGraph # DB
+from src.processing.graph import KNNGraph  # DB
 from src.utils.constants import REPR_INDENT
 from src.utils.typing import PathLike, StageType
 
@@ -16,7 +16,6 @@ DATASET_MAP = {
     "mp": datasets.MaterialProject,
     "gnome": datasets.Gnome,
     "csg": datasets.CSG,
-    # "custom": datasets.PymatgenDataset,
     "custom": datasets.CustomDataset,
 }
 
@@ -79,13 +78,13 @@ class CEGANNDataModule(LightningDataModule):
         train_val_test_split: tuple[int, int, int] | tuple[float, float, float] = (0.8, 0.1, 0.1),
         transforms: Sequence[Any] | None = None,
         struct_transforms: Sequence[Any] | None = None,
+        aumgenter_transforms: Sequence[Any] | None = None,
         sampler: Any | None = None,
-        batch_size: int = 64,
+        batch_size: int = 256,
         num_workers: int = 0,
         pin_memory: bool = False,
         seed: int = 42,
-        download: bool = False, # DB
-        k_neigh: int = None, # DB
+        k_neigh: int = None,  # DB
         **kwargs,
     ) -> None:
         super().__init__()
@@ -103,9 +102,6 @@ class CEGANNDataModule(LightningDataModule):
         # DB - Number of neighbors
         self.k_neigh = k_neigh
 
-        # DB - Download datasets ?
-        self.download_datasets = download
-
         # DB - other arguments
         self.kwargs = kwargs
 
@@ -119,6 +115,11 @@ class CEGANNDataModule(LightningDataModule):
             self.struct_transforms = None
         else:
             self.struct_transforms = T.Compose([t for t in struct_transforms])
+
+        if aumgenter_transforms is None:
+            self.augmenter_transforms = None
+        else:
+            self.augmenter_transforms = T.Compose([t for t in aumgenter_transforms])
 
         self.data_train: Dataset | None = None
         self.data_val: Dataset | None = None
@@ -147,7 +148,7 @@ class CEGANNDataModule(LightningDataModule):
         In case of multi-node training, the execution of this hook depends upon `prepare_data_per_node`.
         """
         for dataset in self.hparams.datasets:
-            DATASET_MAP[dataset](self.hparams.root, download=True)
+            DATASET_MAP[dataset](self.hparams.root, fetch_data=True)
 
     def setup(self, stage: StageType) -> None:
         """Load data in memory. If stage is either `"fit"`, `"validate"` or `"test"`, then
@@ -162,9 +163,11 @@ class CEGANNDataModule(LightningDataModule):
         """
         # DB - Number of neighbors management
         graph_kwargs = {}
-        if self.k_neigh : graph_kwargs["k"] = self.k_neigh
+        if self.k_neigh:
+            graph_kwargs["k"] = self.k_neigh
         kwargs, keys_tokeep = {}, ["pretreat", "origin_dir"]
-        if self.kwargs : kwargs = {key: self.kwargs[key] for key in keys_tokeep}
+        if self.kwargs:
+            kwargs = {key: self.kwargs[key] for key in keys_tokeep}
         # We only test for self.data_test because if self.data_train is set,
         # then self.data_val and self.data_test are also set
         if stage != "predict" and not self.data_test:
@@ -172,11 +175,10 @@ class CEGANNDataModule(LightningDataModule):
                 [
                     DATASET_MAP[dataset](
                         self.hparams.root,
-                        download=self.download_datasets,
                         transform=self.transforms,
                         struct_transform=self.struct_transforms,
-                        **graph_kwargs,
-                        **kwargs
+                        graph_kwargs=graph_kwargs,
+                        **kwargs,
                     )
                     for dataset in self.hparams.datasets
                 ]
@@ -192,10 +194,9 @@ class CEGANNDataModule(LightningDataModule):
                 [
                     DATASET_MAP[dataset](
                         self.hparams.root,
-                        download=self.download_datasets,
                         transform=self.transforms,
                         struct_transform=self.struct_transforms,
-                        **graph_kwargs,
+                        graph_kwargs=graph_kwargs,
                         **kwargs,
                     )
                     for dataset in self.hparams.datasets
@@ -215,7 +216,7 @@ class CEGANNDataModule(LightningDataModule):
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             shuffle=True,
-            collate_fn=KNNGraph.collate, # DB
+            collate_fn=KNNGraph.collate,  # DB
         )
 
     def val_dataloader(self) -> DataLoader[Any]:
@@ -230,7 +231,7 @@ class CEGANNDataModule(LightningDataModule):
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             shuffle=False,
-            collate_fn=KNNGraph.collate, # DB
+            collate_fn=KNNGraph.collate,  # DB
         )
 
     def test_dataloader(self) -> DataLoader[Any]:
@@ -245,7 +246,7 @@ class CEGANNDataModule(LightningDataModule):
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             shuffle=False,
-            collate_fn=KNNGraph.collate, # DB
+            collate_fn=KNNGraph.collate,  # DB
         )
 
     def predict_dataloader(self) -> DataLoader[Any]:
@@ -260,7 +261,7 @@ class CEGANNDataModule(LightningDataModule):
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             shuffle=False,
-            collate_fn=KNNGraph.collate, # DB
+            collate_fn=KNNGraph.collate,  # DB
         )
 
     def on_before_batch_transfer(self, batch: Any, dataloader_idx: int) -> Any:
@@ -276,6 +277,8 @@ class CEGANNDataModule(LightningDataModule):
                 batch = self.struct_transforms(batch)
             if self.transforms is not None:
                 batch = self.transforms(batch)
+            if self.augmenter_transforms is not None:
+                batch = self.augmenter_transforms(batch)
         return batch
 
     def teardown(self, stage: StageType) -> None:

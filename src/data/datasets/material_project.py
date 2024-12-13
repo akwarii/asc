@@ -1,4 +1,5 @@
 import json
+import warnings
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -9,7 +10,6 @@ from pymatgen.core import Structure
 from tqdm.auto import tqdm
 
 from src.data.datasets.base import GraphDataset
-from src.processing.graph import KNNGraph
 from src.utils.constants import MP_CLASSES
 
 
@@ -21,7 +21,7 @@ class MaterialProject(GraphDataset):
         transform (Callable | None): A function/transform that takes in a graph and returns a transformed version.
         struct_transform (Callable | None): A function/transform that takes in a structure and returns a transformed version.
         target_transform (Callable | None): A function/transform that takes in a target and returns a transformed version.
-        download (bool): Whether to download the dataset if it doesn't exist.
+        fetch_data (bool): Whether to download the dataset if it doesn't exist.
         **graph_kwargs: Additional keyword arguments to be passed to the Graph class.
 
     Attributes:
@@ -33,8 +33,8 @@ class MaterialProject(GraphDataset):
     Methods:
         __getitem__: Retrieves a graph and its corresponding target from the dataset.
         __len__: Returns the length of the dataset.
-        _load_data: Loads the data from the resource files.
-        download: Downloads the dataset if it doesn't exist already.
+        load: Loads the data from the resource files.
+        fetch_data: Downloads the dataset if it doesn't exist already.
     """
 
     _dotenv_path = Path(__file__).resolve().parents[3] / ".env"
@@ -53,21 +53,18 @@ class MaterialProject(GraphDataset):
         transform: Callable | None = None,
         struct_transform: Callable | None = None,
         target_transform: Callable | None = None,
-        download: bool = False,
-        load: bool = True,
-        **graph_kwargs,
+        fetch_data: bool = False,
+        graph_kwargs: dict[str, Any] = {},
     ) -> None:
-        super().__init__(root, transform, struct_transform, target_transform)
-        self.graph_kwargs = graph_kwargs
+        super().__init__(root, transform, struct_transform, target_transform, graph_kwargs)
 
-        if download:
-            self.download()
+        if fetch_data:
+            self.fetch_data()
 
         if not self.check_exists():
-            raise RuntimeError("Dataset not found. You can use download=True to download it")
+            raise RuntimeError("Dataset not found. You can use fetch_data=True to download it")
 
-        if load:
-            self.data, self.targets = self._load_data()
+        self.data, self.targets = self.load()
 
     def __getitem__(self, index: int) -> tuple[Any, Any]:
         if not self.data:
@@ -81,24 +78,20 @@ class MaterialProject(GraphDataset):
         if self.struct_transform is not None:
             struct = self.struct_transform(struct)
 
-        graph = KNNGraph(**self.graph_kwargs)
-        self.graphdata = graph.convert(struct) # DB
-        # graph.convert(struct)
+        graph = self.knn.convert(struct)
 
         if self.transform is not None:
-            # graph = self.transform(graph)
-            self.graphdata = self.transform(self.graphdata) # DB
+            graph = self.transform(graph)
 
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        return self.graphdata, target # DB, unc
-        # return graph, target
+        return graph, target
 
     def __len__(self) -> int:
         return len(self.data)
 
-    def _load_data(self) -> tuple[list[str], list[int]]:
+    def load(self) -> tuple[list[str], list[int]]:
         """Load data from JSON files and return a tuple of data and targets.
 
         Returns:
@@ -115,7 +108,7 @@ class MaterialProject(GraphDataset):
 
         return data, targets
 
-    def download(self) -> None:
+    def fetch_data(self) -> None:
         """Downloads the Aflow dataset if it doesn't exist already."""
         if self.check_exists():
             print(f"Dataset already exists at {self.root}")
@@ -140,14 +133,19 @@ class MaterialProject(GraphDataset):
                     ],
                 )
 
-            filtered_data = [
-                {
-                    "structure": entry["structure"].to(fmt="poscar"),  # type: ignore
-                    "spacegroup": entry["symmetry"]["number"],  # type: ignore
-                }
-                for entry in docs
-                if not entry["deprecated"] and not entry["warnings"]  # type: ignore
-            ]
+            # Filter out deprecated and warning entries and convert to POSCAR format
+            # Pymatgen throws UserWarning when electronegativity is not found, we can ignore it
+            #TODO Need to remove selective dynamics tags from POSCAR
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", UserWarning)
+                filtered_data = [
+                    {
+                        "structure": entry["structure"].to(fmt="poscar"),  # type: ignore
+                        "spacegroup": entry["symmetry"]["number"],  # type: ignore
+                    }
+                    for entry in docs
+                    if not entry["deprecated"] and not entry["warnings"]  # type: ignore
+                ]
 
             with open(file, "w") as f:
                 json.dump(filtered_data, f, sort_keys=True, indent=4)
