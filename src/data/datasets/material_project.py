@@ -55,6 +55,7 @@ class MaterialProject(GraphDataset):
         target_transform: Callable | None = None,
         fetch_data: bool = False,
         graph_kwargs: dict[str, Any] = {},
+        **kwargs: Any,
     ) -> None:
         super().__init__(root, transform, struct_transform, target_transform, graph_kwargs)
 

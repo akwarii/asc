@@ -10,6 +10,7 @@ from src.data.datasets.base import GraphDataset
 from src.utils.constants import CUSTOM_CLASSES
 
 
+# TODO this class needs to be refactored to be more generic and better integrated with the rest of the code
 class CustomDataset(GraphDataset):
     """A dataset class for any user provided custom dataset.
 
@@ -46,6 +47,7 @@ class CustomDataset(GraphDataset):
         fetch_data: bool = False,
         origin_dir: str | None = None,
         graph_kwargs: dict[str, Any] = {},
+        **kwargs: Any,
     ) -> None:
         super().__init__(root, transform, struct_transform, target_transform, graph_kwargs)
 

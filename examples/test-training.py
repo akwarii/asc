@@ -35,13 +35,13 @@ datamodule = CEGANNDataModule(
     # datasets=["mp", "aflow", "csg", "gnome"],
     datasets="mp",
     # datasets="custom", # test this (needs the following line also)
-    # origin_dir="/home/dbissuel/Documents/softs/sourcecodes/CEGANN/pretrained/spacegroup/",
+    origin_dir="/home/dbissuel/Documents/softs/sourcecodes/CEGANN/pretrained/spacegroup/",
     transforms=transforms,
-    aumgenter_transforms=augmenters,
+    augmentations=augmenters,
     num_workers=cpu_count - 1 if cpu_count is not None else 0,
-    k_neigh=12,
     train_val_test_split=(0.8, 0.1, 0.1),
     batch_size=32,
+    graph_kwargs={"k": 2, },
 )
 n_classes = datamodule.num_classes or 230
 
@@ -101,9 +101,9 @@ module = CEGANNModule(
 
 # Training
 trainer = L.Trainer(
-    limit_train_batches=0.01,
-    max_epochs=1,
-    # fast_dev_run=True,
+    # limit_train_batches=0.01,
+    # max_epochs=1,
+    fast_dev_run=True,
     # check_val_every_n_epoch=5,
     # max_epochs=200,
 )

@@ -96,4 +96,4 @@ GNOME_CLASSES = tuple(_ALL_SG - _NOT_IN_GNOME)
 _NOT_IN_CSG = {168, 207}
 CSG_CLASSES = tuple(_ALL_SG - _NOT_IN_CSG)
 
-CUSTOM_CLASSES = tuple(set(range(8))) # DB
+CUSTOM_CLASSES = tuple(set(range(8))) # DB #TODO this should be found in the dataset

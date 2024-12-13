@@ -28,6 +28,7 @@ DATASET_MAP = {
 # TODO add collate_fn to dataloader ~~~~ DONE ?
 # TODO integrate dynamic batch and imbalanced sampling
 # TODO integrate node loader
+# TODO change the way data is transformed / augmented (https://lightning.ai/docs/pytorch/stable/notebooks/lightning_examples/augmentation_kornia.html)
 class CEGANNDataModule(LightningDataModule):
     """CEGANNDataModule is a LightningDataModule subclass that provides data loading and processing
     functionality for the CEGANN model.
@@ -78,13 +79,13 @@ class CEGANNDataModule(LightningDataModule):
         train_val_test_split: tuple[int, int, int] | tuple[float, float, float] = (0.8, 0.1, 0.1),
         transforms: Sequence[Any] | None = None,
         struct_transforms: Sequence[Any] | None = None,
-        aumgenter_transforms: Sequence[Any] | None = None,
+        augmentations: Sequence[Any] | None = None,
         sampler: Any | None = None,
         batch_size: int = 256,
         num_workers: int = 0,
         pin_memory: bool = False,
         seed: int = 42,
-        k_neigh: int = None,  # DB
+        graph_kwargs: dict[str, Any] = {},
         **kwargs,
     ) -> None:
         super().__init__()
@@ -95,15 +96,11 @@ class CEGANNDataModule(LightningDataModule):
         if any(dataset not in DATASET_MAP for dataset in datasets):
             raise ValueError(f"Invalid dataset. Available datasets are {list(DATASET_MAP.keys())}")
 
+        self.kwargs = kwargs
+
         # this line allows to access init params with 'self.hparams' attribute
         # also ensures init params will be stored in ckpt
         self.save_hyperparameters(logger=False)
-
-        # DB - Number of neighbors
-        self.k_neigh = k_neigh
-
-        # DB - other arguments
-        self.kwargs = kwargs
 
         # data transformations
         if transforms is None:
@@ -116,10 +113,10 @@ class CEGANNDataModule(LightningDataModule):
         else:
             self.struct_transforms = T.Compose([t for t in struct_transforms])
 
-        if aumgenter_transforms is None:
+        if augmentations is None:
             self.augmenter_transforms = None
         else:
-            self.augmenter_transforms = T.Compose([t for t in aumgenter_transforms])
+            self.augmenter_transforms = T.Compose([t for t in augmentations])
 
         self.data_train: Dataset | None = None
         self.data_val: Dataset | None = None
@@ -161,13 +158,12 @@ class CEGANNDataModule(LightningDataModule):
         Args:
             stage: The stage to load the data for. Either `"fit"`, `"validate"`, `"test"`, or `"predict"`.
         """
-        # DB - Number of neighbors management
-        graph_kwargs = {}
-        if self.k_neigh:
-            graph_kwargs["k"] = self.k_neigh
-        kwargs, keys_tokeep = {}, ["pretreat", "origin_dir"]
-        if self.kwargs:
-            kwargs = {key: self.kwargs[key] for key in keys_tokeep}
+        keys_tokeep = ["origin_dir", ]
+        kwargs = self.kwargs.copy()
+        for k in kwargs:
+            if k not in keys_tokeep:
+                del kwargs[k]
+            
         # We only test for self.data_test because if self.data_train is set,
         # then self.data_val and self.data_test are also set
         if stage != "predict" and not self.data_test:
@@ -177,7 +173,7 @@ class CEGANNDataModule(LightningDataModule):
                         self.hparams.root,
                         transform=self.transforms,
                         struct_transform=self.struct_transforms,
-                        graph_kwargs=graph_kwargs,
+                        graph_kwargs=self.hparams.graph_kwargs,
                         **kwargs,
                     )
                     for dataset in self.hparams.datasets
@@ -196,7 +192,7 @@ class CEGANNDataModule(LightningDataModule):
                         self.hparams.root,
                         transform=self.transforms,
                         struct_transform=self.struct_transforms,
-                        graph_kwargs=graph_kwargs,
+                        graph_kwargs=self.hparams.graph_kwargs,
                         **kwargs,
                     )
                     for dataset in self.hparams.datasets

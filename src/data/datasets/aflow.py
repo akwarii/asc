@@ -53,6 +53,7 @@ class Aflow(GraphDataset):
         stress_threshold: int | None = None,
         force_threshold: float | None = None,
         graph_kwargs: dict[str, Any] = {},
+        **kwargs: Any,
     ) -> None:
         super().__init__(root, transform, struct_transform, target_transform, graph_kwargs)
 
