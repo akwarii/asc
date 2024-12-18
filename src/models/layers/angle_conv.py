@@ -1,7 +1,6 @@
 import torch
 from torch import nn
 from torch_geometric.nn.norm import GraphNorm # DB
-from torch_geometric.nn.conv import GATv2Conv # DB
 
 
 class AngleConvLayer(nn.Module):

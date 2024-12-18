@@ -7,10 +7,11 @@ from collections.abc import Sequence
 # if the tag is 1, then the atom should be included in the graph
 # if the tag is None, then the atom should be included in the graph and the tag is not used
 
+
 # DB : Per data/cegann_datamodule, struct_transorms are to be applied before graph
 # creation. In ths regard, it might be suitable to simply remove the atoms from
 # the structure rather.
-class RemoveAtoms(torch.nn.Module) :
+class RemoveAtoms(torch.nn.Module):
     """Removes atoms in a pymatgen Structure.
     If the tag is zero, the atom should not be included in the graph.
     If the tag is non-zero, the atom should be included in the graph.
@@ -19,15 +20,13 @@ class RemoveAtoms(torch.nn.Module) :
 
     Args:
         None
-    
+
     Methods:
         forward: performs the removal of atoms in the structure
         _label_sites: given either atom index or species, applies labels to atoms in the structure.
     """
 
-    def __init__(
-            self
-    ) -> None :
+    def __init__(self) -> None:
         super().__init__()
 
     def forward(
@@ -36,8 +35,8 @@ class RemoveAtoms(torch.nn.Module) :
         species: Sequence[Sequence[str]] = [],
         masks: Sequence[Sequence[int]] = [],
         indexes: Sequence[Sequence[int]] = [],
-        progress_bar: bool = True
-    ) -> None :
+        progress_bar: bool = True,
+    ) -> None:
         """Modifies a batch of pymatgen Sequences to remove atomic sites based
         on their internal `site_properties` parameter, under the `"keep-site?"`
         key. Also modifies those `site_properties` beforehand in the case instructions are provided.
@@ -56,8 +55,8 @@ class RemoveAtoms(torch.nn.Module) :
         ######################################################################
         #                              NOTE                                  #
         ######################################################################
-        # In theory, Pymatgen Structures already embedd routines in order to 
-        # remove atoms based on `species` - namely `remove_species` - and on 
+        # In theory, Pymatgen Structures already embedd routines in order to
+        # remove atoms based on `species` - namely `remove_species` - and on
         # `indexes` - namely `remove_sites`. See the links (1) and (2) below
         # for more details.
         #
@@ -74,45 +73,42 @@ class RemoveAtoms(torch.nn.Module) :
         # (2) https://pymatgen.org/pymatgen.core.html#pymatgen.core.structure.Structure.remove_sites
 
         # Change labels on structures, if some instructions are present
-        
+
         use_species = len(structs) == len(species)
-        use_masks   = len(structs) == len(masks)
+        use_masks = len(structs) == len(masks)
         use_indexes = len(structs) == len(indexes)
 
-        if progress_bar :
+        if progress_bar:
             from tqdm import tqdm
-            pbar = tqdm(total=len(structs),
-                        desc="Removing unwanted sites from structures.")
 
-        for i, struct in enumerate(structs) :
-            
+            pbar = tqdm(total=len(structs), desc="Removing unwanted sites from structures.")
+
+        for i, struct in enumerate(structs):
             args = {}
-            if use_species : args["species"] = species[i]
-            if use_masks   : args["masks"]   = masks[i]
-            if use_indexes : args["indexes"] = indexes[i]
+            if use_species:
+                args["species"] = species[i]
+            if use_masks:
+                args["masks"] = masks[i]
+            if use_indexes:
+                args["indexes"] = indexes[i]
 
             self._label_sites(struct=struct, **args)
-            
-            struct.remove_sites(
-                np.where(
-                    np.logical_not(struct.site_properties["keep-site?"])
-                )
-            )
-            
-            if progress_bar : pbar.update(1)
 
-        if progress_bar : pbar.close()
+            struct.remove_sites(np.where(np.logical_not(struct.site_properties["keep-site?"])))
 
-        
+            if progress_bar:
+                pbar.update(1)
 
+        if progress_bar:
+            pbar.close()
 
     @staticmethod
     def _label_sites(
         struct: Structure,
         species: Sequence[str] = [],
         indexes: Sequence[int] = [],
-        mask: Sequence[int] = []
-    ) -> None :
+        mask: Sequence[int] = [],
+    ) -> None:
         """Applies removal instructions on a pymatgen Structure. Those are stored
         in the `site_properties` parameter dictionnary, under the `"keep-site?" key,
         given species and/or a lists of integers either being the indexes to remove
@@ -128,24 +124,21 @@ class RemoveAtoms(torch.nn.Module) :
         """
         n_atoms = np.size(struct.species)
         labels = np.ones(n_atoms)
-        
+
         # mask with 0 and 1 for each site
-        if len(mask) > 0 :
-            assert len(mask) == n_atoms 
+        if len(mask) > 0:
+            assert len(mask) == n_atoms
             labels *= mask
-        
+
         # indexes of atoms to delete from the structure
-        if len(indexes) > 0 :
+        if len(indexes) > 0:
             assert len(indexes) <= n_atoms
             labels[indexes] = 0
 
         # Using provided species
-        if len(species) > 0 :
+        if len(species) > 0:
             assert len(species) <= n_atoms
-            labels *= [
-                not s in species for s in np.array(struct.species).astype(str)
-            ]
+            labels *= [s not in species for s in np.array(struct.species).astype(str)]
 
         # Storing sites to keep as booleans
         struct.add_site_property("keep-site?", labels.astype(bool))
-

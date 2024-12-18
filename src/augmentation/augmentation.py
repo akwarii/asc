@@ -6,6 +6,7 @@ import torch
 from torch_geometric.data import Data
 
 
+#TODO review this class
 class RandomDisplacement(torch.nn.Module):
     """Class to apply random displacement to atoms in structures.
 
@@ -31,6 +32,7 @@ class RandomDisplacement(torch.nn.Module):
         self.p = p
         self.rng = np.random.RandomState(seed=self.seed)
 
+    @torch.no_grad()
     def forward(self, x: Sequence[Data], progress_bar: bool = True) -> Sequence[Data]:
         """Applies random Gaussian noise to interatomic distances and angles on a batch of
         graph structures.
@@ -284,6 +286,7 @@ class RandomExpansion(torch.nn.Module):
         self.p = p
         self.rng = np.random.RandomState(seed=self.seed)
 
+    @torch.no_grad()
     def forward(self, x: Sequence[Data], progress_bar: bool = True) -> Sequence[Data]:
         if progress_bar:
             from tqdm import tqdm
@@ -324,6 +327,7 @@ class RandomExpansion(torch.nn.Module):
         return scaled_graphs
 
 
+#TODO review this class
 class RandomNodeDrop(torch.nn.Module):
     """Class to apply random node dropout to boxes.
 
@@ -349,6 +353,7 @@ class RandomNodeDrop(torch.nn.Module):
         self.seed = seed
         self.rng = np.random.RandomState(seed=self.seed)
 
+    @torch.no_grad()
     def forward(
         self, x: Sequence[Data], keep_undropped: bool = False, progress_bar: bool = True
     ) -> Sequence[Data]:
@@ -422,13 +427,3 @@ class RandomNodeDrop(torch.nn.Module):
             pbar.close()
 
         return dropped_graphs
-
-
-# TODO (maybe not?) implement molecular dynamics data augmentation
-# DB : https://wiki.fysik.dtu.dk/ase/ase/md.html#module-ase.md
-# DB : after thoughts/discussions, problems to identify interatomic
-#      potentials and/or numerical cost of AIMD calculations make
-#      MolecularDynamics too complicated/expensive to be massively
-#      applied to large and varied batches of data.
-class MolecularDynamics(torch.nn.Module):
-    pass

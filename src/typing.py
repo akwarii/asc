@@ -1,9 +1,9 @@
 from pathlib import Path
-from typing import Literal, TypeAlias
+from typing import Literal, TypeAlias, Iterable
 
 from torch import Tensor
 
-AfluxResponse: TypeAlias = list[dict[str, str]] | list
+AfluxResponse: TypeAlias = Iterable[dict[str, str]] | Iterable[str]
 PathLike: TypeAlias = str | Path
 
 StageType: TypeAlias = Literal["fit", "validate", "test", "predict"]

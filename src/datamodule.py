@@ -7,9 +7,9 @@ from lightning import LightningDataModule
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, random_split
 
 import src.data.datasets as datasets
-from src.processing.graph import KNNGraph  # DB
-from src.utils.constants import REPR_INDENT
-from src.utils.typing import PathLike, StageType
+from src.graph import KNNGraph  # DB
+from src.constants import REPR_INDENT
+from src.typing import PathLike, StageType
 
 DATASET_MAP = {
     "aflow": datasets.Aflow,
@@ -25,7 +25,6 @@ DATASET_MAP = {
 # pyright: reportAssignmentType=false
 # pyright: reportArgumentType=false
 # pyright: reportOptionalIterable=false
-# TODO add collate_fn to dataloader ~~~~ DONE ?
 # TODO integrate dynamic batch and imbalanced sampling
 # TODO integrate node loader
 # TODO change the way data is transformed / augmented (https://lightning.ai/docs/pytorch/stable/notebooks/lightning_examples/augmentation_kornia.html)
@@ -212,7 +211,7 @@ class CEGANNDataModule(LightningDataModule):
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             shuffle=True,
-            collate_fn=KNNGraph.collate,  # DB
+            collate_fn=KNNGraph.collate,
         )
 
     def val_dataloader(self) -> DataLoader[Any]:
@@ -227,7 +226,7 @@ class CEGANNDataModule(LightningDataModule):
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             shuffle=False,
-            collate_fn=KNNGraph.collate,  # DB
+            collate_fn=KNNGraph.collate,
         )
 
     def test_dataloader(self) -> DataLoader[Any]:
@@ -242,7 +241,7 @@ class CEGANNDataModule(LightningDataModule):
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             shuffle=False,
-            collate_fn=KNNGraph.collate,  # DB
+            collate_fn=KNNGraph.collate,
         )
 
     def predict_dataloader(self) -> DataLoader[Any]:
@@ -257,7 +256,7 @@ class CEGANNDataModule(LightningDataModule):
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             shuffle=False,
-            collate_fn=KNNGraph.collate,  # DB
+            collate_fn=KNNGraph.collate,
         )
 
     def on_before_batch_transfer(self, batch: Any, dataloader_idx: int) -> Any:

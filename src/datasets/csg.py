@@ -6,9 +6,9 @@ from kaggle import KaggleApi
 from pymatgen.core import Structure
 from torch_geometric.data import Data
 
-from src.data.datasets.base import GraphDataset
-from src.data.datasets.utils import check_integrity
-from src.utils.constants import CSG_CLASSES
+from src.datasets.base import GraphDataset
+from src.datasets.utils import check_integrity
+from src.constants import CSG_CLASSES
 
 
 class CSG(GraphDataset):
@@ -96,6 +96,8 @@ class CSG(GraphDataset):
     def __len__(self) -> int:
         return len(self.data)
 
+    #TODO if the processed data is already available, we can load it instead
+    #TODO doing so will save time during __getitem__ calls as we won't have to convert the structure to a graph
     def load(self) -> tuple[list[str], list[int]]:
         df = pd.read_csv(self.raw_folder / self.resources[0])
         data = df["Structure"].tolist()

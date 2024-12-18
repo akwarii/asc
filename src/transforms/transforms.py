@@ -2,7 +2,7 @@ from typing import Any
 
 import torch
 
-from src.utils.constants import REPR_INDENT
+from src.constants import REPR_INDENT
 
 __all__ = [
     "Compose",

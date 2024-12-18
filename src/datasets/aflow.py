@@ -8,9 +8,9 @@ from torch_geometric.data import Data
 from tqdm.auto import tqdm
 
 from src.api import AflowAPI
-from src.data.datasets.base import GraphDataset
-from src.data.datasets.utils import poscar_from_entry
-from src.utils.constants import AFLOW_CLASSES
+from src.datasets.base import GraphDataset
+from src.datasets.utils import poscar_from_entry
+from src.constants import AFLOW_CLASSES
 
 
 class Aflow(GraphDataset):
@@ -85,6 +85,8 @@ class Aflow(GraphDataset):
     def __len__(self) -> int:
         return len(self.data)
 
+    #TODO if the processed data is already available, we can load it instead
+    #TODO doing so will save time during __getitem__ calls as we won't have to convert the structure to a graph
     def load(self) -> tuple[list[str], list[int]]:
         files = [self.raw_folder / fname for fname in self.resources]
 

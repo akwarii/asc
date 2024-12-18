@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
-from src.utils.typing import PathLike
+from src.typing import PathLike
 
 
 def md5(fname):

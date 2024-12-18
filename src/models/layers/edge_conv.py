@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from torch_geometric.nn.norm import GraphNorm # DB
-from torch_geometric.nn.conv import GATv2Conv # DB
+
 
 class EdgeConvLayer(nn.Module):
     def __init__(self, edge_fea_len: int, angle_fea_len: int) -> None:

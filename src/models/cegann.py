@@ -2,9 +2,8 @@ import torch
 import torch.nn as nn
 from torch_geometric.nn.norm import GraphNorm  # DB
 
-from src.models.components.expansion.radial import GaussianBasis
-from src.models.components.layers.angle_conv import AngleConvLayer
-from src.models.components.layers.edge_conv import EdgeConvLayer
+from src.models.expansion import GaussianBasis
+from src.models.layers import AngleConvLayer, EdgeConvLayer
 
 
 # TODO: Investigate the influence of the number of pre/post-process layers

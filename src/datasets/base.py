@@ -4,9 +4,9 @@ from typing import Any
 
 from torch.utils.data import Dataset
 
-from src.processing.graph import KNNGraph
-from src.utils.constants import REPR_INDENT
-from src.utils.typing import PathLike
+from src.graph import KNNGraph
+from src.constants import REPR_INDENT
+from src.typing import PathLike
 
 
 class GraphDataset(Dataset):

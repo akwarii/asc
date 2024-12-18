@@ -1,5 +1,4 @@
 import json
-import re
 import string
 
 import requests
@@ -16,7 +15,7 @@ from src.api.constants import (
     HTTP_PROTOCOLS,
     HTTP_STATUS_FORCELIST,
 )
-from src.utils.typing import AfluxResponse
+from src.typing import AfluxResponse
 
 
 class AflowAPI:
@@ -50,12 +49,6 @@ class AflowAPI:
             Returns the base URL for API requests.
         request(self, matchbook: str, paging: int | None = None, chunk_size: int | None = None, no_directives: bool = False) -> AfluxResponse:
             Sends a request to the AFLOW API and retrieves the response.
-        help(self, keyword: str | None = None) -> None:
-            Displays help information for the AFLOW API.
-        get_contcar(self, entry: dict[str, str]) -> str:
-            Retrieves the CONTCAR file for a given entry.
-        get_property(self, entry: dict[str, str], property: str) -> list[str]:
-            Retrieves a specific property for a given entry.
     """
 
     SERVER = AFLOW_SERVER
@@ -208,126 +201,3 @@ class AflowAPI:
             raise RuntimeError("Failed to decode AFLUX response as JSON")
 
         return json_response
-
-    def help(self, keyword: str | None = None) -> None:
-        """Displays help information for the AFLOW API.
-
-        Args:
-            keyword (str | None, optional): The specific keyword to get help for. None will display general help. Defaults to None.
-
-        Raises:
-            ValueError: If the keyword query is invalid.
-        """
-        # General help (https://aflow.org/API/aflux/?)
-        if keyword is None:
-            help_data = self.request("", no_directives=True)
-            help_str = "\n".join(help_data)
-
-        # Help regarding a specific keyword (https://aflow.org/API/aflux/?help(keyword))
-        else:
-            if not self._is_query_valid(keyword):
-                raise ValueError("Invalid query: contains invalid keywords")
-
-            try:
-                help_data = self.request(f"help({keyword})", no_directives=True)
-            except RuntimeError:
-                print(f"No help information found for keyword: {keyword}")
-                return
-
-            entry = help_data[keyword]
-            help_str = f"{keyword}:\n"
-            help_str += f"  description: {entry['description']}\n"
-            help_str += f"  units: {entry['units']}\n"
-            help_str += f"  status: {entry['status']}\n"
-
-            comment = "\n    ".join(entry["__comment__"]).strip()
-            if comment:
-                help_str += f"  comment:\n    {comment}"
-
-        print(help_str)
-
-    def get_contcar(self, entry: dict[str, str]) -> str:
-        """Retrieves the CONTCAR file for a given entry.
-
-        Args:
-            entry (dict[str, str]): The entry containing the 'aurl' key.
-
-        Returns:
-            str: The contents of the CONTCAR file.
-
-        Raises:
-            ValueError: If the entry is missing the 'aurl' key.
-        """
-        if "aurl" not in entry.keys():
-            raise ValueError("Invalid entry: missing 'aurl' key.")
-
-        aurl = entry["aurl"].replace(":", "/")
-        request_url = f"http://{aurl}/CONTCAR.relax"
-
-        response = self._make_request(request_url)
-
-        # Fix POSTCAR if in VASP4 format
-        poscar_lines = response.text.split("\n")
-
-        # Apply the lattice scaling factor
-        scaling_factor = float(poscar_lines[1])
-        if scaling_factor != 1.0:
-            poscar_lines[1] = "1.0"
-            for i in range(2, 5):
-                poscar_lines[i] = " ".join(
-                    str(float(x) * scaling_factor) for x in poscar_lines[i].split()
-                )
-
-        # Add species names if missing
-        if poscar_lines[5].strip()[0].isnumeric():
-            species = re.findall("[A-Z][a-z]*", entry["compound"])
-            poscar_lines.insert(5, " ".join(species))
-
-        # Remove the selective dynamics tag if present
-        if poscar_lines[7].startswith(("s", "S")):
-            del poscar_lines[7]
-
-        # Convert the coordinates to Direct if in Cartesian format
-        # and remove the potential selective dynamics tag
-        n_atoms = sum(int(x) for x in poscar_lines[6].split())
-        if poscar_lines[7].strip() == "Cartesian":
-            poscar_lines[7] = "Direct"
-            for i in range(8, 8 + n_atoms):
-                poscar_lines[i] = " ".join(
-                    str(float(x) * scaling_factor) for x in poscar_lines[i].split()[:3]
-                )
-
-        # Remove the velocities if present
-        if len(poscar_lines) > 8 + n_atoms:
-            poscar_lines = poscar_lines[: 8 + n_atoms]
-            poscar_lines.append("")  # Add an empty line at the end
-
-        poscar = "\n".join(poscar_lines)
-        return poscar
-
-    def get_property(self, entry: dict[str, str], property: str) -> list[str]:
-        """Retrieves a specific property for a given entry.
-
-        Args:
-            entry (dict[str, str]): The entry containing the 'aurl' key.
-            property (str): The property to retrieve.
-
-        Returns:
-            list[str]: The values of the property.
-
-        Raises:
-            ValueError: If the entry is missing the 'aurl' key.
-        """
-        if "aurl" not in entry.keys():
-            raise ValueError("Invalid entry: missing 'aurl' key.")
-
-        aurl = entry["aurl"].replace(":", "/")
-        request_url = f"http://{aurl}/?{property}"
-
-        response = self._make_request(request_url)
-
-        property_value = response.text.strip().split(";")
-        for value in property_value:
-            value = value.strip().split(",")
-
-        return property_value

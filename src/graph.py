@@ -7,7 +7,7 @@ from pymatgen.core import Structure
 from torch_geometric.data import Data
 from torch_geometric.utils import cumsum
 
-from src.utils.typing import PathLike, SliceDictType
+from src.typing import PathLike, SliceDictType
 
 
 class KNNGraph:
@@ -32,7 +32,7 @@ class KNNGraph:
         self.k = k
         self.rcut = rcut
 
-    def _get_graph_data(self, struct: Structure) -> tuple[torch.Tensor, torch.Tensor]:
+    def _get_graph_data(self, struct: Structure) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Performs a nearest neighbor search and returns edge index, distances.
 
         The number of neighbors is determined by the `k` attribute.
@@ -52,9 +52,9 @@ class KNNGraph:
         """
 
         reached_knn = np.zeros(len(struct))
-        delta_rcut = 0.
+        delta_rcut = 0.0
 
-        while not np.all(reached_knn) :
+        while not np.all(reached_knn):
             centers_idx, neighbors_idx, _, distances = struct.get_neighbor_list(
                 r=self.rcut + delta_rcut, exclude_self=True
             )
@@ -71,10 +71,10 @@ class KNNGraph:
                     # )
                     delta_rcut += 0.01 * self.rcut
                     # continue # Uncommenting this creates size mismatches, not sure why
-                else :
+                else:
                     reached_knn[i] = 1
 
-                idx_sorted = np.argsort(distances[idx_i])[:self.k]
+                idx_sorted = np.argsort(distances[idx_i])[: self.k]
                 knn_idx.append(idx_i[idx_sorted])
 
         # Only keep the k-nearest neighbors
@@ -91,32 +91,26 @@ class KNNGraph:
         # DB: Angle cosine computation, directly adapted from OG CEGANN
         # see /CEGANN/graph.py @ SetGraphFea
         m = len(struct)
-        _nbr_idx = torch.reshape(
-            torch.LongTensor(neighbors_idx),
-            (m,self.k)
+        _nbr_idx = torch.reshape(torch.LongTensor(neighbors_idx), (m, self.k))
+        bond = torch.reshape(edge_distances, (m, self.k))
+        cart_coords = torch.Tensor(np.array([struct[i].coords for i in range(m)]))
+        atom_nbr_fea = torch.Tensor(
+            np.array(
+                [
+                    [
+                        struct[j].coords for j in _nbr_idx[i]
+                    ]  # DB : error sometimes but not always here
+                    for i in range(m)
+                ]
+            )
         )
-        bond = torch.reshape(
-            edge_distances,
-            (m, self.k)
-        )
-        cart_coords = torch.Tensor(np.array(
-            [struct[i].coords for i in range(m)]
-        ))
-        atom_nbr_fea = torch.Tensor(np.array(
-            [
-                [struct[j].coords for j in _nbr_idx[i]] # DB : error sometimes but not always here
-                for i in range(m)
-            ]
-        ))
-        centre_coords = cart_coords.unsqueeze(1).expand(
-            m, self.k, 3
-        )
+        centre_coords = cart_coords.unsqueeze(1).expand(m, self.k, 3)
         dxyz = atom_nbr_fea - centre_coords
         r = bond.unsqueeze(2)
-        angle_cos = torch.matmul(
-            dxyz, torch.swapaxes(dxyz, 1, 2)
-        ) / torch.matmul(r, torch.swapaxes(r, 1, 2))
-        angle_cos = angle_cos.flatten(0,1) # To fit into collate
+        angle_cos = torch.matmul(dxyz, torch.swapaxes(dxyz, 1, 2)) / torch.matmul(
+            r, torch.swapaxes(r, 1, 2)
+        )
+        angle_cos = angle_cos.flatten(0, 1)  # To fit into collate
         # DB : end of addition for cosine computation
 
         return edge_index, edge_distances, angle_cos
@@ -130,7 +124,7 @@ class KNNGraph:
                 raise FileNotFoundError(f"The file {struct_repr} does not exist.")
             struct = Structure.from_file(struct_repr)
         elif isinstance(struct_repr, Structure):
-            struct=struct_repr # modified by DB (previously pass)
+            struct = struct_repr  # modified by DB (previously pass)
         else:
             raise ValueError("The input must be a pymatgen structure object, a string or a path.")
 
@@ -138,7 +132,7 @@ class KNNGraph:
 
     def convert(
         self,
-        struct: Structure,
+        struct: Structure | str | Path,
         mask_sites: torch.BoolTensor | None = None,
     ) -> Data:
         """Convert a single atomic structure to a graph.
@@ -153,7 +147,7 @@ class KNNGraph:
             data (torch_geometric.data.Data): A torch geometic data object with positions, cell matrix,
                 edge index, edge distances and an optional mask.
         """
-        if isinstance(struct, str) or isinstance(struct, Path): # if added by DB
+        if isinstance(struct, str) or isinstance(struct, Path):  # if added by DB
             struct = self._to_pymatgen_struct(struct)
 
         edge_index, edge_distances, angle_cos = self._get_graph_data(struct)
@@ -172,7 +166,7 @@ class KNNGraph:
             cell=torch.FloatTensor(struct.lattice.matrix.copy()),
             edge_index=edge_index,
             edge_dist=edge_distances,
-            angle_cos=angle_cos, # TODO: Change rattle ?
+            angle_cos=angle_cos,  # TODO: Change rattle ?
             mask=mask_sites,
         )
 
@@ -248,13 +242,16 @@ class KNNGraph:
         if chunk_size is not None:
             raise NotImplementedError("Saving graphs in chunks is not yet implemented.")
 
+        # TODO add targets placeholder as they will be needed to collate
+        # TODO however the real targets will be loaded from the dataset
+        # TODO saving the graphs on the disk is just a way to avoid computing them during training
         graphs = list(self.batch_conversion(structs, mask_struct_sites, progress_bar))
-        data, slices = self.collate(graphs)
+        data, _, slices = self.collate(graphs)
 
-        torch.save((data.to_dict(), slices), path) 
+        torch.save((data.to_dict(), slices), path)
 
     @staticmethod
-    def collate(data_list: Sequence[Data]) -> tuple[Data, SliceDictType | None]:
+    def collate(data_list: Sequence[tuple[Data, int]]) -> tuple[Data, torch.Tensor, SliceDictType | None]:
         """Simplified version of `torch_geometric.data.collate` function.
 
         Collates a list of `data` objects into a single object of type `cls`.
@@ -271,26 +268,20 @@ class KNNGraph:
             raise ValueError("data_list is empty.")
 
         if len(data_list) == 1:
-            # return data_list[0][0], None # DB added [0]
-            return data_list[0], None
-        
-        # Target values # DB
-        targets = torch.LongTensor(
-            [data[1] - 1 for data in data_list] # to have [0, N-1] rather than [1,N] 
-        )
+            return data_list[0][0], torch.LongTensor(data_list[0][1]), None
+
+        # Target values
+        targets = torch.LongTensor([data[1] - 1 for data in data_list])
 
         # Create empty stores
-        # out = data_list[0].__class__()
-        out = data_list[0][0].__class__() # DB added [0]
-        # out.stores_as(data_list[0])
-        out.stores_as(data_list[0][0]) # DB added [0]
+        out = data_list[0][0].__class__()
+        out.stores_as(data_list[0][0])
 
         # Group storage objects of every data object by key
         # key_to_stores = {store._key: [] for store in data_list[0].stores}
-        key_to_stores = {store._key: [] for store in data_list[0][0].stores} # DB added [0]
-        for data in data_list: 
-            for store in data[0].stores: # DB added [0]
-            # for store in data.stores:
+        key_to_stores = {store._key: [] for store in data_list[0][0].stores}
+        for data in data_list:
+            for store in data[0].stores:
                 key_to_stores[store._key].append(store)
 
         # Iterate over each list of storage objects and recursively collate all its attributes.
@@ -312,8 +303,7 @@ class KNNGraph:
 
                 # Concatenate a list of `torch.Tensor` along `cat_dim`.
                 # and appropriately take care of incrementing elements.
-                # cat_dim = data_list[0].__cat_dim__(attr, values[0], stores[0])
-                cat_dim = data_list[0][0].__cat_dim__(attr, values[0], stores[0]) # DB added [0]
+                cat_dim = data_list[0][0].__cat_dim__(attr, values[0], stores[0]) 
                 sizes = torch.tensor([value.size(cat_dim or 0) for value in values])
                 slices = cumsum(sizes)
                 value = torch.cat(values, dim=cat_dim or 0)

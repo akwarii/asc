@@ -21,9 +21,9 @@ import pandas as pd
 import requests
 from pymatgen.core import Structure
 
-from src.data.datasets.base import GraphDataset
-from src.utils.constants import GNOME_CLASSES
-from src.utils.typing import PathLike
+from src.datasets.base import GraphDataset
+from src.constants import GNOME_CLASSES
+from src.typing import PathLike
 
 
 def download_from_link(link: str, output_dir: PathLike):
@@ -117,6 +117,8 @@ class Gnome(GraphDataset):
     def __len__(self) -> int:
         return len(self.data)
 
+    #TODO if the processed data is already available, we can load it instead
+    #TODO doing so will save time during __getitem__ calls as we won't have to convert the structure to a graph
     def load(self) -> tuple[list[Path], list[int]]:
         df = pd.read_csv(self.raw_folder / "stable_materials_summary.csv")
         targets = df["Space Group Number"].values.tolist()
