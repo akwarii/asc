@@ -1,0 +1,38 @@
+[project]
+name = "lightning-cegann2"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "kaggle>=1.6.17",
+    "lightning>=2.4.0",
+    "mp-api>=0.44.0",
+    "pymatgen>=2024.11.13",
+    "torch-geometric>=2.6.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.4",
+    "ruff>=0.8.3",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 99
+
+[tool.ruff.lint]
+# select = ["ALL"]
+# ignore = [
+    # "D105", # Missing docstring in magic method
+    # "D213" # Multi-line docstring summary should start at the second line
+# ]
+pydocstyle.convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"] # Unused import
+
+[tool.ruff.format]
+docstring-code-format = true
+
