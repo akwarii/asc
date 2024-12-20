@@ -21,7 +21,6 @@ class RandomDisplacement(torch.nn.Module):
     """
 
     def __init__(self, stddev: float = 0.001, seed: int = 42, p: float = 0.1) -> None:
-        """"""
         super().__init__()
         self.stddev = stddev
         self.seed = seed
@@ -101,7 +100,6 @@ class RandomDisplacement(torch.nn.Module):
 
         return rattled_graphs
 
-    @deprecated("Use forward() instead.")
     def forward_exact(self, x: Sequence[Data], progress_bar: bool = True) -> Sequence[Data]:
         """Applies random Gaussian noise to atomic positions on a batch of graph structures.
         This means modifying atomic positions (graph node features) as well as distances (graph
