@@ -1,5 +1,3 @@
-# Based on
-# https://lightning.ai/docs/pytorch/stable/starter/introduction.html
 import os
 
 import lightning as L
@@ -8,6 +6,7 @@ import torch._dynamo.config
 import torch.multiprocessing
 import torchmetrics
 import torchmetrics.classification
+from lightning.pytorch.callbacks import BatchSizeFinder
 from torch import optim
 from torch.nn import CrossEntropyLoss
 from torch_geometric.transforms import NormalizeFeatures
@@ -29,99 +28,74 @@ cpu_count = os.cpu_count()
 
 # Data management
 transforms = [NormalizeFeatures(["edge_dist", "angle_cos"])]
-augmenters = [RandomDisplacement(p=0.1), RandomExpansion(p=0.05), RandomNodeDrop(p=0.2)]
+augmenters = [
+    RandomDisplacement(p=1.0),
+    # RandomExpansion(p=0.05),
+    # RandomNodeDrop(p=0.2),
+]
 
 datamodule = CEGANNDataModule(
     datasets="mp",
-    # datasets=["mp", "aflow", "csg", "gnome"],
-    # datasets="custom", # test this (needs the following line also)
-    # origin_dir="/home/dbissuel/Documents/softs/sourcecodes/CEGANN/pretrained/spacegroup/",
     transforms=transforms,
     augmentations=augmenters,
     num_workers=cpu_count - 1 if cpu_count is not None else 0,
     train_val_test_split=(0.8, 0.1, 0.1),
-    batch_size=32,
+    batch_size=256,
     graph_kwargs={
-        "k": 2,
+        "k": 12,
     },
 )
-n_classes = datamodule.num_classes or 230
 
-datamodule.prepare_data()
-datamodule.setup(stage="fit")
-
-train_loader = datamodule.train_dataloader()
-test_loader = datamodule.test_dataloader()
-val_loader = datamodule.val_dataloader()
-
-# Model
 model = CEGANN(
     gbf_bond={
         "start": 0.0,
         "stop": 1.0,
-        "num_radial": 40,  # DB
+        "num_radial": 80,
     },
     gbf_angle={
         "start": 0.0,
         "stop": 1.0,
-        "num_radial": 40,  # DB
+        "num_radial": 80,
     },
-    n_classes=n_classes,
-    edge_expansion_units=64,  # OG paper 256
-    angle_expansion_units=64,  # OG paper 256
+    n_classes=230,
+    edge_expansion_units=256,  # OG paper 256
+    angle_expansion_units=256,  # OG paper 256
     n_conv_edge=2,
-)
-
-optimizer = optim.Adam
-# optimizer = optim.SGD
-
-# scheduler = optim.lr_scheduler.LinearLR
-scheduler = optim.lr_scheduler.StepLR
-# scheduler = optim.lr_scheduler.ExponentialLR
-scheduler_params = {"gamma": 0.5, "step_size": 100}
-
-criterion = CrossEntropyLoss(reduction="mean")
-
-metrics = torchmetrics.MetricCollection(
-    {
-        "accuracy": torchmetrics.Accuracy(
-            task="multiclass",
-            num_classes=n_classes,
-        ),
-    }
 )
 
 module = CEGANNModule(
     model=model,
-    optimizer=optimizer,
-    scheduler=scheduler,
-    scheduler_params=scheduler_params,
-    criterion=criterion,
-    metrics=metrics,
+    optimizer=optim.AdamW,
+    scheduler=optim.lr_scheduler.StepLR,
+    scheduler_params={"gamma": 0.5, "step_size": 100},
+    criterion=CrossEntropyLoss(reduction="mean"),
+    metrics=torchmetrics.MetricCollection(
+        {
+            "accuracy": torchmetrics.Accuracy(
+                task="multiclass",
+                num_classes=230,
+            ),
+        }
+    ),
     compile=False,
 )
 
 # Training
 trainer = L.Trainer(
-    # limit_train_batches=0.01,
-    # max_epochs=1,
-    fast_dev_run=True,
-    # check_val_every_n_epoch=5,
-    # max_epochs=200,
+    limit_train_batches=1000,
+    limit_val_batches=100,
+    max_epochs=20,
+    callbacks=[BatchSizeFinder(init_val=256)],
+    # log_every_n_steps=1,
+    # fast_dev_run=True,
 )
-trainer.fit(
-    model=module,
-    train_dataloaders=train_loader,
-    val_dataloaders=val_loader,
-)
-# out = trainer.test(dataloaders=test_loader, ckpt_path="best")
-# print("After testing :", out)
 
-# Prediction
-# datamodule.setup(stage="predict")
-# pred_loader = datamodule.predict_dataloader()
-# acc = trainer.predict(model=module,
-#                       dataloaders=pred_loader,
-#                       return_predictions=True,
-#                       ckpt_path='best',)
-# datamodule.teardown(stage="predict")
+trainer.fit(model=module, datamodule=datamodule)
+trainer.test(model=module, datamodule=datamodule, ckpt_path="best")
+acc = trainer.predict(
+    model=module,
+    datamodule=datamodule,
+    return_predictions=True,
+    ckpt_path="best",
+)
+print("Prediction :", acc)
