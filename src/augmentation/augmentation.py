@@ -1,6 +1,5 @@
 import itertools
 from collections.abc import Sequence
-from warnings import deprecated
 
 import numpy as np
 import torch
