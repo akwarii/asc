@@ -44,7 +44,6 @@ class ImbalancedSampler(WeightedRandomSampler):
         input_nodes: Tensor | None = None,
         num_samples: int | None = None,
     ) -> None:
-
         if isinstance(dataset, Data):
             y = dataset.y.view(-1)  # type: ignore
             assert dataset.num_nodes == y.numel()

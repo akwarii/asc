@@ -27,6 +27,7 @@ class Compose:
         self.transforms = transforms
 
     def __call__(self, data) -> Any:
+        """Apply the transformations to the data."""
         for t in self.transforms:
             data = t(data)
         return data
@@ -104,11 +105,14 @@ class Normalize(torch.nn.Module):
         Args:
             state_dict (dict): normalization state. Should contain the keys "mean" and "std".
         """
-        self.mean = state_dict.get("mean")
-        self.std = state_dict.get("std")
+        mean = state_dict.get("mean")
+        std = state_dict.get("std")
 
-        if self.mean is None or self.std is None:
+        if mean is None or std is None:
             raise ValueError("State dict should contain the keys 'mean' and 'std'.")
+
+        self.mean = mean
+        self.std = std
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(mean={self.mean}, std={self.std})"

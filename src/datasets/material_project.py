@@ -9,32 +9,26 @@ from mp_api.client import MPRester
 from pymatgen.core import Structure
 from tqdm.auto import tqdm
 
-from src.datasets.base import GraphDataset
 from src.constants import MP_CLASSES
+from src.datasets.base import GraphDataset
 
 
 class MaterialProject(GraphDataset):
     """A dataset class for the Material Project dataset.
 
     Args:
-        root (str): Root directory of the dataset.
-        transform (Callable | None): A function/transform that takes in a graph and returns a transformed version.
-        struct_transform (Callable | None): A function/transform that takes in a structure and returns a transformed version.
-        target_transform (Callable | None): A function/transform that takes in a target and returns a transformed version.
-        fetch_data (bool): Whether to download the dataset if it doesn't exist.
-        **graph_kwargs: Additional keyword arguments to be passed to the Graph class.
+        root: Root directory of the dataset.
+        transform: A function that takes in a graph and returns a transformed version.
+        struct_transform: A function that takes in a structure and returns a transformed version.
+        target_transform: A function that takes in a target and returns a transformed version.
+        fetch_data: Whether to download the dataset if it doesn't exist.
+        graph_kwargs: Additional keyword arguments to be passed to the Graph class.
 
     Attributes:
         API_KEY (str): The Materials Project API key.
         API (MPRester): An instance of the MPRester class.
         classes (list): A list of space group numbers ranging from 1 to 230.
         resources (list): Names of the files containing the dataset.
-
-    Methods:
-        __getitem__: Retrieves a graph and its corresponding target from the dataset.
-        __len__: Returns the length of the dataset.
-        load: Loads the data from the resource files.
-        fetch_data: Downloads the dataset if it doesn't exist already.
     """
 
     _dotenv_path = Path(__file__).resolve().parents[3] / ".env"
@@ -45,7 +39,7 @@ class MaterialProject(GraphDataset):
 
     classes = MP_CLASSES
 
-    resources = [f"data_{class_idx}.json" for class_idx in classes]
+    resources = tuple([f"data_{class_idx}.json" for class_idx in classes])
 
     def __init__(
         self,
@@ -54,7 +48,7 @@ class MaterialProject(GraphDataset):
         struct_transform: Callable | None = None,
         target_transform: Callable | None = None,
         fetch_data: bool = False,
-        graph_kwargs: dict[str, Any] = {},
+        graph_kwargs: dict[str, Any] = {},  # TODO never use a mutable default argument
         **kwargs: Any,
     ) -> None:
         super().__init__(root, transform, struct_transform, target_transform, graph_kwargs)
@@ -68,10 +62,6 @@ class MaterialProject(GraphDataset):
         self.data, self.targets = self.load()
 
     def __getitem__(self, index: int) -> tuple[Any, Any]:
-        if not self.data:
-            RuntimeWarning("Dataset not loaded. Use load=True to load the dataset")
-            return None, None
-
         contcar, target = self.data[index], self.targets[index]
 
         struct = Structure.from_str(contcar, fmt="poscar")
@@ -92,10 +82,11 @@ class MaterialProject(GraphDataset):
     def __len__(self) -> int:
         return len(self.data)
 
-    #TODO if the processed data is already available, we can load it instead
-    #TODO doing so will save time during __getitem__ calls as we won't have to convert the structure to a graph
+    # TODO if the processed data is already available, we can load it instead
+    # TODO doing so will save time during __getitem__ calls as we won't have
+    # to convert the structure to a graph
     def load(self) -> tuple[list[str], list[int]]:
-        """Load data from JSON files and return a tuple of data and targets.
+        """Load data from raw files and return a tuple of data and targets.
 
         Returns:
             tuple[list[str], list[int]]: A tuple containing the loaded data and targets.
@@ -138,7 +129,7 @@ class MaterialProject(GraphDataset):
 
             # Filter out deprecated and warning entries and convert to POSCAR format
             # Pymatgen throws UserWarning when electronegativity is not found, we can ignore it
-            #TODO Need to remove selective dynamics tags from POSCAR
+            # TODO Need to remove selective dynamics tags from POSCAR
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", UserWarning)
                 filtered_data = [

@@ -59,7 +59,6 @@ class DynamicBatchSampler(Sampler):
         num_processed: int = 0
 
         while num_processed < len(self.dataset) and num_steps < self.max_steps:
-
             for i in indices[num_processed:]:
                 data = self.dataset[i]  # type: ignore
                 num: int = data.num_nodes  # type: ignore
@@ -76,7 +75,7 @@ class DynamicBatchSampler(Sampler):
                 current_num += num
 
             yield samples
-            samples: list[int] = []
+            samples = []
             current_num = 0
             num_steps += 1
 

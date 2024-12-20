@@ -8,13 +8,13 @@ class CEGANNModule(LightningModule):
     Attention Neural Network) model.
 
     Args:
-        model (torch.nn.Module): The generator model.
-        optimizer (torch.optim.Optimizer): The optimizer for training the model.
-        scheduler (torch.optim.lr_scheduler._LRScheduler): The learning rate scheduler.
-        criterion (torch.nn.Module): The loss criterion for training the model.
-        metrics (torchmetrics.MetricCollection): Collection of metrics to evaluate the model performance.
-        compile (bool, optional): Whether to compile the model using torch.compile(). Defaults to True.
-        scheduler_params (dict, optional): parameters for the scheduler.
+        model: The generator model.
+        optimizer: The optimizer for training the model.
+        scheduler: The learning rate scheduler.
+        criterion: The loss criterion for training the model.
+        metrics: Collection of metrics to evaluate the model performance.
+        compile: Whether to compile the model using torch.compile().
+        scheduler_params: Parameters for the scheduler.
     """
 
     def __init__(
@@ -25,7 +25,7 @@ class CEGANNModule(LightningModule):
         criterion: torch.nn.Module,
         metrics: torchmetrics.MetricCollection,
         compile: bool = True,
-        scheduler_params: dict = {},
+        scheduler_params: dict = {},  # TODO never use a mutable default argument
     ) -> None:
         super().__init__()
 
@@ -44,7 +44,9 @@ class CEGANNModule(LightningModule):
         self.val_metrics = metrics.clone(prefix="val/")
         self.test_metrics = metrics.clone(prefix="test/")
         # # self.val_best_acc = torchmetrics.MaxMetric(prefix="val/")
-        self.val_best_acc = torchmetrics.MaxMetric() # modified by DB, no prefix keyword for MaxMetric
+        self.val_best_acc = (
+            torchmetrics.MaxMetric()
+        )  # modified by DB, no prefix keyword for MaxMetric
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass of the CEGANNModule.
@@ -58,7 +60,7 @@ class CEGANNModule(LightningModule):
         return self.model(x)
 
     def on_train_start(self) -> None:
-        """Hook method called when the training starts."""
+        """Call hook method when the training starts."""
         # by default lightning executes validation step sanity checks before training starts,
         # so it's worth to make sure validation metrics don't store results from these checks
         self.train_metrics.reset()
@@ -67,7 +69,7 @@ class CEGANNModule(LightningModule):
         self.val_best_acc.reset()
 
     def model_step(
-        self, batch: tuple[torch.Tensor, torch.Tensor]
+        self, batch: tuple[torch.Tensor, torch.Tensor, torch.Tensor]
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Perform a single step of the model.
 
@@ -75,28 +77,24 @@ class CEGANNModule(LightningModule):
             batch (tuple[torch.Tensor, torch.Tensor]): Input batch.
 
         Returns:
-            tuple[torch.Tensor, torch.Tensor, torch.Tensor]: Tuple containing the loss, predicted labels, and target labels.
+            Tuple containing the loss, predicted labels, and target labels.
         """
         # x, y = batch
         # DB
         x, y, slices = batch
         _y = torch.cat(
-            [
-                y[i].repeat(
-                    slices["pos"][i+1] - slices["pos"][i]
-                ) for i in range(y.size()[0])
-            ]
+            [y[i].repeat(slices["pos"][i + 1] - slices["pos"][i]) for i in range(y.size()[0])]
         )
         # DB
 
         logits = self.forward(x)
 
-        loss = self.criterion(logits, _y) # DB
+        loss = self.criterion(logits, _y)  # DB
         preds = torch.argmax(logits, dim=1)
         return loss, preds, _y
 
     def training_step(
-        self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int
+        self, batch: tuple[torch.Tensor, torch.Tensor, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
         """Training step of the CEGANNModule.
 
@@ -118,12 +116,14 @@ class CEGANNModule(LightningModule):
         return loss
 
     def on_train_epoch_end(self) -> None:
-        """Hook method called at the end of each training epoch."""
-        print("") # DB, to avoid overlap between progress bars
+        """Call hook method at the end of each training epoch."""
+        print("")  # DB, to avoid overlap between progress bars
         # pass
 
-    def validation_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> None:
-        """Validation step of the CEGANNModule.
+    def validation_step(
+        self, batch: tuple[torch.Tensor, torch.Tensor, torch.Tensor], batch_idx: int
+    ) -> None:
+        """Perform validation step of the CEGANNModule.
 
         Args:
             batch (tuple[torch.Tensor, torch.Tensor]): Input batch.
@@ -133,7 +133,7 @@ class CEGANNModule(LightningModule):
         self.val_metrics.update(preds, targets)
 
     def on_validation_epoch_end(self) -> None:
-        """Hook method called at the end of each validation epoch."""
+        """Call hook method at the end of each validation epoch."""
         output = self.val_metrics.compute()
         self.val_best_acc(output["val/accuracy"])
 
@@ -141,7 +141,9 @@ class CEGANNModule(LightningModule):
         self.log_dict(output)
         self.val_metrics.reset()
 
-    def test_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> None:
+    def test_step(
+        self, batch: tuple[torch.Tensor, torch.Tensor, torch.Tensor], batch_idx: int
+    ) -> None:
         """Test step of the CEGANNModule.
 
         Args:
@@ -152,14 +154,14 @@ class CEGANNModule(LightningModule):
         self.test_metrics.update(preds, targets)
 
     def on_test_epoch_end(self) -> None:
-        """Hook method called at the end of each testing epoch."""
+        """Call hook method at the end of each testing epoch."""
         output = self.test_metrics.compute()
         self.log_dict(output)
         self.test_metrics.reset()
 
-    # DB
-    # def predict_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> None:
-    def predict_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def predict_step(
+        self, batch: tuple[torch.Tensor, torch.Tensor, torch.Tensor], batch_idx: int
+    ) -> torch.Tensor:
         """Predict step of the CEGANNModule.
 
         Args:
@@ -168,10 +170,10 @@ class CEGANNModule(LightningModule):
         """
         preds = self.model_inference(batch)
         return preds
-    
+
     # DB
     def model_inference(
-        self, batch: tuple[torch.Tensor, torch.Tensor]
+        self, batch: tuple[torch.Tensor, torch.Tensor, torch.Tensor]
     ) -> torch.Tensor:
         """Perform an inference step of the model.
 
@@ -184,12 +186,12 @@ class CEGANNModule(LightningModule):
         x, _, _ = batch
         logits = self.forward(x)
         return torch.argmax(logits, dim=1)
-    
+
     def setup(self, stage: str) -> None:
-        """Setup method called at the beginning of training/evaluation.
+        """Set up the model before training/evaluation.
 
         Args:
-            stage (str): Either "fit" for training or "test" for testing.
+            stage (str): Either "fit" or "test".
         """
         if self.hparams.compile and stage == "fit":
             self.model = torch.compile(self.model)
@@ -198,13 +200,13 @@ class CEGANNModule(LightningModule):
         """Configure the optimizer and learning rate scheduler.
 
         Returns:
-            dict[str, torch.optim.lr_scheduler._LRScheduler]: Dictionary containing the optimizer and learning rate scheduler.
+            Dictionary containing the optimizer and learning rate scheduler.
         """
         optimizer = self.hparams.optimizer(params=self.parameters())
         if self.hparams.scheduler is not None:
             scheduler = self.hparams.scheduler(
                 optimizer=optimizer,
-                **self.hparams.scheduler_params, # DB
+                **self.hparams.scheduler_params,  # DB
             )
             return {
                 "optimizer": optimizer,

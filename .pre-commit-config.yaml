@@ -22,7 +22,6 @@ repos:
       - id: name-tests-test
         args: ["--pytest-test-first"]
 
-  # python code formatting
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.8.3
     hooks:
@@ -30,6 +29,13 @@ repos:
         args: [--fix]
       - id: ruff-format
 
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.5.8
+    hooks:
+      - id: uv-export
+        args: [--quiet]
+      - id: pip-compile
+        args: [pyproject.toml, -o, requirements.txt, --quiet]
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.13.0
@@ -37,14 +43,12 @@ repos:
       - id: mypy
         additional_dependencies: ["types-requests"]
 
-  # python upgrading syntax to newer version
   - repo: https://github.com/asottile/pyupgrade
     rev: v3.19.1
     hooks:
       - id: pyupgrade
         args: [--py310-plus]
 
-  # md formatting
   - repo: https://github.com/executablebooks/mdformat
     rev: 0.7.19
     hooks:
@@ -56,25 +60,23 @@ repos:
           - mdformat_frontmatter
           - mdformat-ruff
 
-  # word spelling linter
   - repo: https://github.com/codespell-project/codespell
     rev: v2.3.0
     hooks:
       - id: codespell
         args:
           - --skip=*.ipynb
+          - --write-changes
 
-  # jupyter notebook cell output clearing
   - repo: https://github.com/kynan/nbstripout
     rev: 0.8.1
     hooks:
       - id: nbstripout
 
-  # jupyter notebook linting
   - repo: https://github.com/nbQA-dev/nbQA
     rev: 1.9.1
     hooks:
       - id: nbqa-ruff
-        args: ["--line-length=99"]
+        args: ["--line-length=99", "--ignore=I001"]
       - id: nbqa-isort
         args: ["--profile=black"]

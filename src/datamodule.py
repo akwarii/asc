@@ -6,9 +6,9 @@ import torch_geometric.transforms as T
 from lightning import LightningDataModule
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, random_split
 
-import src.data.datasets as datasets
-from src.graph import KNNGraph  # DB
+import src.datasets as datasets
 from src.constants import REPR_INDENT
+from src.graph import KNNGraph  # DB
 from src.typing import PathLike, StageType
 
 DATASET_MAP = {
@@ -27,48 +27,30 @@ DATASET_MAP = {
 # pyright: reportOptionalIterable=false
 # TODO integrate dynamic batch and imbalanced sampling
 # TODO integrate node loader
-# TODO change the way data is transformed / augmented (https://lightning.ai/docs/pytorch/stable/notebooks/lightning_examples/augmentation_kornia.html)
+# TODO change the way data is transformed / augmented
+# (https://lightning.ai/docs/pytorch/stable/notebooks/lightning_examples/augmentation_kornia.html)
 class CEGANNDataModule(LightningDataModule):
     """CEGANNDataModule is a LightningDataModule subclass that provides data loading and processing
     functionality for the CEGANN model.
 
     Args:
-        root (str, optional): The root directory where the datasets are stored. Defaults to "data".
-        datasets (Sequence[str] | str, optional): The datasets to use.
+        root: The root directory where the datasets are stored. Defaults to "data".
+        datasets: The datasets to use.
             Multiple datasets can be used at once. Defaults to ("gnome",).
-        train_val_test_split (tuple[int, int, int] | tuple[float, float, float], optional): The split ratios for train,
-            validation, and test datasets. If integers are used, the split ratios are calculated as the number of samples
-            for each dataset. If floats are used, the split ratios are calculated as the percentage of samples for each
-            dataset (). Defaults to (0.8, 0.1, 0.1).
-        transforms (Any, optional): The data transformations (eg. normalization) to apply. Transformations are applied to
-            the structure graph. Defaults to None.
-        struct_transforms (Any, optional): The structure transformations (eg. random noise) to apply. Structure
-            transformations are applied to the structure (before the graph creation). Defaults to None.
-        batch_size (int, optional): The batch size for data loading. Defaults to 64.
-        num_workers (int, optional): The number of workers for data loading. Defaults to 0.
-        pin_memory (bool, optional): Whether to pin memory for faster data transfer. Defaults to False.
-        seed (int, optional): The seed to use for the random split. Defaults to 42.
-        k_neigh (int, optional): Number of neighbors to use in the K-nearest Neighbors graphs.
+        train_val_test_split: The split ratios for train, validation, and test datasets. If
+            integers are used, the split ratios are calculated as the number of samples for each
+            dataset. If floats are used, the split ratios are calculated as the percentage of
+            samples for each dataset. Defaults to (0.8, 0.1, 0.1).
+        transforms: The data transformations (eg. normalization) to apply. Transformations are
+            applied to the structure graph.
+        struct_transforms: The structure transformations (eg. random noise) to apply. Structure
+            transformations are applied to the structure (before the graph creation).
+        batch_size: The batch size for data loading. Defaults to 64.
+        num_workers: The number of workers for data loading. Defaults to 0.
+        pin_memory: Whether to pin memory for faster data transfer. Defaults to False.
+        seed: The seed to use for the random split. Defaults to 42.
+        k_neigh: Number of neighbors to use in the K-nearest Neighbors graphs.
         **kwargs: Additional keyword arguments.
-
-    Methods:
-        prepare_data: Safely download and save the dataset.
-        setup: Load data in memory.
-        train_dataloader: Create and return the train dataloader.
-        val_dataloader: Create and return the validation dataloader.
-        test_dataloader: Create and return the test dataloader.
-        predict_dataloader: Create and return the predict dataloader.
-        teardown: Cleans up the data after a specific stage.
-        transfer_batch_to_device: Override this hook if your DataLoader returns tensors wrapped in a custom data
-            structure.
-        on_before_batch_transfer: Override to alter or apply batch augmentations to your batch before it is transferred to
-            the device.
-        on_after_batch_transfer: Override to alter or apply batch augmentations to your batch after it is transferred to
-            the device.
-        state_dict: Called when saving a checkpoint. Implement to generate and save the datamodule state.
-        load_state_dict: Called when loading a checkpoint. Implement to reload datamodule state given datamodule
-            `state_dict()`.
-        __repr__: Return a string representation of the datamodule.
     """
 
     def __init__(
@@ -84,10 +66,13 @@ class CEGANNDataModule(LightningDataModule):
         num_workers: int = 0,
         pin_memory: bool = False,
         seed: int = 42,
-        graph_kwargs: dict[str, Any] = {},
+        graph_kwargs: dict[str, Any] | None = None,
         **kwargs,
     ) -> None:
         super().__init__()
+
+        if graph_kwargs is None:
+            graph_kwargs = dict()
 
         if isinstance(datasets, str):
             datasets = [datasets]
@@ -124,12 +109,8 @@ class CEGANNDataModule(LightningDataModule):
 
     @property
     def num_classes(self) -> int | None:
-        """Get the number of classes.
-
-        If the dataset is not loaded, return None.
-        """
-        # TODO: Change the function as self.data_xxxx are Subsets, not Datasets and have different attributes
-        # Once setup has been called, either `self.data_train` or `self.data_predict` will be set
+        """Get the number of classes. If the dataset is not loaded, return None."""
+        # FIXME self.data_xxxx are Subsets, not Datasets and have different attributes
         if self.data_train:
             return len(self.data_train.classes)
         elif self.data_predict:
@@ -138,11 +119,7 @@ class CEGANNDataModule(LightningDataModule):
             return None
 
     def prepare_data(self) -> None:
-        """Safely download and save the dataset.
-
-        This method is called only from a single process.
-        In case of multi-node training, the execution of this hook depends upon `prepare_data_per_node`.
-        """
+        """Safely download and save the dataset. This method is called from a single process."""
         for dataset in self.hparams.datasets:
             DATASET_MAP[dataset](self.hparams.root, fetch_data=True)
 
@@ -151,18 +128,22 @@ class CEGANNDataModule(LightningDataModule):
         `self.data_train`, `self.data_val` and `self.data_test` will be set. If stage is
         `"predict"` then `self.data_predict` will be set.
 
-        The random split is done only once and the same split is used for all the stages (except for the `"predict"` stage which use the
-        full prediction dataset). This is because the random split is deterministic and the same seed is used for all the stages.
+        The random split is done only once and the same split is used for all the stages (except
+        for the `"predict"` stage which use the full prediction dataset). This is because the
+        random split is deterministic and the same seed is used for all the stages.
 
         Args:
-            stage: The stage to load the data for. Either `"fit"`, `"validate"`, `"test"`, or `"predict"`.
+            stage: The stage to load the data for. Either `"fit"`, `"validate"`, `"test"`,
+                or `"predict"`.
         """
-        keys_tokeep = ["origin_dir", ]
+        keys_tokeep = [
+            "origin_dir",
+        ]
         kwargs = self.kwargs.copy()
         for k in kwargs:
             if k not in keys_tokeep:
                 del kwargs[k]
-            
+
         # We only test for self.data_test because if self.data_train is set,
         # then self.data_val and self.data_test are also set
         if stage != "predict" and not self.data_test:

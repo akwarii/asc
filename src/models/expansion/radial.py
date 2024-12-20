@@ -10,9 +10,9 @@ class GaussianBasis(torch.nn.Module):
     """Reimplementation of the gaussian smearing of `torch_geometric.nn.schnet.GaussianSmearing`.
 
     Args:
-        start (float): The starting value of the smearing offset.
-        stop (float): The stopping value of the smearing offset.
-        num_radial (int): The number of Gaussian functions to use for smearing.
+        start: The starting value of the smearing offset.
+        stop: The stopping value of the smearing offset.
+        num_radial: The number of Gaussian functions to use for smearing.
     """
 
     def __init__(
@@ -28,23 +28,25 @@ class GaussianBasis(torch.nn.Module):
         self.register_buffer("offset", offset)
 
     # def forward(self, dist_scaled: torch.Tensor) -> torch.Tensor:
-    def forward(self, dist_scaled: torch.Tensor, bond: bool = True) -> torch.Tensor: #DB
+    def forward(self, dist_scaled: torch.Tensor, bond: bool = True) -> torch.Tensor:  # DB
         """Forward pass of the Gaussian smearing module.
 
         Args:
-            dist_scaled (torch.Tensor): The input scaled distance tensor.
+            dist_scaled: The input scaled distance tensor.
+            bond: Whether the input is a bond distance or an angle.
 
         Returns:
             torch.Tensor: The smearing output tensor.
         """
-        if bond :
+        if bond:
             # print("DISTANCES", torch.min(dist_scaled), torch.max(dist_scaled))
             dist_scaled = dist_scaled.view(-1, 1) - self.offset.view(1, -1)
-        else :
+        else:
             # DB, more general to account for >1D (2D in fact) tensors like for angles
             # print("   ANGLES", torch.min(dist_scaled), torch.max(dist_scaled))
-            dist_scaled = (dist_scaled.unsqueeze(-1).repeat(1, 1, self.offset.size()[0]) 
-                           - self.offset.view(1,-1).unsqueeze(1).repeat(1,dist_scaled.size()[-1],1))
+            dist_scaled = dist_scaled.unsqueeze(-1).repeat(
+                1, 1, self.offset.size()[0]
+            ) - self.offset.view(1, -1).unsqueeze(1).repeat(1, dist_scaled.size()[-1], 1)
         return torch.exp(self.coeff * dist_scaled**2)
 
 
@@ -53,8 +55,8 @@ class RadialBesselBasis(torch.nn.Module):
     Molecular Graphs (arXiv:2003.03123).
 
     Args:
-        num_radial (int): The number of radial basis functions.
-        stop (float): The cutoff value for scaling the distance.
+        num_radial: The number of radial basis functions.
+        stop: The cutoff value for scaling the distance.
     """
 
     def __init__(
@@ -64,9 +66,8 @@ class RadialBesselBasis(torch.nn.Module):
     ) -> None:
         super().__init__()
 
-        self.norm_factor = math.sqrt(
-            2 / stop**3
-        )  # divide by stop ** 2 to counteract the scaling of the distances
+        # divide by stop ** 2 to counteract the scaling of the distances
+        self.norm_factor = math.sqrt(2 / stop**3)
 
         self.freq = torch.nn.Parameter(
             data=torch.Tensor(math.pi * torch.arange(1, num_radial + 1) / stop),
@@ -77,7 +78,7 @@ class RadialBesselBasis(torch.nn.Module):
         """Forward pass of the radial Bessel basis.
 
         Args:
-            dist_scaled (torch.Tensor): The input scaled distance tensor.
+            dist_scaled: The input scaled distance tensor.
 
         Returns:
             torch.Tensor: The radial Bessel basis output tensor.
@@ -101,12 +102,12 @@ class RadialBasisExpansion(torch.nn.Module):
     3-body basis expansion or as the 2-body basis expansion.
 
     Args:
-        num_radial (int): The number of radial basis functions.
-        cutoff (float): The cutoff value for scaling the distance.
-        expansion (str, optional): The type of expansion function to use. Defaults to "gaussian".
-        envelope (str, optional): The type of envelope function to use. Defaults to None.
-        expansion_kwargs (dict[str, Any] | None, optional): Additional keyword arguments for the expansion function. Defaults to None.
-        envelope_kwargs (dict[str, Any] | None, optional): Additional keyword arguments for the envelope function. Defaults to None.
+        num_radial: The number of radial basis functions.
+        cutoff: The cutoff value for scaling the distance.
+        expansion: The type of expansion function to use. Defaults to "gaussian".
+        envelope: The type of envelope function to use. Defaults to None.
+        expansion_kwargs: Additional keyword arguments for the expansion function.
+        envelope_kwargs: Additional keyword arguments for the envelope function.
     """
 
     def __init__(
@@ -131,14 +132,16 @@ class RadialBasisExpansion(torch.nn.Module):
             self.envelope = ENVELOPE_FUNCTIONS[envelope](**envelope_kwargs)
         else:
             raise ValueError(
-                f"Unknown envelope function '{envelope}'. Available options are {ENVELOPE_FUNCTIONS.keys()} or None."
+                f"Unknown envelope function '{envelope}'. "
+                f"Available options are {ENVELOPE_FUNCTIONS.keys()} or None."
             )
 
         if expansion_kwargs is None:
             expansion_kwargs = {}
         if expansion not in RADIAL_FUNCTIONS:
             raise ValueError(
-                f"Unknown expansion function '{expansion}'. Available options are {RADIAL_FUNCTIONS.keys()}."
+                f"Unknown expansion function '{expansion}'. "
+                f"Available options are {RADIAL_FUNCTIONS.keys()}."
             )
 
         self.expansion = RADIAL_FUNCTIONS[expansion](
@@ -153,7 +156,7 @@ class RadialBasisExpansion(torch.nn.Module):
         """Forward pass of the radial basis expansion module.
 
         Args:
-            dist (torch.Tensor): The input distance tensor.
+            dist: The input distance tensor.
 
         Returns:
             torch.Tensor: The output tensor after applying the radial basis expansion.

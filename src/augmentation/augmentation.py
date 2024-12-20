@@ -1,12 +1,13 @@
 import itertools
 from collections.abc import Sequence
+from warnings import deprecated
 
 import numpy as np
 import torch
 from torch_geometric.data import Data
 
 
-#TODO review this class
+# TODO review this class
 class RandomDisplacement(torch.nn.Module):
     """Class to apply random displacement to atoms in structures.
 
@@ -20,12 +21,8 @@ class RandomDisplacement(torch.nn.Module):
         p (float): probability to apply the transform (default=0.1).
     """
 
-    def __init__(
-        self,
-        stddev: float = 0.001,
-        seed: int = 42,
-        p: float = 0.1,
-    ) -> None:
+    def __init__(self, stddev: float = 0.001, seed: int = 42, p: float = 0.1) -> None:
+        """"""
         super().__init__()
         self.stddev = stddev
         self.seed = seed
@@ -40,11 +37,11 @@ class RandomDisplacement(torch.nn.Module):
         Args:
             x (Sequence[Data]): batch of K-neareast neighbors graphs for periodic structures.
             progress_bar (bool): whether we show progression with tqdm pbar() (default=True).
+
         Returns:
             Another batch of K-nearest neighbors graphs with Gaussian noise applied on ineratomic
             distances (`edge_dist`) and angles (`angle_cos`).
         """
-
         if progress_bar:
             from tqdm import tqdm
 
@@ -65,7 +62,7 @@ class RandomDisplacement(torch.nn.Module):
 
             ############################ NOTE ################################
             # As positions are not currently used in the training, and because
-            # the idea is to slightly perturbate distances and angles only, we
+            # the idea is to slightly perturb distances and angles only, we
             # don't really need to worry about each distances and angles being
             # consistent between the same images of a same atom. Also, for KNN
             # which are not two-way (j can be in i's neighborhood but i is not
@@ -73,7 +70,6 @@ class RandomDisplacement(torch.nn.Module):
             # theta_ijk = theta_jki: as long as they are close enough it won't
             # be a huge issue. An exact implementation can be found in:
             #     `self.forward_exact()`
-            # if neeeded.
             # However, please note the exact implementation is absurdly longer
             # (4h+ on the `Materials-Project`` dataset, instead of 40+ seconds
             # on my laptop). ~ DB
@@ -98,15 +94,6 @@ class RandomDisplacement(torch.nn.Module):
                 )
             )
 
-            # yield Data(
-            #     num_nodes=graph.num_nodes,
-            #     pos=pos,
-            #     cell=graph.cell,
-            #     edge_index=graph.edge_index,
-            #     edge_dist=distances,
-            #     angle_cos=angle_cos,
-            # )
-
             if progress_bar:
                 pbar.update(1)
 
@@ -115,26 +102,25 @@ class RandomDisplacement(torch.nn.Module):
 
         return rattled_graphs
 
+    @deprecated("Use forward() instead.")
     def forward_exact(self, x: Sequence[Data], progress_bar: bool = True) -> Sequence[Data]:
         """Applies random Gaussian noise to atomic positions on a batch of graph structures.
-        This means modifying atomic postions (graph node features) as well as distances (graph
+        This means modifying atomic positions (graph node features) as well as distances (graph
         edges features).
 
         Args:
             x (Sequence[Data]): batch of K-neareast neighbors graphs for periodic structures.
             progress_bar (bool): whether we show progression with tqdm pbar() (default=True).
+
         Returns:
             Another batch of K-nearest neighbors graphs with Gaussian noise applied on atomic
             positions (node features) and distances (edge features).
         """
-
         if progress_bar:
             from tqdm import tqdm
 
             pbar = tqdm(
-                total=len(
-                    list(x)
-                ),  # fastest according to A. Bogdanov and mkrieger-1 on https://stackoverflow.com/questions/393053/length-of-generator-output
+                total=len(list(x)),
                 desc="Augmenting data (Gaussian noise)",
             )
 
@@ -242,7 +228,9 @@ class RandomDisplacement(torch.nn.Module):
         )
 
     @staticmethod
-    def _distance(atom_pos: torch.Tensor, neigh_pos: torch.Tensor, trans: torch.Tensor) -> float:
+    def _distance(
+        atom_pos: torch.Tensor, neigh_pos: torch.Tensor, trans: torch.Tensor
+    ) -> torch.Tensor:
         """Given two position vectors and translations to apply to get
         periodic images, returns all distances (up-to 1st PBC images)
         between the central atom and all images of the neighbor.
@@ -288,6 +276,7 @@ class RandomExpansion(torch.nn.Module):
 
     @torch.no_grad()
     def forward(self, x: Sequence[Data], progress_bar: bool = True) -> Sequence[Data]:
+        """Applies random expansion to a batch of graphs."""
         if progress_bar:
             from tqdm import tqdm
 
@@ -327,7 +316,7 @@ class RandomExpansion(torch.nn.Module):
         return scaled_graphs
 
 
-#TODO review this class
+# TODO review this class
 class RandomNodeDrop(torch.nn.Module):
     """Class to apply random node dropout to boxes.
 
@@ -357,6 +346,7 @@ class RandomNodeDrop(torch.nn.Module):
     def forward(
         self, x: Sequence[Data], keep_undropped: bool = False, progress_bar: bool = True
     ) -> Sequence[Data]:
+        """Applies random node dropout to a batch of graphs."""
         if progress_bar:
             from tqdm import tqdm
 
@@ -375,10 +365,10 @@ class RandomNodeDrop(torch.nn.Module):
                 dropped_graphs.append(graph)
                 continue
 
-            randDrops = self.rng.choice(
+            rnd_drops = self.rng.choice(
                 [0, 1], size=graph.num_nodes, p=[self.rate, 1.0 - self.rate]
             )  # 0 for drop, 1 for keep
-            dropout = np.where(randDrops == 0)[0]
+            dropout = np.where(rnd_drops == 0)[0]
 
             if not any(dropout):
                 if keep_undropped:
@@ -397,7 +387,7 @@ class RandomNodeDrop(torch.nn.Module):
                 continue  # No dropout to apply, no need to duplicate the graph
 
             # Updated nodes/positions
-            nodes_tokeep = np.where(randDrops)[0]
+            nodes_tokeep = np.where(rnd_drops)[0]
             pos = graph.pos[nodes_tokeep]
 
             # Need to remove edges involving the dropped nodes

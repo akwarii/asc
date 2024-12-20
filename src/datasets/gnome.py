@@ -13,7 +13,6 @@
 # limitations under the License.
 import os
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 from zipfile import ZipFile
 
@@ -21,8 +20,8 @@ import pandas as pd
 import requests
 from pymatgen.core import Structure
 
-from src.datasets.base import GraphDataset
 from src.constants import GNOME_CLASSES
+from src.datasets.base import GraphDataset
 from src.typing import PathLike
 
 
@@ -37,6 +36,7 @@ def download_from_link(link: str, output_dir: PathLike):
         print(f"Failed to download {link}")
 
 
+# TODO docstring in google format
 class Gnome(GraphDataset):
     """GNoME is a dataset of crystal structures predicted to be stable by the GNoME model
     created by the DeepMind team. The dataset contains ~380,000 crystal structures with space
@@ -46,23 +46,17 @@ class Gnome(GraphDataset):
     group number of the crystal structure.
 
     Args:
-        root (str): Root directory of the dataset.
-        transform (Callable | None): A function/transform that takes in a graph and returns a transformed version.
-        struct_transform (Callable | None): A function/transform that takes in a structure and returns a transformed version.
-        target_transform (Callable | None): A function/transform that takes in a target and returns a transformed version.
-        fetch_data (bool): Whether to download the dataset if it doesn't exist.
-        **graph_kwargs: Additional keyword arguments to be passed to the Graph class.
+        root: Root directory of the dataset.
+        transform: A function that takes in a graph and returns a transformed version.
+        struct_transform: A function that takes in a structure and returns a transformed version.
+        target_transform: A function that takes in a target and returns a transformed version.
+        fetch_data: Whether to download the dataset if it doesn't exist.
+        graph_kwargs: Additional keyword arguments to be passed to the Graph class.
 
     Attributes:
         API (AflowAPI): URL to the google storage api.
         classes (list): A list of space group numbers ranging from 1 to 230.
         resources (list): Names of the files containing the dataset.
-
-    Methods:
-        __getitem__: Retrieves a graph and its corresponding target from the dataset.
-        __len__: Returns the length of the dataset.
-        load: Loads the data from the resource files.
-        fetch_data: Downloads the Aflow dataset if it doesn't exist already.
     """
 
     API = "https://storage.googleapis.com/"
@@ -72,7 +66,7 @@ class Gnome(GraphDataset):
     classes = GNOME_CLASSES
 
     # Note that other datasets exists in the same bucket
-    resources = (
+    resources: tuple[str, ...] = (
         "stable_materials_summary.csv",
         "by_id.zip",
     )
@@ -84,7 +78,7 @@ class Gnome(GraphDataset):
         struct_transform: Callable | None = None,
         target_transform: Callable | None = None,
         fetch_data: bool = False,
-        graph_kwargs: dict[str, Any] = {},
+        graph_kwargs: dict[str, Any] = {},  # TODO never use a mutable default argument
         **kwargs: Any,
     ) -> None:
         super().__init__(root, transform, struct_transform, target_transform, graph_kwargs)
@@ -98,9 +92,9 @@ class Gnome(GraphDataset):
         self.data, self.targets = self.load()
 
     def __getitem__(self, index: int) -> tuple[Any, Any]:
-        fname, target = self.data[index], self.targets[index]
+        data, target = self.data[index], self.targets[index]
 
-        struct = Structure.from_file(fname)
+        struct = Structure.from_str(data, fmt="cif")
         if self.struct_transform is not None:
             struct = self.struct_transform(struct)
 
@@ -117,31 +111,42 @@ class Gnome(GraphDataset):
     def __len__(self) -> int:
         return len(self.data)
 
-    #TODO if the processed data is already available, we can load it instead
-    #TODO doing so will save time during __getitem__ calls as we won't have to convert the structure to a graph
-    def load(self) -> tuple[list[Path], list[int]]:
+    # TODO if the processed data is already available, we can load it instead
+    # TODO doing so will save time during __getitem__ calls as we won't have
+    # to convert the structure to a graph
+    def load(self) -> tuple[list[str], list[int]]:
+        """Load data from raw files and return a tuple of data and targets.
+
+        Returns:
+            tuple[list[str], list[int]]: A tuple containing the loaded data and targets.
+        """
         df = pd.read_csv(self.raw_folder / "stable_materials_summary.csv")
         targets = df["Space Group Number"].values.tolist()
 
         # Load the zip file and extract the contents
-        data = []
+        fnames = []
         unzipped_folder = self.raw_folder / "by_id"
         if not unzipped_folder.exists():
             with ZipFile(self.raw_folder / "by_id.zip", "r") as zip:
                 zip.extractall(self.raw_folder)
 
-        # Filter out the files that are not in the stable materials summary.
-        # This is to ensure that the data and targets are aligned (not the case for the original dataset)
-        # Some files are missing in the stable materials summary, so we need to check if the file exists.
-        data = [
+        # Filter out the files that are not in the stable materials summary. This is to ensure that
+        # the data and targets are aligned (not the case for the original dataset). Some files are
+        # missing in the stable materials summary, so we need to check if the file exists.
+        fnames = [
             unzipped_folder / f"{fid}.CIF"
             for fid in df["MaterialId"].to_list()
             if os.path.isfile(unzipped_folder / f"{fid}.CIF")
         ]
 
+        data = [f.read_text() for f in fnames]
+
         return data, targets
 
     def fetch_data(self) -> None:
+        """Downloads the dataset from Google if it doesn't exist already and remove unused columns
+        from the csv.
+        """
         if self.check_exists():
             print(f"Dataset already exists at {self.root}")
             return

@@ -1,5 +1,6 @@
 import json
 import string
+from typing import Self
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -20,69 +21,53 @@ from src.typing import AfluxResponse
 
 class AflowAPI:
     """A wrapper for the AFLOW API.
+
     This class provides a simple interface for querying the AFLOW API and retrieving data.
     The API documentation can be found at https://aflow.org/documentation/.
 
     Attributes:
-        SERVER (str): The AFLOW server URL.
-        API (str): The AFLOW API endpoint.
-        PROTOCOLS (list[str]): The supported protocols for the API.
-        STATUS_FORCELIST (list[int]): The list of HTTP status codes to force a retry.
-        API_KEYWORDS (list[str]): The list of valid keywords for the API.
-        API_OPERATORS (list[str]): The list of valid operators for the API.
-        DEFAULT_PAGING (int): The default number of entries per page.
-
-    Methods:
-        __init__(self, max_retries: int | None = None) -> None:
-            Initializes a new instance of the AflowAPI class.
-        __enter__(self):
-            Enters the context manager.
-        __exit__(self, exc_type, exc_value, traceback):
-            Exits the context manager.
-        _create_session(self):
-            Creates a new requests session with optional retry configuration.
-        _make_request(self, url: str) -> requests.Response:
-            Makes a GET request to the specified URL and handles error responses.
-        _is_query_valid(self, query: str) -> bool:
-            Checks if the query string is valid based on the API's rules.
-        base_url(self) -> str:
-            Returns the base URL for API requests.
-        request(self, matchbook: str, paging: int | None = None, chunk_size: int | None = None, no_directives: bool = False) -> AfluxResponse:
-            Sends a request to the AFLOW API and retrieves the response.
+        SERVER: The AFLOW server URL.
+        API: The AFLOW API endpoint.
+        PROTOCOLS: The supported protocols for the API.
+        STATUS_FORCELIST: The list of HTTP status codes to force a retry.
+        API_KEYWORDS: The list of valid keywords for the API.
+        API_OPERATORS: The list of valid operators for the API.
+        DEFAULT_PAGING: The default number of entries per page.
+        max_retries: The maximum number of retries for HTTP requests.
+        session: The requests session object.
     """
 
-    SERVER = AFLOW_SERVER
-    API = AFLOW_API
-    PROTOCOLS = HTTP_PROTOCOLS
-    STATUS_FORCELIST = HTTP_STATUS_FORCELIST
-    API_KEYWORDS = AFLOW_KEYWORDS
-    API_OPERATORS = AFLOW_OPERATORS
-    DEFAULT_PAGING = AFLOW_DEFAULT_PAGING
+    SERVER: str = AFLOW_SERVER
+    API: str = AFLOW_API
+    PROTOCOLS: list[str] = HTTP_PROTOCOLS
+    STATUS_FORCELIST: list[int] = HTTP_STATUS_FORCELIST
+    API_KEYWORDS: tuple[str, ...] = AFLOW_KEYWORDS
+    API_OPERATORS: str = AFLOW_OPERATORS
+    DEFAULT_PAGING: int = AFLOW_DEFAULT_PAGING
 
-    def __init__(
-        self,
-        max_retries: int | None = 5,
-    ) -> None:
-        """
+    def __init__(self, max_retries: int | None = 5) -> None:
+        """Initializes the Aflow API.
+
         Args:
-            max_retries (int | None, optional): The maximum number of retries for HTTP requests. Defaults to 5.
+            max_retries: The maximum number of retries for HTTP requests.
         """
         self.max_retries = max_retries
         self.session = self._create_session()
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         """Enters the context manager."""
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
         """Exits the context manager."""
         self.session.close()
 
-    def _create_session(self):
+    def _create_session(self) -> requests.Session:
         """Creates a new requests session with optional retry configuration.
 
         Returns:
-            requests.Session: The created session.
+            The created requests.Session object with optional retry configuration and
+            protocol adapters.
         """
         session = requests.Session()
 
@@ -105,13 +90,14 @@ class AflowAPI:
         """Makes a GET request to the specified URL and handles error responses.
 
         Args:
-            url (str): The URL to make the request to.
+            url: The URL to make the request to.
 
         Returns:
-            requests.Response: The response object.
+            The response object from the request.
 
         Raises:
-            RuntimeError: If the request fails with an HTTP error.
+        ------
+            RuntimeError: The request failed with an HTTP error.
         """
         response = self.session.get(url)
         try:
@@ -125,10 +111,10 @@ class AflowAPI:
         """Checks if the query string is valid based on the API's rules.
 
         Args:
-            query (str): The query string to validate.
+            query: The query string to validate.
 
         Returns:
-            bool: True if the query is valid, False otherwise.
+            A boolean indicating whether the query is valid.
         """
         check_spaces = not any(c.isspace() for c in query)
 
@@ -148,7 +134,7 @@ class AflowAPI:
         """Returns the base URL for API requests.
 
         Returns:
-            str: The base URL.
+            The base URL for AFLUX API requests,
         """
         return self.SERVER + self.API
 
@@ -162,17 +148,22 @@ class AflowAPI:
         """Sends a request to the AFLOW API and retrieves the response.
 
         Args:
-            matchbook (str): The matchbook to query. See `https://aflow.org/documentation/` for more information.
-            paging (int | None, optional): The page number for the request. By default, the query will be done on all pages at once. Defaults to None.
-            chunk_size (int | None, optional): The number of entries per page. This number must be tuned if HttpError 500 happens. Defaults to None.
-            no_directives (bool, optional): Whether to include directives in the request URL. Defaults to False.
+            matchbook: The matchbook to query. See `https://aflow.org/documentation/` for more
+                information.
+            paging: The page number for the request. By default, the query will be done on all
+                pages at once.
+            chunk_size: The number of entries per page. This number must be tuned if HttpError 500
+                happens.
+            no_directives: Whether to include directives in the request URL. Defaults to False.
 
         Returns:
-            AfluxResponse: The response from AFLUX API in a JSON-like object.
+            The response from AFLUX API in a JSON-like object. The response is a list of
+            dictionaries where each dictionary represents an entry in the database. The keys are
+            determined by the query.
 
         Raises:
-            ValueError: If the chunk_size or paging values are invalid.
-            ValueError: If the matchbook query is invalid.
+        ------
+            ValueError: If the chunk_size, paging, or matchbook are invalid.
         """
         if chunk_size is not None and chunk_size < 1:
             raise ValueError("chunk_size must be greater than 0")

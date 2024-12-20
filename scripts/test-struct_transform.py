@@ -1,9 +1,9 @@
-from src.datasets import MaterialProject
-from src.transforms.struct_transforms import RemoveAtoms
-from src.graph import KNNGraph
 import numpy as np
-
 from tqdm import tqdm
+
+from src.datasets import MaterialProject
+from src.graph import KNNGraph
+from src.transforms.struct_transforms import RemoveAtoms
 
 # Source data
 mp = MaterialProject(root="data/mp-data", fetch_data=False)
@@ -21,18 +21,18 @@ pbar.close()
 transformer = RemoveAtoms()
 indexes_to_remove = []
 
-avg_init = 0
+avg_init = 0.0
 for struct in structs:
     indexes_to_remove.append([0])
     avg_init += np.size(struct.species)
-avg_init = float(avg_init) / float(len(structs))
+avg_init = avg_init / len(structs)
 
 transformer.forward(structs=structs, indexes=indexes_to_remove)
-avg_final = 0
+avg_final = 0.0
 for struct in structs:
     avg_final += np.size(struct.species)
-avg_final = float(avg_final) / float(len(structs))
+avg_final = avg_final / len(structs)
 
-print("Average numer of atoms before and after removal")
+print("Average number of atoms before and after removal")
 print("   (difference should be one)")
 print(avg_init, avg_final)

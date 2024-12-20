@@ -9,7 +9,8 @@ import numpy as np
 from src.typing import PathLike
 
 
-def md5(fname):
+def md5(fname: PathLike) -> str:
+    """Calculate the MD5 checksum of a file."""
     hash_md5 = hashlib.md5(usedforsecurity=False)
     with open(fname, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
@@ -17,7 +18,8 @@ def md5(fname):
     return hash_md5.hexdigest()
 
 
-def check_md5(fname, md5_checksum):
+def check_md5(fname: PathLike, md5_checksum: str) -> bool:
+    """Check the MD5 checksum of a file."""
     return md5(fname) == md5_checksum
 
 
@@ -36,13 +38,13 @@ def check_integrity(fpaths: Sequence[PathLike], checksums: Sequence[str | None])
     return True
 
 
-def lattice_from_geometry(geometry):
+def lattice_from_geometry(geometry: Sequence[float]) -> np.ndarray:
     """Create a cell matrix from its lattice parameter (a,b,c,alpha,beta,gamma). The returned cell
     is orientated such that a and b are normal to (0,0,1) and a is parallel to (1,0,0). The cell
     vectors are defined row-wise. This implementation is based on the one in ASE.
 
     Args:
-        geometry (Sequence): A sequence of lattice parameters (a,b,c,alpha,beta,gamma).
+        geometry: A sequence of lattice parameters (a, b, c, alpha, beta, gamma).
 
     Returns:
         np.ndarray (3x3): The cell matrix.
@@ -78,17 +80,14 @@ def lattice_from_geometry(geometry):
 
     # Convert to the Cartesian x,y,z-system
     abc = np.vstack((va, vb, vc))
-    T = np.vstack((x_normed, y_normed, z_normed))
-    cell = np.dot(abc, T)
+    p = np.vstack((x_normed, y_normed, z_normed))
+    cell = np.dot(abc, p)
 
     return cell
 
 
-def poscar_from_entry(entry):
-    assert "compound" in entry, "Entry must contain a `compound` key"
-    assert "geometry" in entry, "Entry must contain a `geometry` key"
-    assert "positions_fractional" in entry, "Entry must contain a `positions_fractional` key"
-
+def poscar_from_entry(entry) -> str:
+    """Create a POSCAR string from an entry in the Aflow dataset."""
     lattice = lattice_from_geometry(entry["geometry"])
     species = re.findall("[A-Z][a-z]*", entry["compound"])
     n_atoms_per_species = re.findall(r"\d+", entry["compound"])

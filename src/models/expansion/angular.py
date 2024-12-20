@@ -12,7 +12,7 @@ class RealSphHarmBasis(torch.nn.Module):
     the `scipy.special.sph_harm` function.
 
     Args:
-        num_spherical (int): The number of spherical harmonics to use.
+        num_spherical: The number of spherical harmonics to use.
     """
 
     def __init__(self, num_spherical: int = 6) -> None:
@@ -23,8 +23,7 @@ class RealSphHarmBasis(torch.nn.Module):
         """Forward pass of the real spherical harmonics basis expansion module.
 
         Args:
-            phi (torch.Tensor): The angle tensor in radians.
-                The values should be in the range [0, pi].
+            phi: The angle tensor in radians. The values should be in the range [0, pi].
 
         Returns:
             torch.Tensor: The spherical harmonics basis expansion.
@@ -41,7 +40,15 @@ ANGULAR_FUNCTIONS = {
 }
 
 
+# TODO docstring
 class AngularBasisExpansion(torch.nn.Module):
+    """Expansion module that combines a radial basis expansion with an angular basis expansion.
+
+    Attributes:
+        radial_basis: The radial basis expansion module.
+        angular_basis: The angular basis expansion module
+    """
+
     def __init__(
         self,
         radial_basis: RadialBasisExpansion,
@@ -66,6 +73,16 @@ class AngularBasisExpansion(torch.nn.Module):
 
     # TODO handle the case where len(dist) != len(phi)
     def forward(self, dist: torch.Tensor, phi: torch.Tensor) -> torch.Tensor:
+        """Forward pass of the angular basis expansion module.
+
+        Args:
+            dist: The input distance tensor.
+            phi: The input angle tensor in radians. The values should be in the range [0, pi].
+
+        Returns:
+            The output tensor after applying the angular basis expansion. its shape is
+            `(len(dist), num_spherical, num_radial)`.
+        """
         rbf = self.radial_basis(dist)  # (num_edges, num_radial)
         abf = self.angular_basis(phi)  # (num_triplets, num_spherical)
 

@@ -6,37 +6,33 @@ from typing import Any
 from pymatgen.core import Structure
 from tqdm.auto import tqdm
 
-from src.datasets.base import GraphDataset
 from src.constants import CUSTOM_CLASSES
+from src.datasets.base import GraphDataset
 
 
-# TODO this class needs to be refactored to be more generic and better integrated with the rest of the code
+# TODO this class needs to be refactored to be more generic and better
+# integrated with the rest of the code
+# TODO docstring in google format
 class CustomDataset(GraphDataset):
     """A dataset class for any user provided custom dataset.
 
     Args:
-        root (str): Root directory of the dataset.
-        transform (Callable | None): A function/transform that takes in a graph and returns a transformed version.
-        struct_transform (Callable | None): A function/transform that takes in a structure and returns a transformed version.
-        target_transform (Callable | None): A function/transform that takes in a target and returns a transformed version.
-        fetch_data (bool): whether we need to find and pretreat raw data beforehand if the dataset doesn't exist.
-        origin_dir (str | None): Directory containing the raw files (in non-json format)
+        root: Root directory of the dataset.
+        transform: A function that takes in a graph and returns a transformed version.
+        struct_transform: A function that takes in a structure and returns a transformed version.
+        target_transform: A function that takes in a target and returns a transformed version.
+        fetch_data: Whether we need to pretreat raw data if the dataset doesn't exist.
+        origin_dir: Directory containing the raw files (in non-json format)
         graph_kwargs: Additional keyword arguments to be passed to the Graph class.
 
     Attributes:
         classes (list): a list of space group numbers ranking from 1 to 230.
         resources (list): Names of the files containing the dataset.
-
-    Methods:
-        __getitem__: Retrieves a graph and its corresponding target from the dataset.
-        __len__: Returns the length of the dataset.
-        load: Loads the data from the resource files.
-        fetch_data: From an existing local directory with unformatted (ie. non-json) labelled structures, extract and pretreats the content if the database doesn't exist.
     """
 
     classes = CUSTOM_CLASSES
 
-    resources = [f"data_{class_idx}.json" for class_idx in classes]
+    resources = tuple([f"data_{class_idx}.json" for class_idx in classes])
 
     def __init__(
         self,
@@ -46,9 +42,12 @@ class CustomDataset(GraphDataset):
         target_transform: Callable | None = None,
         fetch_data: bool = False,
         origin_dir: str | None = None,
-        graph_kwargs: dict[str, Any] = {},
+        graph_kwargs: dict[str, Any] = {},  # TODO never use a mutable default argument
         **kwargs: Any,
     ) -> None:
+        if origin_dir is None:
+            raise ValueError("origin_dir must be provided.")
+
         super().__init__(root, transform, struct_transform, target_transform, graph_kwargs)
 
         if fetch_data:
@@ -56,16 +55,12 @@ class CustomDataset(GraphDataset):
 
         if not self.check_exists():
             raise RuntimeError(
-                "Dataset not found. You can use fetch_data=True and origin_dir=<path> to provide it"
+                "Dataset not found. Provide it with fetch_data=True and origin_dir=<path>"
             )
 
         self.data, self.targets = self.load()
 
     def __getitem__(self, index: int) -> tuple[Any, Any]:
-        if not self.data:
-            RuntimeWarning("Dataset not loaded. Use load=True to load the dataset")
-            return None, None
-
         contcar, target = self.data[index], self.targets[index]
 
         struct = Structure.from_str(contcar, fmt="poscar")
@@ -86,10 +81,11 @@ class CustomDataset(GraphDataset):
     def __len__(self) -> int:
         return len(self.data)
 
-    #TODO if the processed data is already available, we can load it instead
-    #TODO doing so will save time during __getitem__ calls as we won't have to convert the structure to a graph
+    # TODO if the processed data is already available, we can load it instead
+    # TODO doing so will save time during __getitem__ calls as we won't have
+    # to convert the structure to a graph
     def load(self) -> tuple[list[str], list[int]]:
-        """Load data from JSON files and return a tuple of data and targets.
+        """Load data from raw files and return a tuple of data and targets.
 
         Returns:
             tuple[list[str], list[int]]: A tuple containing the loaded data and targets.

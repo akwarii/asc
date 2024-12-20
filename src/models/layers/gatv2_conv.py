@@ -6,14 +6,14 @@ class GATv2Layer(nn.Module):
     """Graph Attention Version 2 Layer.
 
     Args:
-        in_features (int): Number of input features.
-        out_features (int): Number of output features.
-        n_heads (int): Number of attention heads.
-        is_concat (bool, optional): Whether to concatenate the outputs of each head. Defaults to True.
-        dropout (float, optional): Dropout rate. Defaults to 0.6.
-        leaky_relu_negative_slope (float, optional): Negative slope of the LeakyReLU activation function. Defaults to 0.2.
-        bias (bool, optional): Whether to include a bias term. Defaults to True.
-        share_weights (bool, optional): Whether to share weights between the left and right linear transformations. Defaults to False.
+        in_features: Number of input features.
+        out_features: Number of output features.
+        n_heads: Number of attention heads.
+        is_concat: Whether to concatenate the outputs of each head.
+        dropout: Dropout rate.
+        leaky_relu_negative_slope: Negative slope of the LeakyReLU activation function.
+        bias: Whether to include a bias term.
+        share_weights: Whether to share weights between the left and right linear transformations.
     """
 
     def __init__(
@@ -27,7 +27,7 @@ class GATv2Layer(nn.Module):
         bias: bool = True,
         share_weights: bool = False,
     ) -> None:
-        super.__init__()
+        super().__init__()
 
         self.is_concat = is_concat
         self.n_heads = n_heads

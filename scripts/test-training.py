@@ -1,15 +1,16 @@
 # Based on
 # https://lightning.ai/docs/pytorch/stable/starter/introduction.html
 import os
+
 import lightning as L
 import torch
 import torch._dynamo.config
 import torch.multiprocessing
 import torchmetrics
+import torchmetrics.classification
 from torch import optim
 from torch.nn import CrossEntropyLoss
 from torch_geometric.transforms import NormalizeFeatures
-import torchmetrics.classification
 
 from src.augmentation import (
     RandomDisplacement,
@@ -17,9 +18,8 @@ from src.augmentation import (
     RandomNodeDrop,
 )
 from src.datamodule import CEGANNDataModule
-from src.module import CEGANNModule
 from src.models.cegann import CEGANN
-
+from src.module import CEGANNModule
 
 torch.set_float32_matmul_precision("medium")
 torch.cuda.empty_cache()
@@ -41,7 +41,9 @@ datamodule = CEGANNDataModule(
     num_workers=cpu_count - 1 if cpu_count is not None else 0,
     train_val_test_split=(0.8, 0.1, 0.1),
     batch_size=32,
-    graph_kwargs={"k": 2, },
+    graph_kwargs={
+        "k": 2,
+    },
 )
 n_classes = datamodule.num_classes or 230
 

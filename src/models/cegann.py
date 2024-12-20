@@ -11,18 +11,20 @@ from src.models.layers import AngleConvLayer, EdgeConvLayer
 #           https://doi.org/10.48550/arXiv.2009.03294
 # TODO: Make use of mini-batch
 class CEGANN(nn.Module):
-    """
-    Crystal Edge Graph Attention Neural Network (CEGANN) model.
-    Implementation based on the paper: https://doi.org/10.1038/s41524-023-00975-z
+    """Crystal Edge Graph Attention Neural Network (CEGANN) model.
+
+    Implementation based on the paper:
+        CEGANN: Crystal Edge Graph Attention Neural Network for multiscale classification of
+        materials environment, npj Computational Materials (2023) 9:23.
 
     Args:
-        gbf_bond (dict): Dictionary containing information about the Gaussian basis function expansion for bond features.
-        gbf_angle (dict): Dictionary containing information about the Gaussian basis function expansion for angle features.
-        n_conv_edge (int): Number of convolutional layers for edge features.
-        edge_expansion_units (int): Number of units for expanding edge features.
-        angle_expansion_units (int): Number of units for expanding angle features.
-        n_classes (int): Number of output classes.
-        embedding (bool): Whether to return embedded features.
+        gbf_bond: Information about the Gaussian basis function expansion for bond features.
+        gbf_angle: Information about the Gaussian basis function expansion for angle features.
+        n_conv_edge: Number of convolutional layers for edge features.
+        edge_expansion_units: Number of units for expanding edge features.
+        angle_expansion_units: Number of units for expanding angle features.
+        n_classes: Number of output classes.
+        embedding: Whether to return embedded features.
 
     Methods:
         _message_passing(edge_fea, angle_fea, nbr_idx):
@@ -126,20 +128,20 @@ class CEGANN(nn.Module):
 
         return edge_features, angle_features
 
-    def forward(self, data: tuple) -> torch.Tensor | tuple[torch.Tensor]:
+    def forward(self, data: tuple) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         """Forward pass of the CEGANN model.
 
         Args:
-            data (tuple): Tuple containing bond features, angle features, neighbor indices, and crystal indices.
+            data: Tuple of bond features, angle features, neighbor indices, and crystal indices.
 
         Returns:
             torch.Tensor: Output of the model.
             torch.Tensor: Embedded features (if self.embedding is set to True).
         """
         # [DB] TODO: ENSURE ALL IS CLEAN HERE.
-        neigh_idx, pos, num_nodes, cell, edge_features, angle_features = [
+        neigh_idx, pos, num_nodes, cell, edge_features, angle_features = (
             d[1] for d in data
-        ]  # DB, `data` returns tuples (label, associated-tensor)
+        )  # DB, `data` returns tuples (label, associated-tensor)
         # edge_features, angle_features, neigh_idx, crystal_idx = data
 
         # Create features using Gaussian basis function expansion

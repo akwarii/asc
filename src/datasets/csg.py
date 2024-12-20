@@ -6,46 +6,41 @@ from kaggle import KaggleApi
 from pymatgen.core import Structure
 from torch_geometric.data import Data
 
+from src.constants import CSG_CLASSES
 from src.datasets.base import GraphDataset
 from src.datasets.utils import check_integrity
-from src.constants import CSG_CLASSES
 
 
+# TODO docstring in google format
 class CSG(GraphDataset):
-    """The Crystal Space Group (CSG) dataset is a preprocessed version of the AFLOW, GNoME and Material Project datasets.
-    The dataset contains ~1,050,000 crystal structures with space group numbers ranging from 1 to 230. The dataset is
-    formatted as a CSV file with two columns: "SpaceGroupNumber" and "Structure". The "Structure" column contains the
-    string representation of the crystal structure in the POSCAR format.
+    """The Crystal Space Group (CSG) dataset is a preprocessed version of the AFLOW, GNoME and
+    Material Project datasets. The dataset contains ~1,050,000 crystal structures with space group
+    numbers ranging from 1 to 230. The dataset is formatted as a CSV file with two columns:
+    "SpaceGroupNumber" and "Structure". The "Structure" column contains the string representation
+    of the crystal structure in the POSCAR format.
 
-    The AFLOW data was filtered to only include structures with a maximum stress component of +/-0.1 GPa and a maximum
-    force component of +/-0.01 eV/A.
-    Material Project data was filtered to remove structures with deprecated or warning flags.
-    All GNoME data predicted stable were included.
-    Additionally, structures with both the same space group number and composition were removed to avoid redundancy.
+    The AFLOW data was filtered to only include structures with a maximum stress component of +/-
+    0.1 GPa and a maximum force component of +/-0.01 eV/A. Material Project data was filtered to
+    remove structures with deprecated or warning flags. All GNoME data predicted stable were
+    included. Additionally, structures with both the same space group number and composition were
+    removed to avoid redundancy.
 
-    The maximum number of atoms in a structure is 444. A radius graph with a cutoff of 10 angstroms ensure that 99.5%
-    of the graphs are complete.
+    The maximum number of atoms in a structure is 444. A radius graph with a cutoff of 10 angstroms
+    ensure that 99.5% of the graphs are complete.
 
     The dataset is available for download from Kaggle at https://www.kaggle.com/datasets/gaelhuynh/space-group.
 
     Args:
-        root (str): Root directory of the dataset.
-        transform (Callable | None): A function/transform that takes in a graph and returns a transformed version.
-        struct_transform (Callable | None): A function/transform that takes in a structure and returns a transformed version.
-        target_transform (Callable | None): A function/transform that takes in a target and returns a transformed version.
-        fetch_data (bool): Whether to download the dataset if it doesn't exist.
+        root: Root directory of the dataset.
+        transform: A function that takes in a graph and returns a transformed version.
+        struct_transform: A function that takes in a structure and returns a transformed version.
+        target_transform: A function that takes in a target and returns a transformed version.
+        fetch_data: Whether to download the dataset if it doesn't exist.
         **graph_kwargs: Additional keyword arguments to be passed to the Graph class.
 
     Attributes:
         classes (list): A list of space group numbers ranging from 1 to 230.
         resources (list): Names of the files containing the dataset.
-
-    Methods:
-        __init__: Initializes the Aflow dataset.
-        __getitem__: Retrieves a graph and its corresponding target from the dataset.
-        __len__: Returns the length of the dataset.
-        load: Loads the data from the resource files.
-        fetch_data: Downloads the dataset if it doesn't exist already.
     """
 
     KAGGLE_DATASET = "gaelhuynh/space-group"
@@ -63,7 +58,7 @@ class CSG(GraphDataset):
         struct_transform: Callable | None = None,
         target_transform: Callable | None = None,
         fetch_data: bool = False,
-        graph_kwargs: dict[str, Any] = {},
+        graph_kwargs: dict[str, Any] = {},  # TODO never use a mutable default argument
         **kwargs: Any,
     ) -> None:
         super().__init__(root, transform, struct_transform, target_transform, graph_kwargs)
@@ -89,16 +84,22 @@ class CSG(GraphDataset):
             graph = self.transform(graph)
 
         if self.target_transform is not None:
-            target: int = self.target_transform(target)
+            target = self.target_transform(target)
 
         return graph, target
 
     def __len__(self) -> int:
         return len(self.data)
 
-    #TODO if the processed data is already available, we can load it instead
-    #TODO doing so will save time during __getitem__ calls as we won't have to convert the structure to a graph
+    # TODO if the processed data is already available, we can load it instead
+    # TODO doing so will save time during __getitem__ calls as we won't have
+    # to convert the structure to a graph
     def load(self) -> tuple[list[str], list[int]]:
+        """Load data from raw files and return a tuple of data and targets.
+
+        Returns:
+            tuple[list[str], list[int]]: A tuple containing the loaded data and targets.
+        """
         df = pd.read_csv(self.raw_folder / self.resources[0])
         data = df["Structure"].tolist()
         targets = df["SpaceGroupNumber"].tolist()
@@ -106,6 +107,9 @@ class CSG(GraphDataset):
         return data, targets
 
     def fetch_data(self) -> None:
+        """Downloads the dataset from Kaggle if it doesn't exist already or if its md5
+        checksum doesn't match the expected value.
+        """
         paths = [self.raw_folder / resource for resource in self.resources]
 
         if self.check_exists() and check_integrity(paths, self.md5_checksums):

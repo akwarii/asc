@@ -68,7 +68,7 @@ _NOT_IN_GNOME = {
     93,
     96,
     106,
-    145, # DB, not found in the dataset
+    145,  # DB, not found in the dataset
     153,
     158,
     168,
@@ -76,13 +76,13 @@ _NOT_IN_GNOME = {
     170,
     171,
     172,
-    177, # DB, not found in the dataset
+    177,  # DB, not found in the dataset
     178,
     179,
-    181, # DB, not found in the dataset
+    181,  # DB, not found in the dataset
     184,
     195,
-    201, # DB, not found in the dataset
+    201,  # DB, not found in the dataset
     207,
     208,
     210,
@@ -96,4 +96,4 @@ GNOME_CLASSES = tuple(_ALL_SG - _NOT_IN_GNOME)
 _NOT_IN_CSG = {168, 207}
 CSG_CLASSES = tuple(_ALL_SG - _NOT_IN_CSG)
 
-CUSTOM_CLASSES = tuple(set(range(8))) # DB #TODO this should be found in the dataset
+CUSTOM_CLASSES = tuple(set(range(8)))  # DB #TODO this should be found in the dataset

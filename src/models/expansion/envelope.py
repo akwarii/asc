@@ -29,16 +29,13 @@ class PolynomialEnvelope(torch.nn.Module):
     (2022). Directional Message Passing for Molecular Graphs (arXiv:2003.03123).
 
     Args:
-        degree (int, optional): The degree of the polynomial envelope. Defaults to 5.
+        degree: The degree of the polynomial envelope. Defaults to 5.
     """
 
-    def __init__(self, degree: int | float = 5) -> None:
+    def __init__(self, degree: int = 5) -> None:
         super().__init__()
 
-        if (
-            not (isinstance(degree, int) or (isinstance(degree, float) and degree.is_integer()))
-            or degree < 1
-        ):
+        if not (isinstance(degree, int) or degree.is_integer()) or degree < 1:
             raise ValueError(
                 "The degree of the polynomial envelope must be an integer larger than 0."
             )
