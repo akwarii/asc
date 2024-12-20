@@ -7,6 +7,7 @@ from typing import Any
 from dotenv import get_key
 from mp_api.client import MPRester
 from pymatgen.core import Structure
+from pymatgen.io.vasp.inputs import BadPoscarWarning
 from tqdm.auto import tqdm
 
 from src.constants import MP_CLASSES
@@ -31,7 +32,7 @@ class MaterialProject(GraphDataset):
         resources (list): Names of the files containing the dataset.
     """
 
-    _dotenv_path = Path(__file__).resolve().parents[3] / ".env"
+    _dotenv_path = Path(__file__).resolve().parents[2] / ".env"
     _dotenv_key = "MATERIALS_PROJECT_API_KEY"
 
     API_KEY = get_key(_dotenv_path, _dotenv_key)
@@ -64,7 +65,9 @@ class MaterialProject(GraphDataset):
     def __getitem__(self, index: int) -> tuple[Any, Any]:
         contcar, target = self.data[index], self.targets[index]
 
-        struct = Structure.from_str(contcar, fmt="poscar")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", BadPoscarWarning)
+            struct = Structure.from_str(contcar, fmt="poscar")
 
         if self.struct_transform is not None:
             struct = self.struct_transform(struct)

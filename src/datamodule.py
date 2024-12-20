@@ -5,11 +5,12 @@ import torch
 import torch_geometric.transforms as T
 from lightning import LightningDataModule
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, random_split
+from torch_geometric.data import Data
 
 import src.datasets as datasets
 from src.constants import REPR_INDENT
 from src.graph import KNNGraph  # DB
-from src.typing import PathLike, StageType
+from src.typing import PathLike, SliceDictType, StageType
 
 DATASET_MAP = {
     "aflow": datasets.Aflow,
@@ -29,6 +30,8 @@ DATASET_MAP = {
 # TODO integrate node loader
 # TODO change the way data is transformed / augmented
 # (https://lightning.ai/docs/pytorch/stable/notebooks/lightning_examples/augmentation_kornia.html)
+# TODO doesn't work when BatchSizeFinder is used
+# TODO when KNN is fixed
 class CEGANNDataModule(LightningDataModule):
     """CEGANNDataModule is a LightningDataModule subclass that provides data loading and processing
     functionality for the CEGANN model.
@@ -240,7 +243,9 @@ class CEGANNDataModule(LightningDataModule):
             collate_fn=KNNGraph.collate,
         )
 
-    def on_before_batch_transfer(self, batch: Any, dataloader_idx: int) -> Any:
+    def on_before_batch_transfer(
+        self, batch: tuple[Data, torch.Tensor, SliceDictType], dataloader_idx: int
+    ) -> Any:
         """Apply batch augmentations to the batch before it is transferred to the device. Both the
         structure and the data transformations are applied (in this order).
 
@@ -248,14 +253,15 @@ class CEGANNDataModule(LightningDataModule):
             batch: The batch to augment.
             dataloader_idx: The index of the dataloader.
         """
+        x, y, slice_dict = batch
         if self.trainer.training:  # type: ignore
             if self.struct_transforms is not None:
-                batch = self.struct_transforms(batch)
+                x = self.struct_transforms(x)
             if self.transforms is not None:
-                batch = self.transforms(batch)
+                x = self.transforms(x)
             if self.augmenter_transforms is not None:
-                batch = self.augmenter_transforms(batch)
-        return batch
+                x = self.augmenter_transforms(x)
+        return x, y, slice_dict
 
     def teardown(self, stage: StageType) -> None:
         """Cleans up the data after a specific stage. Note that the test dataloader is the last to

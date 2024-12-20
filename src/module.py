@@ -1,6 +1,9 @@
 import torch
 import torchmetrics
 from lightning import LightningModule
+from torch_geometric.data import Data
+
+from src.typing import SliceDictType
 
 
 class CEGANNModule(LightningModule):
@@ -48,7 +51,7 @@ class CEGANNModule(LightningModule):
             torchmetrics.MaxMetric()
         )  # modified by DB, no prefix keyword for MaxMetric
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: Data) -> torch.Tensor:
         """Forward pass of the CEGANNModule.
 
         Args:
@@ -69,7 +72,7 @@ class CEGANNModule(LightningModule):
         self.val_best_acc.reset()
 
     def model_step(
-        self, batch: tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+        self, batch: tuple[Data, torch.Tensor, SliceDictType]
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Perform a single step of the model.
 
@@ -79,13 +82,12 @@ class CEGANNModule(LightningModule):
         Returns:
             Tuple containing the loss, predicted labels, and target labels.
         """
-        # x, y = batch
-        # DB
         x, y, slices = batch
+
+        #TODO when batch size is 1, slices is None and the following line will raise an error
         _y = torch.cat(
             [y[i].repeat(slices["pos"][i + 1] - slices["pos"][i]) for i in range(y.size()[0])]
-        )
-        # DB
+        )  # TODO can it be simplified?
 
         logits = self.forward(x)
 
@@ -94,7 +96,7 @@ class CEGANNModule(LightningModule):
         return loss, preds, _y
 
     def training_step(
-        self, batch: tuple[torch.Tensor, torch.Tensor, torch.Tensor], batch_idx: int
+        self, batch: tuple[Data, torch.Tensor, SliceDictType], batch_idx: int
     ) -> torch.Tensor:
         """Training step of the CEGANNModule.
 
@@ -105,14 +107,11 @@ class CEGANNModule(LightningModule):
         Returns:
             torch.Tensor: Loss value.
         """
-        # print("BATCH", batch) # DB tuple(Data**collated**, {...} = slice_dict)
-        # print("Distances from batch", batch[0].edge_dist) # DB
         loss, preds, targets = self.model_step(batch)
 
         output = self.train_metrics(preds, targets)
         self.log_dict(output, on_step=True, on_epoch=False, prog_bar=True)
 
-        # return loss or backpropagation will fail
         return loss
 
     def on_train_epoch_end(self) -> None:
@@ -121,7 +120,7 @@ class CEGANNModule(LightningModule):
         # pass
 
     def validation_step(
-        self, batch: tuple[torch.Tensor, torch.Tensor, torch.Tensor], batch_idx: int
+        self, batch: tuple[Data, torch.Tensor, SliceDictType], batch_idx: int
     ) -> None:
         """Perform validation step of the CEGANNModule.
 
@@ -141,9 +140,7 @@ class CEGANNModule(LightningModule):
         self.log_dict(output)
         self.val_metrics.reset()
 
-    def test_step(
-        self, batch: tuple[torch.Tensor, torch.Tensor, torch.Tensor], batch_idx: int
-    ) -> None:
+    def test_step(self, batch: tuple[Data, torch.Tensor, SliceDictType], batch_idx: int) -> None:
         """Test step of the CEGANNModule.
 
         Args:
@@ -160,7 +157,7 @@ class CEGANNModule(LightningModule):
         self.test_metrics.reset()
 
     def predict_step(
-        self, batch: tuple[torch.Tensor, torch.Tensor, torch.Tensor], batch_idx: int
+        self, batch: tuple[Data, torch.Tensor, SliceDictType], batch_idx: int
     ) -> torch.Tensor:
         """Predict step of the CEGANNModule.
 
@@ -172,9 +169,7 @@ class CEGANNModule(LightningModule):
         return preds
 
     # DB
-    def model_inference(
-        self, batch: tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-    ) -> torch.Tensor:
+    def model_inference(self, batch: tuple[Data, torch.Tensor, SliceDictType]) -> torch.Tensor:
         """Perform an inference step of the model.
 
         Args:

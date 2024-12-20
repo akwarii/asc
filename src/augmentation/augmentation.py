@@ -7,6 +7,7 @@ from torch_geometric.data import Data
 
 
 # TODO review this class
+# TODO forward must return a Data object with tensors of dtype float32
 class RandomDisplacement(torch.nn.Module):
     """Class to apply random displacement to atoms in structures.
 
@@ -21,84 +22,61 @@ class RandomDisplacement(torch.nn.Module):
     """
 
     def __init__(self, stddev: float = 0.001, seed: int = 42, p: float = 0.1) -> None:
+        if stddev <= 0.0:
+            raise ValueError("The standard deviation must be strictly positive.")
+
+        if p < 0.0 or p > 1.0:
+            raise ValueError("The probability to displace a node must be in [0.,1.].")
         super().__init__()
         self.stddev = stddev
-        self.seed = seed
         self.p = p
-        self.rng = np.random.RandomState(seed=self.seed)
+        self.rng = torch.Generator(device="cpu").manual_seed(seed)
 
     @torch.no_grad()
-    def forward(self, x: Sequence[Data], progress_bar: bool = True) -> Sequence[Data]:
+    def forward(self, x: Data) -> Data:
         """Applies random Gaussian noise to interatomic distances and angles on a batch of
         graph structures.
 
         Args:
             x (Sequence[Data]): batch of K-neareast neighbors graphs for periodic structures.
-            progress_bar (bool): whether we show progression with tqdm pbar() (default=True).
 
         Returns:
             Another batch of K-nearest neighbors graphs with Gaussian noise applied on ineratomic
             distances (`edge_dist`) and angles (`angle_cos`).
         """
-        if progress_bar:
-            from tqdm import tqdm
+        ############################ NOTE ################################
+        # As positions are not currently used in the training, and because
+        # the idea is to slightly perturb distances and angles only, we
+        # don't really need to worry about each distances and angles being
+        # consistent between the same images of a same atom. Also, for KNN
+        # which are not two-way (j can be in i's neighborhood but i is not
+        # necessarily in j's) , we don't have to worry about rij = rji and
+        # theta_ijk = theta_jki: as long as they are close enough it won't
+        # be a huge issue. An exact implementation can be found in:
+        #     `self.forward_exact()`
+        # However, please note the exact implementation is absurdly longer
+        # (4h+ on the `Materials-Project`` dataset, instead of 40+ seconds
+        # on my laptop). ~ DB
+        ######################### END OF NOTE ############################
 
-            pbar = tqdm(
-                total=len(
-                    list(x)
-                ),  # fastest according to A. Bogdanov and mkrieger-1 on https://stackoverflow.com/questions/393053/length-of-generator-output
-                desc="Augmenting data (Gaussian noise)",
-            )
+        # TODO we may switch to modify the Data object every time but with a given probability
+        # for every node / feature
+        if torch.rand(1, generator=self.rng).item() > self.p:
+            return x
 
-        rattled_graphs = []
+        distances = torch.normal(mean=x.edge_dist, std=self.stddev, generator=self.rng)
+        angle_cos = torch.normal(mean=x.angle_cos, std=self.stddev, generator=self.rng)
 
-        for graph in x:
-            # Do we apply the augmentation ?
-            if self.rng.rand() > self.p:
-                rattled_graphs.append(graph)
-                continue
+        augmented_data = Data(
+            num_nodes=x.num_nodes,
+            pos=x.pos,
+            cell=x.cell,
+            edge_index=x.edge_index,
+            edge_dist=distances,
+            angle_cos=angle_cos,
+        )
 
-            ############################ NOTE ################################
-            # As positions are not currently used in the training, and because
-            # the idea is to slightly perturb distances and angles only, we
-            # don't really need to worry about each distances and angles being
-            # consistent between the same images of a same atom. Also, for KNN
-            # which are not two-way (j can be in i's neighborhood but i is not
-            # necessarily in j's) , we don't have to worry about rij = rji and
-            # theta_ijk = theta_jki: as long as they are close enough it won't
-            # be a huge issue. An exact implementation can be found in:
-            #     `self.forward_exact()`
-            # However, please note the exact implementation is absurdly longer
-            # (4h+ on the `Materials-Project`` dataset, instead of 40+ seconds
-            # on my laptop). ~ DB
-            ######################### END OF NOTE ############################
-
-            distances = graph.edge_dist * (
-                self.rng.normal(scale=self.stddev, size=graph.edge_dist.size()) + 1.0
-            )
-
-            angle_cos = graph.angle_cos * (
-                self.rng.normal(scale=self.stddev, size=graph.angle_cos.size()) + 1.0
-            )
-
-            rattled_graphs.append(
-                Data(
-                    num_nodes=graph.num_nodes,
-                    pos=graph.pos,
-                    cell=graph.cell,
-                    edge_index=graph.edge_index,
-                    edge_dist=distances,
-                    angle_cos=angle_cos,
-                )
-            )
-
-            if progress_bar:
-                pbar.update(1)
-
-        if progress_bar:
-            pbar.close()
-
-        return rattled_graphs
+        return augmented_data
 
     def forward_exact(self, x: Sequence[Data], progress_bar: bool = True) -> Sequence[Data]:
         """Applies random Gaussian noise to atomic positions on a batch of graph structures.
@@ -243,6 +221,7 @@ class RandomDisplacement(torch.nn.Module):
         return torch.nn.functional.pairwise_distance(atom_pos * torch.ones([27, 3]), ne_trans)
 
 
+# TODO set as deprecated for now and change it if we start using the positions and cell
 class RandomExpansion(torch.nn.Module):
     """Class to apply random expansion to boxes.
 
@@ -259,61 +238,49 @@ class RandomExpansion(torch.nn.Module):
         p (float): probability to apply the transform (default=0.1).
     """
 
-    def __init__(
-        self,
-        stddev: float = 0.05,
-        seed: int = 42,
-        p: float = 0.1,
-    ) -> None:
+    def __init__(self, stddev: float = 0.05, seed: int = 42, p: float = 0.1) -> None:
         super().__init__()
         self.stddev = stddev
-        self.seed = seed
         self.p = p
-        self.rng = np.random.RandomState(seed=self.seed)
+        self.rng = torch.Generator(device="cpu").manual_seed(seed)
 
     @torch.no_grad()
-    def forward(self, x: Sequence[Data], progress_bar: bool = True) -> Sequence[Data]:
+    def forward(self, x: Data) -> Data:
         """Applies random expansion to a batch of graphs."""
-        if progress_bar:
-            from tqdm import tqdm
+        if torch.rand(1, generator=self.rng).item() > self.p:
+            return x
 
-            pbar = tqdm(
-                total=len(
-                    list(x)
-                ),  # fastest according to A. Bogdanov and mkrieger-1 on https://stackoverflow.com/questions/393053/length-of-generator-output
-                desc="Augmenting data (random expansion)",
-            )
+        scaled_pos = None
+        if x.pos is not None:
+            rnd_scale = torch.normal(mean=1.0, std=self.stddev, size=[1], generator=self.rng)
+            scaled_pos = x.pos * rnd_scale
 
-        random_scale = self.rng.normal(scale=self.stddev, size=len(x), loc=1.0)
-        scaled_graphs = []
+        scaled_cell = None
+        if x.cell is not None:
+            rnd_scale = torch.normal(mean=1.0, std=self.stddev, size=[1], generator=self.rng)
+            scaled_cell = x.cell * rnd_scale
 
-        for i, graph in enumerate(x):
-            # Do we apply the augmentation ?
-            if self.rng.rand() > self.p:
-                scaled_graphs.append(graph)
-                continue
+        # ? GH I think it is the same as using RandomDisplacement
+        scaled_dist = None
+        if x.edge_dist is not None:
+            rnd_scale = torch.normal(mean=1.0, std=self.stddev, size=[1], generator=self.rng)
+            scaled_dist = x.edge_dist * rnd_scale
 
-            scaled_graphs.append(
-                Data(
-                    num_nodes=graph.num_nodes,
-                    pos=graph.pos * random_scale[i],
-                    cell=graph.cell * random_scale[i],
-                    edge_index=graph.edge_index,
-                    edge_dist=graph.edge_dist * random_scale[i],
-                    angle_cos=graph.angle_cos,  # unchanged by box scaling
-                )
-            )
+        augmented_data = Data(
+            num_nodes=x.num_nodes,
+            pos=scaled_pos,
+            cell=scaled_cell,
+            edge_index=x.edge_index,
+            edge_dist=scaled_dist,
+            angle_cos=x.angle_cos,  # unchanged by box scaling
+        )
 
-            if progress_bar:
-                pbar.update(1)
-
-        if progress_bar:
-            pbar.close()
-
-        return scaled_graphs
+        return augmented_data
 
 
-# TODO review this class
+# FIXME: this class is not used in the current implementation
+# as it will make the code crash. We need to move to the usual PyG
+# Data storage of the targets and use the PyG collate function.
 class RandomNodeDrop(torch.nn.Module):
     """Class to apply random node dropout to boxes.
 
@@ -327,90 +294,54 @@ class RandomNodeDrop(torch.nn.Module):
         p (float): probability to apply the transform (default=0.1).
     """
 
-    def __init__(
-        self,
-        rate: float = 0.05,
-        seed: int = 42,
-        p: float = 0.1,
-    ) -> None:
+    def __init__(self, rate: float = 0.05, seed: int = 42, p: float = 0.1) -> None:
+        if rate == 1.0:
+            raise ValueError("The dropout rate must be strictly less than 1.0.")
+
+        if p < 0.0 or p > 1.0:
+            raise ValueError("The dropout probability must be in [0.,1.].")
+
         super().__init__()
+
         self.rate = rate
         self.p = p
         self.seed = seed
-        self.rng = np.random.RandomState(seed=self.seed)
+        self.rng = torch.Generator(device="cpu").manual_seed(seed)
 
     @torch.no_grad()
-    def forward(
-        self, x: Sequence[Data], keep_undropped: bool = False, progress_bar: bool = True
-    ) -> Sequence[Data]:
+    def forward(self, x: Data) -> Data:
         """Applies random node dropout to a batch of graphs."""
-        if progress_bar:
-            from tqdm import tqdm
+        # TODO we may switch to modify the Data object every time but with a given probability
+        if torch.rand(1, generator=self.rng).item() > self.p:
+            return x
 
-            pbar = tqdm(
-                total=len(
-                    list(x)
-                ),  # fastest according to A. Bogdanov and mkrieger-1 on https://stackoverflow.com/questions/393053/length-of-generator-output
-                desc="Augmenting data (random node drop)",
-            )
+        if x.num_nodes is None:
+            raise ValueError("The number of nodes must be provided.")
 
-        dropped_graphs = []
+        num_nodes_kept = 0
+        while num_nodes_kept == 0:
+            node_mask = torch.rand(x.num_nodes, generator=self.rng) > self.rate
+            num_nodes_kept = torch.sum(node_mask).item()
 
-        for graph in x:
-            # Do we apply the augmentation ?
-            if self.rng.rand() > self.p:
-                dropped_graphs.append(graph)
-                continue
+        # Updated nodes/positions
+        if x.pos is not None:
+            pos = x.pos[node_mask]
 
-            rnd_drops = self.rng.choice(
-                [0, 1], size=graph.num_nodes, p=[self.rate, 1.0 - self.rate]
-            )  # 0 for drop, 1 for keep
-            dropout = np.where(rnd_drops == 0)[0]
+        # Need to remove edges involving the dropped nodes
+        if x.edge_index is not None:
+            edge_mask = node_mask[x.edge_index[0]]
+            edge_index = x.edge_index[:, edge_mask]
 
-            if not any(dropout):
-                if keep_undropped:
-                    dropped_graphs.append(
-                        Data(
-                            num_nodes=graph.num_nodes,
-                            pos=graph.pos,
-                            cell=graph.cell,
-                            edge_index=graph.edge_index,
-                            edge_dist=graph.edge_dist,
-                            angle_cos=graph.angle_cos,
-                        )
-                    )
-                if progress_bar:
-                    pbar.update(1)
-                continue  # No dropout to apply, no need to duplicate the graph
+        edge_dist = x.edge_dist[edge_mask] if edge_mask is not None else None
+        angle_cos = x.angle_cos[edge_mask] if edge_mask is not None else None
 
-            # Updated nodes/positions
-            nodes_tokeep = np.where(rnd_drops)[0]
-            pos = graph.pos[nodes_tokeep]
+        augmented_graph = Data(
+            num_nodes=num_nodes_kept,
+            pos=pos,
+            cell=x.cell,
+            edge_index=edge_index,
+            edge_dist=edge_dist,
+            angle_cos=angle_cos,
+        )
 
-            # Need to remove edges involving the dropped nodes
-            edges_tokeep = []
-            for edge in range(graph.edge_index.size()[0]):
-                if all(idx in nodes_tokeep for idx in graph.edge_index[edge]):
-                    edges_tokeep.append(edge)
-            edge_index = graph.edge_index[edges_tokeep, :]
-            edge_dist = graph.edge_dist[edges_tokeep]
-            angle_cos = graph.angle_cos[edges_tokeep]  # DB, TODO: verify
-
-            dropped_graphs.append(
-                Data(
-                    num_nodes=graph.num_nodes - np.size(dropout),
-                    pos=pos,
-                    cell=graph.cell,
-                    edge_index=edge_index,
-                    edge_dist=edge_dist,
-                    angle_cos=angle_cos,
-                )
-            )
-
-            if progress_bar:
-                pbar.update(1)
-
-        if progress_bar:
-            pbar.close()
-
-        return dropped_graphs
+        return augmented_graph
