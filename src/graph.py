@@ -252,6 +252,9 @@ class KNNGraph:
         In addition, `collate` can handle nested data structures such as
         dictionaries and lists.
         """
+        #TODO test the following line to simplify the code ie data_list[0][0] -> data_list[0]
+        # data_list, targets = zip(*data_list)
+
         if not isinstance(data_list, list | tuple):
             data_list = list(data_list)
 

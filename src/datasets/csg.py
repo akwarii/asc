@@ -11,7 +11,7 @@ from src.datasets.base import GraphDataset
 from src.datasets.utils import check_integrity
 
 
-# TODO docstring in google format
+# TODO check dotenv for the API key
 class CSG(GraphDataset):
     """The Crystal Space Group (CSG) dataset is a preprocessed version of the AFLOW, GNoME and
     Material Project datasets. The dataset contains ~1,050,000 crystal structures with space group
