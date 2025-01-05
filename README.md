@@ -117,6 +117,9 @@ conda create -f environment.yaml -n cegann
 conda activate cegann
 ```
 
+### uv
+<!-- TODO Add uv installation process -->
+
 ### Get your free API keys (optional)
 
 **Materials Project**: If you intend to use the Materials Project dataset, get your API key [here](https://next-gen.materialsproject.org/api#api-key)
@@ -256,6 +259,12 @@ The project is currently organized as follow:
 - [ ] Integration of Optuna for efficient hyperparameter tuning and model pruning.
 - [ ] Implementation of at least one comprehensive logging system (Neptune/TensorBoard/Wandb) for detailed analysis and reproducibility.
 - [ ] Use of a config file to make use of e.g., Hydra + Submitit
+
+**PyG transition:**
+- [ ] Rework dataset to make full use of PyG InMemoryDataset
+- [ ] Rework Data object creation in KNNGraph
+  - [ ] Add node-level label (y parameter)
+  - [ ] Remove angles from the features (will be computed on the fly) ?
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

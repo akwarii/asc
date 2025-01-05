@@ -1,41 +1,7 @@
-import hashlib
 import re
 from collections.abc import Sequence
-from itertools import zip_longest
-from pathlib import Path
 
 import numpy as np
-
-from src.typing import PathLike
-
-
-def md5(fname: PathLike) -> str:
-    """Calculate the MD5 checksum of a file."""
-    hash_md5 = hashlib.md5(usedforsecurity=False)
-    with open(fname, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            hash_md5.update(chunk)
-    return hash_md5.hexdigest()
-
-
-def check_md5(fname: PathLike, md5_checksum: str) -> bool:
-    """Check the MD5 checksum of a file."""
-    return md5(fname) == md5_checksum
-
-
-def check_integrity(fpaths: Sequence[PathLike], checksums: Sequence[str | None]) -> bool:
-    """Check the integrity of the dataset."""
-    for fpath, md5 in zip_longest(fpaths, checksums):
-        if isinstance(fpath, str):
-            fpath = Path(fpath)
-
-        if not fpath.is_file():
-            return False
-        if md5 is None:
-            continue
-        if not check_md5(fpath, md5):
-            return False
-    return True
 
 
 def lattice_from_geometry(geometry: Sequence[float]) -> np.ndarray:

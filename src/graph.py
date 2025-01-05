@@ -1,14 +1,9 @@
-from collections import defaultdict
-from collections.abc import Generator, Sequence
 from pathlib import Path
 
 import numpy as np
 import torch
 from pymatgen.core import Structure
 from torch_geometric.data import Data
-from torch_geometric.utils import cumsum
-
-from src.typing import PathLike, SliceDictType
 
 
 class KNNGraph:
@@ -27,9 +22,10 @@ class KNNGraph:
     """
 
     def __init__(self, k: int = 20, rcut: float = 10.0) -> None:
-        # TODO change assert to raise error
-        assert k > 0, "k must be greater than 0"
-        assert rcut > 0, "rcut must be greater than 0"
+        if k < 1:
+            raise ValueError("The number of neighbors must be greater than 0.")
+        if rcut <= 0.0:
+            raise ValueError("The cutoff radius must be greater than 0.0")
 
         self.k = k
         self.rcut = rcut
@@ -58,6 +54,7 @@ class KNNGraph:
         reached_knn = np.zeros(len(struct))
         delta_rcut = 0.0
 
+        # TODO use a kdtree ?
         while not np.all(reached_knn):
             centers_idx, neighbors_idx, _, distances = struct.get_neighbor_list(
                 r=self.rcut + delta_rcut, exclude_self=True
@@ -67,9 +64,8 @@ class KNNGraph:
             for i in range(len(struct)):
                 idx_i = (centers_idx == i).nonzero()[0]
 
-                # TODO find a clever way to handle this. For now, let's just ignore the "problem".
                 if len(idx_i) < self.k:
-                    delta_rcut += 0.01 * self.rcut
+                    delta_rcut += 0.05 * self.rcut
                 else:
                     reached_knn[i] = 1
 
@@ -153,7 +149,7 @@ class KNNGraph:
         data = Data(
             num_nodes=num_nodes,
             pos=torch.FloatTensor(struct.cart_coords),
-            cell=torch.FloatTensor(struct.lattice.matrix.copy()),
+            # cell=torch.FloatTensor(struct.lattice.matrix.copy()),
             edge_index=edge_index,
             edge_dist=edge_distances,
             angle_cos=angle_cos,  # TODO: Change rattle ?
@@ -161,147 +157,3 @@ class KNNGraph:
         )
 
         return data
-
-    def batch_conversion(
-        self,
-        structs: Sequence[Structure | str | Path],
-        mask_struct_sites: dict[int, torch.BoolTensor] | None = None,
-        progress_bar: bool = True,
-    ) -> Generator[Data, None, None]:
-        """Convert a list of atomic structures to a list of graphs.
-
-        Args:
-            structs: A list of pymatgen structure objects or of objects convertible to a pymatgen
-                structure. Note that providing a list of paths or strings is slower but can save a
-                significant amount of memory for large datasets. Strings must be in POSCAR format.
-            mask_struct_sites: A dict where the key is the index of the struct to which the mask
-                should be applied. The masked atoms will not be used during training or inference.
-            progress_bar: Whether to display a progress bar.
-
-        Yields:
-        ------
-            data: A generator of torch geometric data objects. Each data object contains
-            information on the positions, cell matrix, edge index, edge distances and an optional
-            mask.
-        """
-        if progress_bar:
-            from tqdm import tqdm
-
-            pbar = tqdm(total=len(structs), desc="Converting structures to graphs")
-
-        if mask_struct_sites is None:
-            mask_struct_sites = dict()
-
-        for i, struct in enumerate(structs):
-            mask = mask_struct_sites.get(i)
-
-            graph = self.convert(struct, mask)
-
-            if progress_bar:
-                pbar.update(1)
-
-            yield graph
-
-        if progress_bar:
-            pbar.close()
-
-    def convert_and_save(
-        self,
-        structs: Sequence[Structure | str | Path],
-        path: PathLike,
-        chunk_size: int | None = None,
-        mask_struct_sites: dict[int, torch.BoolTensor] | None = None,
-        progress_bar: bool = True,
-    ) -> None:
-        """Convert a list of atomic structures to a list of graphs and save them to a file. Note
-        that the whole list of graphs must fit in memory. If the dataset is too large, consider
-        using the `batch_conversion` method and saving the graphs in smaller chunks. Once the data
-        are saved, they can be loaded using the `torch.load` function.
-
-        Args:
-            structs: A list of pymatgen structure objects or of objects convertible to a pymatgen
-                structure. Note that providing a list of paths or strings is slower but can save a
-                significant amount of memory for large datasets. Strings must be in POSCAR format.
-            path: The path to the file where the graphs will be saved.
-            chunk_size: The number of graphs to save in each chunk. If `None`, all graphs will be
-                saved in a single file.
-            mask_struct_sites: A dict where the key is the index of the struct to which the mask
-                should be applied. The masked atoms will not be used during training or inference.
-            progress_bar: Whether to display a progress bar.
-        """
-        # TODO: Implement chunking
-        if chunk_size is not None:
-            raise NotImplementedError("Saving graphs in chunks is not yet implemented.")
-
-        # TODO add targets placeholder as they will be needed to collate
-        # TODO however the real targets will be loaded from the dataset
-        # TODO saving the graphs on the disk is just a way to avoid computing them during training
-        graphs = list(self.batch_conversion(structs, mask_struct_sites, progress_bar))
-        data, _, slices = self.collate(graphs)
-
-        torch.save((data.to_dict(), slices), path)
-
-    # TODO docstring
-    @staticmethod
-    def collate(data_list: Sequence[tuple[Data, int]]) -> tuple[Data, torch.Tensor, SliceDictType]:
-        """Simplified version of `torch_geometric.data.collate` function.
-
-        Collates a list of `data` objects into a single object of type `cls`.
-        `collate` can handle both homogeneous and heterogeneous data objects by
-        individually collating all their stores.
-        In addition, `collate` can handle nested data structures such as
-        dictionaries and lists.
-        """
-        #TODO test the following line to simplify the code ie data_list[0][0] -> data_list[0]
-        # data_list, targets = zip(*data_list)
-
-        if not isinstance(data_list, list | tuple):
-            data_list = list(data_list)
-
-        if not data_list:
-            raise ValueError("data_list is empty.")
-
-        if len(data_list) == 1:
-            return data_list[0][0], torch.LongTensor(data_list[0][1]), None
-
-        # Target values
-        targets = torch.LongTensor([data[1] - 1 for data in data_list])
-
-        # Create empty stores
-        out = data_list[0][0].__class__()
-        out.stores_as(data_list[0][0])
-
-        # Group storage objects of every data object by key
-        key_to_stores = defaultdict(list)
-        for data in data_list:
-            for store in data[0].stores:
-                key_to_stores[store._key].append(store)
-
-        # Iterate over each list of storage objects and recursively collate all its attributes.
-        # `slice_dict` stores a compressed index representation of each attribute
-        #  and is needed to re-construct individual elements from mini-batches.
-        slice_dict = {}
-        for out_store in out.stores:
-            key = out_store._key
-            stores = key_to_stores[key]
-
-            for attr in stores[0].keys():
-                values = [store[attr] for store in stores]
-
-                # `num_nodes` needs to be summed up and not concatenated.
-                if attr == "num_nodes":
-                    out_store._num_nodes = values
-                    out_store.num_nodes = sum(values)
-                    continue
-
-                # Concatenate a list of `torch.Tensor` along `cat_dim`.
-                # and appropriately take care of incrementing elements.
-                cat_dim = data_list[0][0].__cat_dim__(attr, values[0], stores[0])
-                sizes = torch.tensor([value.size(cat_dim or 0) for value in values])
-                slices = cumsum(sizes)
-                value = torch.cat(values, dim=cat_dim or 0)
-
-                out_store[attr] = value
-                slice_dict[attr] = slices
-
-        return out, targets, slice_dict
