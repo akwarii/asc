@@ -46,9 +46,9 @@ class CSG(InMemoryDataset):
         pre_filter: Callable | None = None,
         **kwargs: Any,
     ) -> None:
+        self.kwargs = kwargs
         super().__init__(root, transform, pre_transform, pre_filter)
 
-        self.kwargs = kwargs
         self.load(self.processed_paths[0])
 
     @property
