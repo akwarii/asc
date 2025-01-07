@@ -25,11 +25,13 @@ def get_cosine_angles(
     Returns:
         A tensor of shape (num_atoms, k) containing the cosine of the angles.
     """
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
     # Get coordinates of the central atoms, j neighbors, and k neighbors
     struct_coords = np.array([site.coords for site in struct], dtype=np.float32)
-    central_coords = torch.from_numpy(struct_coords[i_indices])
-    j_coords = torch.from_numpy(struct_coords[j_neighbors])
-    k_coords = torch.from_numpy(struct_coords[k_neighbors])
+    central_coords = torch.from_numpy(struct_coords[i_indices]).to(device)
+    j_coords = torch.from_numpy(struct_coords[j_neighbors]).to(device)
+    k_coords = torch.from_numpy(struct_coords[k_neighbors]).to(device)
 
     # Compute vectors
     v1 = j_coords - central_coords
@@ -43,7 +45,7 @@ def get_cosine_angles(
     # Compute cosine of the angles
     cos_angles = dot_product / (v1_norm * v2_norm)
 
-    return cos_angles
+    return cos_angles.cpu()
 
 
 class KNNGraph:
@@ -108,6 +110,7 @@ class KNNGraph:
 
         # Create the k-nearest neighbors index in a safe way
         # (i.e. if the number of neighbors is larger than k)
+        # The number of neighbors can't be smaller than k so we don't need to check
         knn_idx = np.zeros((n_atoms, self.k), dtype=int)
         for i in range(n_atoms):
             idx_i = np.where(centers_idx == i)[0]
@@ -175,7 +178,7 @@ class KNNGraph:
         Returns:
             A PyG Data object with positions, edge index, distances and cosine of the angles.
         """
-        struct = self._to_pymatgen_struct(struct, fmt=fmt)  #! 31% of runtime
+        struct = self._to_pymatgen_struct(struct, fmt=fmt)  #! 40% of runtime
 
         edge_index, edge_distances, angle_cos = self._get_graph_data(struct)
 
