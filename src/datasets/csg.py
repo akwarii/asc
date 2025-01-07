@@ -5,8 +5,8 @@ import pandas as pd
 import torch
 from dotenv import load_dotenv
 from kaggle import KaggleApi
-from pymatgen.core import Structure
 from torch_geometric.data import InMemoryDataset
+from tqdm import tqdm
 
 from src.graph import KNNGraph
 
@@ -22,10 +22,7 @@ class CSG(InMemoryDataset):
     0.1 GPa and a maximum force component of +/-0.01 eV/A. Material Project data was filtered to
     remove structures with deprecated or warning flags. All GNoME data predicted stable were
     included. Additionally, structures with both the same space group number and composition were
-    removed to avoid redundancy.
-
-    The maximum number of atoms in a structure is 444. A radius graph with a cutoff of 10 angstroms
-    ensure that 99.5% of the graphs are complete.
+    removed to avoid redundancy. The maximum number of atoms in a structure is 444.
 
     The dataset is available for download from Kaggle at https://www.kaggle.com/datasets/gaelhuynh/space-group.
 
@@ -76,10 +73,13 @@ class CSG(InMemoryDataset):
         knn = KNNGraph(**self.kwargs)
 
         data_list = []
-        for _, row in df.iterrows():
-            struct = Structure.from_str(row["Structure"], fmt="poscar")
-            data = knn.convert(struct)
-            data.y = torch.full((len(struct), ), int(row["SpaceGroupNumber"]))
+        for _, row in tqdm(df.iterrows(), total=len(df)):
+            data = knn.convert(row["Structure"])
+
+            if data.num_nodes is None or data.num_nodes == 0:
+                raise RuntimeError("The number of nodes in the graph is zero.")
+
+            data.y = torch.full((data.num_nodes, ), int(row["SpaceGroupNumber"]))
 
             data_list.append(data)
 
