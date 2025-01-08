@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from torch_geometric.data import InMemoryDataset
+from tqdm.auto import tqdm
 
 
 class MaterialProject(InMemoryDataset):
@@ -13,19 +14,14 @@ class MaterialProject(InMemoryDataset):
     Args:
         root: Root directory of the dataset.
         transform: A function that takes in a graph and returns a transformed version.
-        struct_transform: A function that takes in a structure and returns a transformed version.
-        target_transform: A function that takes in a target and returns a transformed version.
-        fetch_data: Whether to download the dataset if it doesn't exist.
-        graph_kwargs: Additional keyword arguments to be passed to the Graph class.
-
-    Attributes:
-        API_KEY (str): The Materials Project API key.
-        API (MPRester): An instance of the MPRester class.
-        classes (list): A list of space group numbers ranging from 1 to 230.
-        resources (list): Names of the files containing the dataset.
+        pre_transform: A function that takes in a graph and returns a transformed version.
+        pre_filter: A function that takes in a graph and returns a boolean value indicating
+            whether the graph should be included in the dataset.
+        force_reload: Whether to reload the dataset even if it already exists.
+        kwargs: Additional keyword arguments to be passed to the KNNGraph or InMemoryDataset class.
     """
-    _DOTENV_PATH = Path(__file__).resolve().parents[2] / ".env"
-    _DOTENV_KEY = "MATERIALS_PROJECT_API_KEY"
+    DOTENV_PATH = Path(__file__).resolve().parents[2] / ".env"
+    DOTENV_KEY = "MATERIALS_PROJECT_API_KEY"
 
     def __init__(
         self,
@@ -59,7 +55,6 @@ class MaterialProject(InMemoryDataset):
     def download(self) -> None:
         """Download the dataset from Material Project and store it in the raw directory."""
         from dotenv import get_key
-        from tqdm.auto import tqdm
         try:
             from mp_api.client import MPRester
         except ImportError:
@@ -68,7 +63,7 @@ class MaterialProject(InMemoryDataset):
                 "Install it with `pip install mp-api`."
             )
 
-        api_key = get_key(self._DOTENV_PATH, self._DOTENV_KEY)
+        api_key = get_key(self.DOTENV_PATH, self.DOTENV_KEY)
         api = MPRester(api_key, mute_progress_bars=True, use_document_model=False)
 
         for idx in tqdm(range(1, 231)):
@@ -110,7 +105,6 @@ class MaterialProject(InMemoryDataset):
         """
         import torch
         from pymatgen.io.vasp.inputs import BadPoscarWarning
-        from tqdm.auto import tqdm
 
         from src.graph import KNNGraph
 

@@ -1,19 +1,11 @@
-import json
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from pymatgen.core import Structure
-from tqdm.auto import tqdm
-
-from src.constants import CUSTOM_CLASSES
-from src.datasets.base import GraphDataset
+from torch_geometric.data import InMemoryDataset
 
 
-# TODO this class needs to be refactored to be more generic and better
-# integrated with the rest of the code
-# TODO docstring in google format
-class CustomDataset(GraphDataset):
+class CustomDataset(InMemoryDataset):
     """A dataset class for any user provided custom dataset.
 
     Args:
@@ -30,106 +22,74 @@ class CustomDataset(GraphDataset):
         resources (list): Names of the files containing the dataset.
     """
 
-    classes = CUSTOM_CLASSES
-
-    resources = tuple([f"data_{class_idx}.json" for class_idx in classes])
-
     def __init__(
         self,
-        root: str,
+        root: str = "data/custom",
         transform: Callable | None = None,
-        struct_transform: Callable | None = None,
-        target_transform: Callable | None = None,
-        fetch_data: bool = False,
-        origin_dir: str | None = None,
-        graph_kwargs: dict[str, Any] = {},  # TODO never use a mutable default argument
+        pre_transform: Callable | None = None,
+        pre_filter: Callable | None = None,
+        force_reload: bool = False,
         **kwargs: Any,
     ) -> None:
-        if origin_dir is None:
-            raise ValueError("origin_dir must be provided.")
+        self.kwargs = kwargs
 
-        super().__init__(root, transform, struct_transform, target_transform, graph_kwargs)
+        kwargs.pop("k", None)
+        kwargs.pop("rcut", None)
+        super().__init__(
+            root, transform, pre_transform, pre_filter, force_reload=force_reload, **kwargs
+        )
 
-        if fetch_data:
-            self.fetch_data(origin_dir)
+        self.load(self.processed_paths[0])
 
-        if not self.check_exists():
-            raise RuntimeError(
-                "Dataset not found. Provide it with fetch_data=True and origin_dir=<path>"
-            )
+    @property
+    def raw_file_names(self) -> list[str]:
+        """Return the name of the downloaded files."""
+        return list([f.name for f in Path(self.raw_dir).rglob("*")])
 
-        self.data, self.targets = self.load()
+    @property
+    def processed_file_names(self) -> list[str]:
+        """Return the name of the processed files ie the transformed data saved to the disk."""
+        return ["data.pt"]
 
-    def __getitem__(self, index: int) -> tuple[Any, Any]:
-        contcar, target = self.data[index], self.targets[index]
-
-        struct = Structure.from_str(contcar, fmt="poscar")
-
-        if self.struct_transform is not None:
-            struct = self.struct_transform(struct)
-
-        graph = self.knn.convert(struct)
-
-        if self.transform is not None:
-            graph = self.transform(graph)
-
-        if self.target_transform is not None:
-            target = self.target_transform(target)
-
-        return graph, target
-
-    def __len__(self) -> int:
-        return len(self.data)
-
-    # TODO if the processed data is already available, we can load it instead
-    # TODO doing so will save time during __getitem__ calls as we won't have
-    # to convert the structure to a graph
-    def load(self) -> tuple[list[str], list[int]]:
-        """Load data from raw files and return a tuple of data and targets.
-
-        Returns:
-            tuple[list[str], list[int]]: A tuple containing the loaded data and targets.
+    def process(self) -> None:
+        """Process the dataset by converting the structures to graphs, applying both pre-filter and
+        pre-transform functions, and saving the processed data to disk. The data is saved in the
+        processed directory as a single file named "data.pt".
         """
-        files = [self.raw_folder / fname for fname in self.resources]
+        import warnings
 
-        data, targets = [], []
-        for file in files:
-            with open(file) as json_file:
-                json_data = json.load(json_file)
-            data += [entry["structure"] for entry in json_data]
-            targets += [entry["spacegroup"] for entry in json_data]
+        import torch
+        from pymatgen.io.vasp.inputs import BadPoscarWarning
+        from tqdm.auto import tqdm
 
-        return data, targets
+        from src.graph import KNNGraph
 
-    # TODO: write and test this
-    # TODO GH optimize before pushing to production
-    # FIXME GH incorrect docstring
-    def fetch_data(self, origin_dir: str) -> None:
-        """Downloads the Aflow dataset if it doesn't exist already."""
-        if self.check_exists():
-            print(f"Dataset already exists at {self.root}")
-            return
+        raw_data_list, target_list = [], []
+        for file in self.raw_paths:
+            with open(file) as f:
+                lines = f.readlines()
+            raw_data_list.append("".join(lines))
+            target_list.append(int(lines[0].strip().split()[0][0]))
 
-        self.raw_folder.mkdir(parents=True, exist_ok=True)
+        knn = KNNGraph(**self.kwargs)
 
-        print(f"Converting custom data data from {origin_dir} to {self.raw_folder}...")
+        data_list = []
+        for raw_data, target in tqdm(zip(raw_data_list, target_list), total=len(raw_data_list)):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", BadPoscarWarning)
+                data = knn.convert(raw_data)
 
-        # Might be slow because each file has to be opened "self.classes" times
-        for idx in tqdm(self.classes):
-            file = self.raw_folder / f"data_{idx}.json"
+            if data.num_nodes is None or data.num_nodes == 0:
+                raise RuntimeError("The number of nodes in the graph is zero.")
 
-            filtered_data = []
+            data.y = torch.full((data.num_nodes,), target, dtype=torch.long)
 
-            for path in Path(origin_dir).rglob("*.POSCAR"):
-                with open(path) as poscar:
-                    lines = poscar.readlines()
-                    if lines[0] == str(idx) + "\n":
-                        filtered_data.append(
-                            {
-                                "structure": "".join(lines),
-                                "spacegroup": idx + 1,
-                            }
-                        )
+            data_list.append(data)
 
-            with open(file, "w") as f:
-                json.dump(filtered_data, f, sort_keys=True, indent=4)
+        if self.pre_filter is not None:
+            data_list = [data for data in data_list if self.pre_filter(data)]
+
+        if self.pre_transform is not None:
+            data_list = [self.pre_transform(data) for data in data_list]
+
+        self.save(data_list, self.processed_paths[0])

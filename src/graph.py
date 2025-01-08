@@ -25,13 +25,11 @@ def get_cosine_angles(
     Returns:
         A tensor of shape (num_atoms, k) containing the cosine of the angles.
     """
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
     # Get coordinates of the central atoms, j neighbors, and k neighbors
     struct_coords = np.array([site.coords for site in struct], dtype=np.float32)
-    central_coords = torch.from_numpy(struct_coords[i_indices]).to(device)
-    j_coords = torch.from_numpy(struct_coords[j_neighbors]).to(device)
-    k_coords = torch.from_numpy(struct_coords[k_neighbors]).to(device)
+    central_coords = torch.from_numpy(struct_coords[i_indices])
+    j_coords = torch.from_numpy(struct_coords[j_neighbors])
+    k_coords = torch.from_numpy(struct_coords[k_neighbors])
 
     # Compute vectors
     v1 = j_coords - central_coords
@@ -45,7 +43,7 @@ def get_cosine_angles(
     # Compute cosine of the angles
     cos_angles = dot_product / (v1_norm * v2_norm)
 
-    return cos_angles.cpu()
+    return cos_angles
 
 
 class KNNGraph:

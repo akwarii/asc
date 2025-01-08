@@ -2,154 +2,69 @@ import json
 from collections.abc import Callable
 from typing import Any
 
-import numpy as np
-from pymatgen.core import Structure
-from torch_geometric.data import Data
+from torch_geometric.data import InMemoryDataset
 from tqdm.auto import tqdm
 
-from src.api import AflowAPI
-from src.constants import AFLOW_CLASSES
-from src.datasets.base import GraphDataset
-from src.datasets.utils import poscar_from_entry
 
-
-class Aflow(GraphDataset):
+class Aflow(InMemoryDataset):
     """A dataset class for the Aflow dataset.
 
-    Attributes:
-        API (AflowAPI): An instance of the AflowAPI class.
-        classes (list): A list of space group numbers ranging from 1 to 230.
-        resources (list): Names of the files containing the dataset.
-        data (list): A list of POSCAR strings.
-        targets (list): A list of space group numbers.
+    Args:
+        root: Root directory of the dataset.
+        transform: A function that takes in a graph and returns a transformed version.
+        pre_transform: A function that takes in a graph and returns a transformed version.
+        pre_filter: A function that takes in a graph and returns a boolean value indicating
+            whether the graph should be included in the dataset.
+        force_reload: Whether to reload the dataset even if it already exists.
+        kwargs: Additional keyword arguments to be passed to the KNNGraph or InMemoryDataset class.
     """
-
-    API = AflowAPI()
-    classes = AFLOW_CLASSES
-
-    resources = tuple([f"data_{class_idx}.json" for class_idx in classes])
 
     def __init__(
         self,
-        root: str,
+        root: str = "data/aflow",
         transform: Callable | None = None,
-        struct_transform: Callable | None = None,
-        target_transform: Callable | None = None,
-        fetch_data: bool = False,
-        chunk_size: int = 50_000,
-        stress_threshold: int | None = None,
-        force_threshold: float | None = None,
-        graph_kwargs: dict[str, Any] = {},  # TODO never use a mutable default argument
+        pre_transform: Callable | None = None,
+        pre_filter: Callable | None = None,
+        force_reload: bool = False,
         **kwargs: Any,
     ) -> None:
-        """Initializes the Aflow dataset.
+        self.kwargs = kwargs
 
-        Args:
-            root: Root directory of the dataset.
-            transform: A function that takes in a graph and returns a transformed version.
-            struct_transform: A function that takes in a structure and returns a transformed
-                version.
-            target_transform: A function that takes in a target and returns a transformed version.
-            fetch_data: Whether to download the dataset if it doesn't exist.
-            chunk_size: Number of entries of each chunk to download.
-            stress_threshold: Absolute stress threshold to filter the data. If None, no filtering
-                is done.
-            force_threshold: Absolute force threshold to filter the data. If None, no filtering
-                is done.
-            graph_kwargs: Additional keyword arguments to be passed to the Graph class.
-            kwargs: Additional keyword arguments to be passed to the base class. Unused.
-        """
-        super().__init__(root, transform, struct_transform, target_transform, graph_kwargs)
+        kwargs.pop("k", None)
+        kwargs.pop("rcut", None)
+        super().__init__(
+            root, transform, pre_transform, pre_filter, force_reload=force_reload, **kwargs
+        )
 
-        if fetch_data:
-            self.fetch_data(chunk_size, stress_threshold, force_threshold)
+        self.load(self.processed_paths[0])
 
-        if not self.check_exists():
-            raise RuntimeError("Dataset not found. You can use fetch_data=True to download it")
+    @property
+    def raw_file_names(self) -> list[str]:
+        """Return the name of the downloaded files."""
+        return [f"data_{class_idx}.json" for class_idx in range(1, 231)]
 
-        self.data, self.targets = self.load()
+    @property
+    def processed_file_names(self) -> list[str]:
+        """Return the name of the processed files ie the transformed data saved to the disk."""
+        return ["data.pt"]
 
-    def __getitem__(self, index: int) -> tuple[Data, int]:
-        data, target = self.data[index], self.targets[index]
+    def download(self) -> None:
+        """Download the dataset from the AFLOW database and store it in the raw directory."""
+        from src.api import AflowAPI
+        from src.datasets.utils import poscar_from_entry
 
-        struct = Structure.from_str(data, fmt="poscar")
-        if self.struct_transform is not None:
-            struct = self.struct_transform(struct)
-
-        graph = self.knn.convert(struct)
-
-        if self.transform is not None:
-            graph = self.transform(graph)
-
-        if self.target_transform is not None:
-            target = self.target_transform(target)
-
-        return graph, target
-
-    def __len__(self) -> int:
-        return len(self.data)
-
-    # TODO if the processed data is already available, we can load it instead
-    # TODO doing so will save time during __getitem__ calls as we won't have
-    # to convert the structure to a graph
-    def load(self) -> tuple[list[str], list[int]]:
-        """Load data from raw files and return a tuple of data and targets.
-
-        Returns:
-            tuple[list[str], list[int]]: A tuple containing the loaded data and targets.
-        """
-        files = [self.raw_folder / fname for fname in self.resources]
-
-        data, targets = [], []
-        for file in files:
-            with file.open("r") as json_file:
-                json_data = json.load(json_file)
-
-            data += [entry["structure"] for entry in json_data]
-            targets += [entry["spacegroup"] for entry in json_data]
-
-        return data, targets
-
-    def fetch_data(
-        self,
-        chunk_size: int,
-        stress_threshold: int | None = None,
-        force_threshold: float | None = None,
-    ) -> None:
-        """Downloads the dataset if it doesn't exist already.
-
-        Args:
-            chunk_size: Number of entries per chunk.
-            stress_threshold: Absolute stress threshold to filter the data. If None, no filtering
-                is done.
-            force_threshold: Absolute force threshold to filter the data. If None, no filtering
-                is done.
-        """
-        if self.check_exists():
-            print(f"Dataset already exists at {self.root}")
-            return
-
-        self.raw_folder.mkdir(parents=True, exist_ok=True)
-
-        print(f"Downloading Aflow data from {self.API.base_url} to {self.raw_folder}...")
-        for class_idx in tqdm(self.classes):
-            file = self.raw_folder / f"data_{class_idx}.json"
-
-            # Download data by chunks to avoid server timeout
+        for idx in tqdm(range(1, 231)):
             page_number = 1
             total_data = []
-            matchbook = f"spacegroup_relax({class_idx}),geometry,positions_fractional"
-            if stress_threshold:
-                matchbook += ",stress_tensor"
-            if force_threshold:
-                matchbook += ",forces"
+            matchbook = f"spacegroup_relax({idx}),geometry,positions_fractional"
 
-            with self.API as aflow_api:
+            # Download data by chunks to avoid server timeout
+            with AflowAPI() as api:
                 while True:
-                    current_data = aflow_api.request(
+                    current_data = api.request(
                         matchbook=matchbook,
                         paging=page_number,
-                        chunk_size=chunk_size,
+                        chunk_size=10_000,
                     )
                     if not current_data:
                         break
@@ -160,10 +75,6 @@ class Aflow(GraphDataset):
             compounds = set()
             filtered_data = []
             for entry in total_data:
-                if stress_threshold and np.max(np.abs(entry["stress_tensor"])) > stress_threshold:
-                    continue
-                if force_threshold and np.max(np.abs(entry["forces"])) > force_threshold:
-                    continue
 
                 if entry["compound"] not in compounds:
                     compounds.add(entry["compound"])
@@ -173,5 +84,51 @@ class Aflow(GraphDataset):
                     }
                     filtered_data.append(reduced_entry)
 
-            with open(file, "w") as f:
-                json.dump(filtered_data, f, sort_keys=True, indent=4)
+            file = f"{self.raw_dir}/data_{idx}.json"
+            try:
+                with open(file, "w") as f:
+                    json.dump(filtered_data, f, sort_keys=True, indent=4)
+            except OSError as e:
+                print(f"Error writing data to file {file}: {e}")
+
+    def process(self) -> None:
+        """Process the dataset by converting the structures to graphs, applying both pre-filter and
+        pre-transform functions, and saving the processed data to disk. The data is saved in the
+        processed directory as a single file named "data.pt".
+        """
+        import warnings
+
+        import torch
+        from pymatgen.io.vasp.inputs import BadPoscarWarning
+
+        from src.graph import KNNGraph
+
+        raw_data_list, target_list = [], []
+        for file in self.raw_paths:
+            with open(file) as json_file:
+                json_data = json.load(json_file)
+            raw_data_list += [entry["structure"] for entry in json_data]
+            target_list += [entry["spacegroup"] for entry in json_data]
+
+        knn = KNNGraph(**self.kwargs)
+
+        data_list = []
+        for raw_data, target in tqdm(zip(raw_data_list, target_list), total=len(raw_data_list)):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", BadPoscarWarning)
+                data = knn.convert(raw_data)
+
+            if data.num_nodes is None or data.num_nodes == 0:
+                raise RuntimeError("The number of nodes in the graph is zero.")
+
+            data.y = torch.full((data.num_nodes,), target, dtype=torch.long)
+
+            data_list.append(data)
+
+        if self.pre_filter is not None:
+            data_list = [data for data in data_list if self.pre_filter(data)]
+
+        if self.pre_transform is not None:
+            data_list = [self.pre_transform(data) for data in data_list]
+
+        self.save(data_list, self.processed_paths[0])
