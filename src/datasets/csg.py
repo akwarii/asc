@@ -1,14 +1,7 @@
 from collections.abc import Callable
 from typing import Any
 
-import pandas as pd
-import torch
-from dotenv import load_dotenv
-from kaggle import KaggleApi
 from torch_geometric.data import InMemoryDataset
-from tqdm import tqdm
-
-from src.graph import KNNGraph
 
 
 class CSG(InMemoryDataset):
@@ -27,24 +20,36 @@ class CSG(InMemoryDataset):
     The dataset is available for download from Kaggle at https://www.kaggle.com/datasets/gaelhuynh/space-group.
 
     Args:
-
+        root: Root directory of the dataset.
+        transform: A function that takes in a graph and returns a transformed version.
+        pre_transform: A function that takes in a graph and returns a transformed version.
+        pre_filter: A function that takes in a graph and returns a boolean value indicating
+            whether the graph should be included in the dataset.
+        force_reload: Whether to reload the dataset even if it already exists.
+        kwargs: Additional keyword arguments to be passed to the KNNGraph or InMemoryDataset class.
 
     Attributes:
-
+        KAGGLE_DATASET (str): The name of the Kaggle dataset.
     """
 
     KAGGLE_DATASET = "gaelhuynh/space-group"
 
     def __init__(
         self,
-        root: str,
+        root: str = "data/csg",
         transform: Callable | None = None,
         pre_transform: Callable | None = None,
         pre_filter: Callable | None = None,
+        force_reload: bool = False,
         **kwargs: Any,
     ) -> None:
         self.kwargs = kwargs
-        super().__init__(root, transform, pre_transform, pre_filter)
+
+        kwargs.pop("k", None)
+        kwargs.pop("rcut", None)
+        super().__init__(
+            root, transform, pre_transform, pre_filter, force_reload=force_reload, **kwargs
+        )
 
         self.load(self.processed_paths[0])
 
@@ -59,27 +64,47 @@ class CSG(InMemoryDataset):
         return ["data.pt"]
 
     def download(self) -> None:
-        """Downloads the dataset from Kaggle if it doesn't exist already or if its md5
-        checksum doesn't match the expected value.
-        """
-        load_dotenv()
+        """Download the dataset from Kaggle and store it in the raw directory."""
+        from dotenv import load_dotenv
+        try:
+            from kaggle import KaggleApi
+        except ImportError:
+            raise ImportError(
+                "The Kaggle API client is not installed. Install it with `pip install kaggle`."
+            )
 
+        load_dotenv()
         api = KaggleApi()
         api.authenticate()
         api.dataset_download_files(self.KAGGLE_DATASET, path=self.raw_dir, quiet=False, unzip=True)
 
     def process(self) -> None:
+        """Process the dataset by converting the structures to graphs, applying both pre-filter and
+        pre-transform functions, and saving the processed data to disk. The data is saved in the
+        processed directory as a single file named "data.pt".
+        """
+        import warnings
+
+        import pandas as pd
+        import torch
+        from pymatgen.io.vasp.inputs import BadPoscarWarning
+        from tqdm.auto import tqdm
+
+        from src.graph import KNNGraph
+
         df = pd.read_csv(self.raw_paths[0])
         knn = KNNGraph(**self.kwargs)
 
         data_list = []
         for _, row in tqdm(df.iterrows(), total=len(df)):
-            data = knn.convert(row["Structure"])
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", BadPoscarWarning)
+                data = knn.convert(row["Structure"])
 
             if data.num_nodes is None or data.num_nodes == 0:
                 raise RuntimeError("The number of nodes in the graph is zero.")
 
-            data.y = torch.full((data.num_nodes, ), int(row["SpaceGroupNumber"]))
+            data.y = torch.full((data.num_nodes,), int(row["SpaceGroupNumber"]))
 
             data_list.append(data)
 
