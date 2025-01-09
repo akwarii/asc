@@ -146,7 +146,7 @@ class Gnome(InMemoryDataset):
             if data.num_nodes is None or data.num_nodes == 0:
                 raise RuntimeError("The number of nodes in the graph is zero.")
 
-            data.y = torch.full((data.num_nodes,), target, dtype=torch.long)
+            data.y = torch.full((data.num_nodes,), target - 1, dtype=torch.long)
 
             data_list.append(data)
 
