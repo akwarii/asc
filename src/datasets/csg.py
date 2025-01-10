@@ -5,17 +5,19 @@ from torch_geometric.data import InMemoryDataset
 
 
 class CSG(InMemoryDataset):
-    """The Crystal Space Group (CSG) dataset is a preprocessed version of the AFLOW, GNoME and
-    Material Project datasets. The dataset contains ~1,050,000 crystal structures with space group
+    """The Crystal Space Group (CSG) dataset is a preprocessed version of the AFLOW, GNoME, and
+    Material Project datasets. The dataset contains ~470,000 crystal structures with space group
     numbers ranging from 1 to 230. The dataset is formatted as a CSV file with two columns:
     "SpaceGroupNumber" and "Structure". The "Structure" column contains the string representation
     of the crystal structure in the POSCAR format.
 
-    The AFLOW data was filtered to only include structures with a maximum stress component of +/-
-    0.1 GPa and a maximum force component of +/-0.01 eV/A. Material Project data was filtered to
-    remove structures with deprecated or warning flags. All GNoME data predicted stable were
-    included. Additionally, structures with both the same space group number and composition were
-    removed to avoid redundancy. The maximum number of atoms in a structure is 444.
+    AFLOW data has been filtered to include only structures with a maximum stress component of
+    +/-0.1 GPa and a maximum force component of +/-0.01 eV/A. Material Project data was filtered
+    to remove structures with depreciation or warning flags. All GNoME data predicted to be stable
+    were included. In addition, structures with the same space group number and composition were
+    removed to avoid redundancy. To reduce class imbalance to ~100, the most represented classes
+    are limited to 10,000 samples, while the least represented have a minimum of 100 samples.The
+    maximum number of atoms in a structure is 444.
 
     The dataset is available for download from Kaggle at https://www.kaggle.com/datasets/gaelhuynh/space-group.
 
