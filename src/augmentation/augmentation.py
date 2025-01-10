@@ -64,19 +64,10 @@ class RandomDisplacement(torch.nn.Module):
         if torch.rand(1, generator=self.rng).item() > self.p:
             return x
 
-        distances = torch.normal(mean=x.edge_dist, std=self.stddev, generator=self.rng)
-        angle_cos = torch.normal(mean=x.angle_cos, std=self.stddev, generator=self.rng)
+        torch.normal(mean=x.edge_dist, std=self.stddev, generator=self.rng, out=x.edge_dist)
+        torch.normal(mean=x.angle_cos, std=self.stddev, generator=self.rng, out=x.angle_cos)
 
-        augmented_data = Data(
-            num_nodes=x.num_nodes,
-            pos=x.pos,
-            cell=x.cell,
-            edge_index=x.edge_index,
-            edge_dist=distances,
-            angle_cos=angle_cos,
-        )
-
-        return augmented_data
+        return x
 
     def forward_exact(self, x: Sequence[Data], progress_bar: bool = True) -> Sequence[Data]:
         """Applies random Gaussian noise to atomic positions on a batch of graph structures.
