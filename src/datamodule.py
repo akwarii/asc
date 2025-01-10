@@ -5,7 +5,8 @@ import torch
 import torch_geometric.transforms as T
 from lightning import LightningDataModule
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, random_split
-from torch_geometric.data import Data
+from torch_geometric.data import Data, Dataset
+from torch_geometric.data.lightning import LightningDataset
 
 import src.datasets as datasets
 from src.constants import REPR_INDENT

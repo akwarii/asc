@@ -1,22 +1,24 @@
 import os
 
-import lightning as L
 import torch
 import torch._dynamo.config
 import torch.multiprocessing
 import torchmetrics
 import torchmetrics.classification
-from lightning.pytorch.callbacks import BatchSizeFinder
+from pytorch_lightning import Trainer
+from pytorch_lightning.strategies import SingleDeviceStrategy
 from torch import optim
 from torch.nn import CrossEntropyLoss
-from torch_geometric.transforms import NormalizeFeatures
+from torch.utils.data import random_split
+from torch_geometric.data.lightning import LightningDataset
+from torch_geometric.transforms import Compose, NormalizeFeatures
 
 from src.augmentation import (
     RandomDisplacement,
     RandomExpansion,
     RandomNodeDrop,
 )
-from src.datamodule import CEGANNDataModule
+from src.datasets import MaterialProject
 from src.models.cegann import CEGANN
 from src.module import CEGANNModule
 
@@ -24,26 +26,39 @@ torch.set_float32_matmul_precision("medium")
 torch.cuda.empty_cache()
 torch.multiprocessing.set_sharing_strategy("file_system")
 
-cpu_count = os.cpu_count()
+CPU_COUNT = os.cpu_count()
+SEED = 42
 
 # Data management
-transforms = [NormalizeFeatures(["edge_dist", "angle_cos"])]
-augmenters = [
-    RandomDisplacement(p=1.0),
-    # RandomExpansion(p=0.05),
-    # RandomNodeDrop(p=0.2),
-]
+transform = Compose(
+    [
+        NormalizeFeatures(["edge_dist", "angle_cos"]),
+        RandomDisplacement(p=1.0),
+        RandomExpansion(p=0.05),
+        RandomNodeDrop(p=0.2),
+    ]
+)
 
-datamodule = CEGANNDataModule(
-    datasets="mp",
-    transforms=transforms,
-    augmentations=augmenters,
-    num_workers=cpu_count - 1 if cpu_count is not None else 0,
-    train_val_test_split=(0.8, 0.1, 0.1),
+dataset = MaterialProject(
+    # transform=transform,
+    k=12,
+    rcut=6.0,
+)
+# train_dataset, val_dataset, test_dataset = random_split(
+#     dataset=dataset,
+#     lengths=(0.8, 0.1, 0.1),
+#     generator=torch.Generator().manual_seed(SEED),
+# )
+train_dataset = dataset[: int(0.8 * len(dataset))]
+val_dataset = dataset[int(0.8 * len(dataset)) : int(0.9 * len(dataset))]
+test_dataset = dataset[int(0.9 * len(dataset)) :]
+
+datamodule = LightningDataset(
+    train_dataset=train_dataset,
+    val_dataset=val_dataset,
+    test_dataset=test_dataset,
     batch_size=256,
-    graph_kwargs={
-        "k": 12,
-    },
+    num_workers=CPU_COUNT - 1,
 )
 
 model = CEGANN(
@@ -57,7 +72,7 @@ model = CEGANN(
         "stop": 1.0,
         "num_radial": 80,
     },
-    n_classes=230,
+    n_classes=dataset.num_classes,
     edge_expansion_units=256,  # OG paper 256
     angle_expansion_units=256,  # OG paper 256
     n_conv_edge=2,
@@ -80,14 +95,11 @@ module = CEGANNModule(
     compile=False,
 )
 
-# Training
-trainer = L.Trainer(
-    limit_train_batches=1000,
-    limit_val_batches=100,
-    max_epochs=20,
-    callbacks=[BatchSizeFinder(init_val=256)],
-    # log_every_n_steps=1,
-    # fast_dev_run=True,
+strategy = SingleDeviceStrategy("cuda:0")
+trainer = Trainer(
+    fast_dev_run=True,
+    strategy=strategy,
+    devices=1,
 )
 
 trainer.fit(model=module, datamodule=datamodule)

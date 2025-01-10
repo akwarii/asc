@@ -1,6 +1,6 @@
 import torch
 import torchmetrics
-from lightning import LightningModule
+from pytorch_lightning import LightningModule
 from torch_geometric.data import Data
 
 from src.typing import SliceDictType
