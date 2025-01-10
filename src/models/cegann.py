@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
-from torch_geometric.nn.norm import GraphNorm  # DB
+from torch_geometric.data import Data
+from torch_geometric.nn.norm import GraphNorm
 
 from src.models.expansion import GaussianBasis
 from src.models.layers import AngleConvLayer, EdgeConvLayer
@@ -128,7 +129,7 @@ class CEGANN(nn.Module):
 
         return edge_features, angle_features
 
-    def forward(self, data: tuple) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, data: Data) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         """Forward pass of the CEGANN model.
 
         Args:
@@ -139,10 +140,9 @@ class CEGANN(nn.Module):
             torch.Tensor: Embedded features (if self.embedding is set to True).
         """
         # [DB] TODO: ENSURE ALL IS CLEAN HERE.
-        neigh_idx, pos, num_nodes, cell, edge_features, angle_features = (
-            d[1] for d in data
-        )  # DB, `data` returns tuples (label, associated-tensor)
-        # edge_features, angle_features, neigh_idx, crystal_idx = data
+        edge_features = data.edge_dist
+        angle_features = data.angle_cos
+        neigh_idx = data.edge_index
 
         # Create features using Gaussian basis function expansion
         edge_features = self.gbf_edge(edge_features)
