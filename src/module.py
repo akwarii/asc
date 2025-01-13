@@ -26,6 +26,7 @@ class CEGANNModule(LightningModule):
     def __init__(
         self,
         model: torch.nn.Module,
+        compile: bool,
         optimizer: Callable | torch.optim.Optimizer,
         scheduler: Callable | torch.optim.lr_scheduler._LRScheduler,
         metrics: torchmetrics.MetricCollection,
@@ -40,7 +41,8 @@ class CEGANNModule(LightningModule):
         self.save_hyperparameters(logger=False, ignore=["model", "criterion", "metrics"])
 
         self.model = model
-        self.model = torch.compile(self.model, fullgraph=False)
+        if compile:
+            self.model = torch.compile(self.model, fullgraph=False)
 
         self.optimizer = optimizer
         self.scheduler = scheduler
