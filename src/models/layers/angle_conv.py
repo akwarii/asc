@@ -79,7 +79,7 @@ class AngleConvLayer(nn.Module):
 
         # Reshaping the tensors
         t, n = torch.unique_consecutive(nbr_idx[0], return_counts=True)
-        n = n[t == 1][0].item()  # Number of neighbors, to avoid issues with monoatomic boxes
+        n = n[t == 1][0].detach()  # Number of neighbors, to avoid issues with monoatomic boxes
         m = nbr_idx.size()[1] // n  # Number of atoms
         _nbr_idx = torch.reshape(nbr_idx[1], (m, n))
 

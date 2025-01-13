@@ -40,6 +40,8 @@ class CEGANNModule(LightningModule):
         self.save_hyperparameters(logger=False, ignore=["model", "criterion", "metrics"])
 
         self.model = model
+        self.model = torch.compile(self.model, fullgraph=False)
+
         self.optimizer = optimizer
         self.scheduler = scheduler
 
@@ -91,7 +93,7 @@ class CEGANNModule(LightningModule):
             torch.Tensor: Loss value.
         """
         preds = self(data)
-        self.val_metrics.update(preds, data.y)
+        self.val_metrics.update(preds.argmax(dim=-1), data.y)
 
     def on_validation_epoch_end(self) -> None:
         """Call hook method at the end of each validation epoch."""

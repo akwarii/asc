@@ -9,7 +9,7 @@ from src.augmentation import (
     RandomDisplacement,
     RandomNodeDrop,
 )
-from src.datasets import CSG
+from src.datasets import CSG, CustomDataset
 from src.models.cegann import CEGANN
 from src.module import CEGANNModule
 
@@ -17,11 +17,12 @@ SEED = 42
 
 # Data management
 dataset = CSG(
+# dataset = CustomDataset(
     transform=T.Compose(
         [
             T.NormalizeFeatures(["edge_dist"]),
             RandomDisplacement(p=0.2),
-            RandomNodeDrop(p=0.2),
+            # RandomNodeDrop(p=0.2),
         ]
     ),
     k=12,
@@ -71,14 +72,12 @@ module = CEGANNModule(
         }
     ),
 )
-module = torch.compile(module, fullgraph=True)
 
 trainer = Trainer(
     # fast_dev_run=True,
-    max_epochs=2,
-    limit_train_batches=100,
-    devices=1,
-    precision=16,
+    max_epochs=1,
+    limit_train_batches=1000,
+    precision="16-mixed",
 )
 
 trainer.fit(model=module, datamodule=datamodule)
