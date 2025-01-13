@@ -3,7 +3,7 @@ from tqdm import tqdm
 
 from src.datasets import MaterialProject
 from src.graph import KNNGraph
-from src.transforms.struct_transforms import RemoveAtoms
+from src.transforms.remove_atoms import RemoveAtoms
 
 # Source data
 mp = MaterialProject(root="data/mp-data", fetch_data=False)
