@@ -12,6 +12,7 @@ def get_cosine_angles(
     i_indices: torch.Tensor,
     j_neighbors: torch.Tensor,
     k_neighbors: torch.Tensor,
+    offset: torch.Tensor,
 ) -> torch.Tensor:
     """Compute the cosine of the angles between the vectors formed by the central atom and its
     neighbors.
@@ -21,15 +22,17 @@ def get_cosine_angles(
         i_indices: Indices of the central atoms.
         j_neighbors: Indices of the j neighbors.
         k_neighbors: Indices of the k neighbors.
+        offset: Indices of the periodic image in which neighbors belong.
 
     Returns:
         A tensor of shape (num_atoms, k) containing the cosine of the angles.
     """
     # Get coordinates of the central atoms, j neighbors, and k neighbors
+    cell = torch.from_numpy(struct.lattice.matrix.astype(np.float32))
     struct_coords = np.array([site.coords for site in struct], dtype=np.float32)
     central_coords = torch.from_numpy(struct_coords[i_indices])
-    j_coords = torch.from_numpy(struct_coords[j_neighbors])
-    k_coords = torch.from_numpy(struct_coords[k_neighbors])
+    j_coords = torch.from_numpy(struct_coords[j_neighbors]) + torch.matmul(offset[:, :3], cell)
+    k_coords = torch.from_numpy(struct_coords[k_neighbors]) + torch.matmul(offset[:, 3:], cell)
 
     # Compute vectors
     v1 = j_coords - central_coords
@@ -97,7 +100,7 @@ class KNNGraph:
 
         # Find the k-nearest neighbors
         while not np.all(reached_knn):
-            centers_idx, neighbors_idx, _, distances = struct.get_neighbor_list(
+            centers_idx, neighbors_idx, offset, distances = struct.get_neighbor_list(
                 r=self.rcut + delta_rcut, exclude_self=True
             )
 
@@ -124,23 +127,32 @@ class KNNGraph:
         centers_idx = torch.from_numpy(centers_idx[knn_idx])
         neighbors_idx = torch.from_numpy(neighbors_idx[knn_idx])
         distances = torch.from_numpy(distances[knn_idx].astype(np.float32))
+        offset = torch.from_numpy(offset[knn_idx].astype(np.float32))
 
         # Convert to PyG format
         edge_index = torch.vstack((centers_idx, neighbors_idx))
 
         # Angle cosine computation
-        # Create indices for all combinations of j and k
+        # Create indices (and offsets) for all combinations of j and k
         neighbor_indices = neighbors_idx.view(n_atoms, self.k)
+        offset = offset.view(n_atoms, self.k, 3)
         j_indices, k_indices = torch.triu_indices(self.k, self.k, offset=1)
 
         # Expand indices to match the number of atoms
         i_indices = torch.arange(n_atoms).repeat_interleave(len(j_indices))
 
-        # Get the corresponding neighbor indices
+        # Get the corresponding neighbor indices (and offsets)
         j_neighbors = neighbor_indices[:, j_indices].reshape(-1)
         k_neighbors = neighbor_indices[:, k_indices].reshape(-1)
+        offset = torch.cat(
+            (
+                offset[:, j_indices].reshape(j_neighbors.size()[0], 3),
+                offset[:, k_indices].reshape(k_neighbors.size()[0], 3),
+            ),
+            dim=1,
+        )
 
-        angles = get_cosine_angles(struct, i_indices, j_neighbors, k_neighbors)
+        angles = get_cosine_angles(struct, i_indices, j_neighbors, k_neighbors, offset)
 
         # Create the angle_cos tensor and fill it with computed angles
         angle_cos = torch.zeros(n_atoms, self.k, self.k, dtype=torch.float32)
