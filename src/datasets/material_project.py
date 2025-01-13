@@ -20,6 +20,7 @@ class MaterialProject(InMemoryDataset):
         force_reload: Whether to reload the dataset even if it already exists.
         kwargs: Additional keyword arguments to be passed to the KNNGraph or InMemoryDataset class.
     """
+
     DOTENV_PATH = Path(__file__).resolve().parents[2] / ".env"
     DOTENV_KEY = "MATERIALS_PROJECT_API_KEY"
 
@@ -55,6 +56,7 @@ class MaterialProject(InMemoryDataset):
     def download(self) -> None:
         """Download the dataset from Material Project and store it in the raw directory."""
         from dotenv import get_key
+
         try:
             from mp_api.client import MPRester
         except ImportError:

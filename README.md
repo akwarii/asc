@@ -118,6 +118,7 @@ conda activate cegann
 ```
 
 ### uv
+
 <!-- TODO Add uv installation process -->
 
 ### Get your free API keys (optional)
@@ -261,6 +262,7 @@ The project is currently organized as follow:
 - [ ] Use of a config file to make use of e.g., Hydra + Submitit
 
 **PyG transition:**
+
 - [ ] Rework dataset to make full use of PyG InMemoryDataset
 - [ ] Rework Data object creation in KNNGraph
   - [ ] Add node-level label (y parameter)

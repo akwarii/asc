@@ -68,6 +68,7 @@ class CSG(InMemoryDataset):
     def download(self) -> None:
         """Download the dataset from Kaggle and store it in the raw directory."""
         from dotenv import load_dotenv
+
         try:
             from kaggle import KaggleApi
         except ImportError:

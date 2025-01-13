@@ -75,7 +75,6 @@ class Aflow(InMemoryDataset):
             compounds = set()
             filtered_data = []
             for entry in total_data:
-
                 if entry["compound"] not in compounds:
                     compounds.add(entry["compound"])
                     reduced_entry = {

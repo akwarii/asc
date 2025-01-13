@@ -250,9 +250,7 @@ class OutputBlock(torch.nn.Module):
         elif self.output_initializer == "glorot_orthogonal":
             glorot_orthogonal(self.lin.weight, scale=2.0)
 
-    def forward(
-        self, x: Tensor, rbf: Tensor, i: Tensor, num_nodes: int | None = None
-    ) -> Tensor:
+    def forward(self, x: Tensor, rbf: Tensor, i: Tensor, num_nodes: int | None = None) -> Tensor:
         x = self.lin_rbf(rbf) * x
         x = scatter(x, i, dim=0, dim_size=num_nodes, reduce="sum")
         for lin in self.lins:
