@@ -18,6 +18,7 @@ class CEGANNLightningDataset(LightningDataset):
             :class:`torch_geometric.loader.DataLoader`.
     """
 
-    def __init__(self, batch_size, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.batch_size = batch_size
+        self.batch_size = self.kwargs.get("batch_size", 1)
+        self.kwargs["batch_size"] = self.batch_size
