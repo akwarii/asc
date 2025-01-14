@@ -31,6 +31,7 @@ class CEGANNModule(LightningModule):
         scheduler: Callable | torch.optim.lr_scheduler._LRScheduler,
         metrics: torchmetrics.MetricCollection,
         scheduler_params: dict | None = None,
+        learning_rate: float = 1e-3,
     ) -> None:
         super().__init__()
 
@@ -38,18 +39,19 @@ class CEGANNModule(LightningModule):
             scheduler_params = dict()
         self.scheduler_params = scheduler_params
 
-        self.save_hyperparameters(logger=False, ignore=["model", "criterion", "metrics"])
-
         self.model = model
         if compile:
             self.model = torch.compile(self.model, fullgraph=False)
 
         self.optimizer = optimizer
         self.scheduler = scheduler
+        self.learning_rate = learning_rate
 
         self.train_metrics = metrics.clone(prefix="train/")
         self.val_metrics = metrics.clone(prefix="val/")
         self.test_metrics = metrics.clone(prefix="test/")
+
+        self.save_hyperparameters(logger=False, ignore=["model", "criterion", "metrics"])
 
     def forward(self, x: Data) -> torch.Tensor:
         """Forward pass of the CEGANNModule.
@@ -153,7 +155,7 @@ class CEGANNModule(LightningModule):
             Dictionary containing the optimizer and learning rate scheduler.
         """
         if isinstance(self.optimizer, Callable):
-            optimizer = self.optimizer(params=self.parameters())
+            optimizer = self.optimizer(lr=self.learning_rate, params=self.parameters())
 
         if self.scheduler is not None:
             if isinstance(self.scheduler, Callable):
