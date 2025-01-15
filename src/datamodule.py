@@ -20,5 +20,14 @@ class CEGANNLightningDataset(LightningDataset):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.batch_size = self.kwargs.get("batch_size", 1)
-        self.kwargs["batch_size"] = self.batch_size
+        self._batch_size = self.kwargs.get("batch_size", 1)
+        self.kwargs["batch_size"] = self._batch_size
+
+    @property
+    def batch_size(self) -> int:
+        return self._batch_size
+
+    @batch_size.setter
+    def batch_size(self, value) -> None:
+        self._batch_size = value
+        self.kwargs["batch_size"] = value
