@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 from torch_geometric.data import Data
-from torch_geometric.nn.norm import GraphNorm
 
 from src.models.expansion import GaussianBasis
 from src.models.layers import AngleConvLayer, EdgeConvLayer
