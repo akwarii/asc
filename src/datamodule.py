@@ -25,6 +25,7 @@ class CEGANNLightningDataset(LightningDataset):
 
     @property
     def batch_size(self) -> int:
+        """The batch size to be used in the dataloader."""
         return self._batch_size
 
     @batch_size.setter
