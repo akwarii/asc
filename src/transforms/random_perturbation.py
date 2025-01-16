@@ -43,7 +43,6 @@ class RandomPerturbation(BaseTransform):
         if torch.rand(1, generator=self.rng).item() > self.p:
             return x
 
-        x = x.clone()
         torch.normal(mean=x.edge_dist, std=self.stddev, generator=self.rng, out=x.edge_dist)
         torch.normal(mean=x.angle_cos, std=self.stddev, generator=self.rng, out=x.angle_cos)
 
