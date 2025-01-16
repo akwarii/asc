@@ -107,7 +107,9 @@ class CSG(InMemoryDataset):
             if data.num_nodes is None or data.num_nodes == 0:
                 raise RuntimeError("The number of nodes in the graph is zero.")
 
-            data.y = torch.full((data.num_nodes,), int(row["SpaceGroupNumber"]) - 1)
+            data.y = torch.full(
+                (data.num_nodes,), int(row["SpaceGroupNumber"]) - 1
+            )  # TODO do not pad with zeros
 
             data_list.append(data)
 
