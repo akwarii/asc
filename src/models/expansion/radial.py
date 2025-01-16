@@ -23,6 +23,7 @@ class GaussianBasis(torch.nn.Module):
     ) -> None:
         super().__init__()
 
+        self.num_radial = num_radial
         offset = torch.linspace(start, stop, num_radial)
         self.coeff = -0.5 / (offset[1] - offset[0]).item() ** 2
         self.register_buffer("offset", offset)
@@ -65,6 +66,8 @@ class RadialBesselBasis(torch.nn.Module):
         stop: float = 5.0,
     ) -> None:
         super().__init__()
+
+        self.num_radial = num_radial
 
         # divide by stop ** 2 to counteract the scaling of the distances
         self.norm_factor = math.sqrt(2 / stop**3)
@@ -120,6 +123,8 @@ class RadialBasisExpansion(torch.nn.Module):
         envelope_kwargs: dict[str, Any] | None = None,
     ) -> None:
         super().__init__()
+
+        self.num_radial = num_radial
 
         self.icutoff = 1 / cutoff
 
