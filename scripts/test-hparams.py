@@ -1,104 +1,77 @@
-# Hyperparameters optimization
-# Training
-import lightning as L
 import optuna
-
-# ON MY MACHINE ONLY
-import torch
-
-# Necessary for AFLOW and custom only
-import torch.multiprocessing
+import pytorch_lightning as pl
+import torch_geometric.transforms as T
 import torchmetrics
-
-# Model
 from torch import optim
-from torch.nn import CrossEntropyLoss
-from torch_geometric.transforms import NormalizeFeatures
+from torch.utils.data import random_split
 
-# Data management
-from src.datamodule import CEGANNDataModule
+from src.datamodule import CEGANNLightningDataset
+from src.datasets import CSG
 from src.models.cegann import CEGANN
 from src.module import CEGANNModule
-
-torch.set_float32_matmul_precision("medium")
-torch.multiprocessing.set_sharing_strategy("file_system")
+from src.transforms import RandomPerturbation
 
 
 def objective(trial: optuna.trial.Trial) -> float:
-    # Counted by hand, number of target values
-    # n_classes = 230
-    n_classes = 8
-
-    # Hyperparameters to optimize
     n_conv_edge = trial.suggest_int("n_conv_edge", 2, 5)
     edge_expansion_units = trial.suggest_categorical("edge_expansion_units", [32, 64, 128, 256])
     angle_expansion_units = trial.suggest_categorical("angle_expansion_units", [32, 64, 128, 256])
     num_radial = trial.suggest_int("num_radial", 20, 100)
     k_neigh = trial.suggest_int("k_neigh", 8, 24)
 
-    # Defining the model
-
     # Data management
-    transforms = [
-        NormalizeFeatures(  # Features to normalize in the graphs
-            ["edge_dist", "angle_cos"]
-        )
-    ]
-    datamodule = CEGANNDataModule(
-        # root="data/mp-data",
-        # datasets="mp",
-        root="data/custom-data",
-        datasets="custom",
-        pretreat=False,
-        transforms=transforms,
-        num_workers=31,  # Number of CPUs to allow for data loading
-        k_neigh=k_neigh,
+    dataset = CSG(
+        transform=T.Compose(
+            [
+                T.NormalizeFeatures(["edge_dist"]),
+                RandomPerturbation(p=0.1),
+            ]
+        ),
+        k=k_neigh,
+        rcut=6.0,
+        force_reload=False,
     )
-    datamodule.setup(stage="fit")
-    train_loader = datamodule.train_dataloader()
-    test_loader = datamodule.test_dataloader()
-    val_loader = datamodule.val_dataloader()
-
+    train_dataset, val_dataset, test_dataset = random_split(
+        dataset=dataset,
+        lengths=(0.7, 0.2, 0.1),
+    )
+    datamodule = CEGANNLightningDataset(
+        train_dataset=train_dataset,
+        val_dataset=val_dataset,
+        test_dataset=test_dataset,
+        batch_size=128,
+        num_workers=5,
+    )
     # Model
-    gbf_bond = {"start": 0.0, "stop": 1.0, "num_radial": num_radial}
-    gbf_angle = {"start": 0.0, "stop": 1.0, "num_radial": num_radial}
     model = CEGANN(
-        gbf_bond=gbf_bond,
-        gbf_angle=gbf_angle,
-        n_classes=n_classes,
+        rbf={"num_radial": num_radial},
+        sbf={"num_radial": num_radial},
+        n_classes=dataset.num_classes,
         edge_expansion_units=edge_expansion_units,
         angle_expansion_units=angle_expansion_units,
         n_conv_edge=n_conv_edge,
     )
-    optimizer = optim.Adam
-    scheduler = optim.lr_scheduler.LinearLR
-    criterion = CrossEntropyLoss(reduction="mean")
-    metrics = torchmetrics.MetricCollection(
-        {
-            "accuracy": torchmetrics.Accuracy(
-                task="multiclass",
-                num_classes=n_classes,
-            ),
-        }
-    )
     module = CEGANNModule(
-        model=model, optimizer=optimizer, scheduler=scheduler, criterion=criterion, metrics=metrics
+        model=model,
+        compile=True,
+        optimizer=optim.AdamW,
+        scheduler=optim.lr_scheduler.StepLR,
+        scheduler_params={"gamma": 0.5, "step_size": 100},
+        metrics=torchmetrics.MetricCollection(
+            {
+                "acc": torchmetrics.Accuracy(
+                    task="multiclass",
+                    num_classes=dataset.num_classes,
+                ),
+            }
+        ),
     )
 
-    trainer = L.Trainer(
-        limit_train_batches=1.0,
-        check_val_every_n_epoch=5,
-        max_epochs=10,
-    )
-    trainer.fit(
-        model=module,
-        train_dataloaders=train_loader,
-        val_dataloaders=val_loader,
-    )
-    acc = trainer.test(dataloaders=test_loader, ckpt_path="best")
-    datamodule.teardown(stage="test")
+    trainer = pl.Trainer(check_val_every_n_epoch=5, max_epochs=10)
+    trainer.fit(model=module, datamodule=datamodule)
+    acc = trainer.test(datamodule=datamodule, ckpt_path="best")
 
-    return acc[0]["test/accuracy"]
+    return acc[0]["test/acc"]
 
 
 study = optuna.create_study(direction="maximize")
