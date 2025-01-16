@@ -154,11 +154,11 @@ class CEGANNModule(LightningModule):
         Returns:
             Dictionary containing the optimizer and learning rate scheduler.
         """
-        if isinstance(self.optimizer, Callable):
+        if callable(self.optimizer):
             optimizer = self.optimizer(lr=self.learning_rate, params=self.parameters())
 
         if self.scheduler is not None:
-            if isinstance(self.scheduler, Callable):
+            if callable(self.scheduler):
                 scheduler = self.scheduler(
                     optimizer=optimizer,
                     **self.scheduler_params,
