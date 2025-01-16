@@ -1,6 +1,6 @@
 import torch
+import torch_geometric.nn as gnn
 from torch import nn
-from torch_geometric.nn.norm import GraphNorm  # DB
 
 
 class AngleConvLayer(nn.Module):
@@ -25,23 +25,20 @@ class AngleConvLayer(nn.Module):
 
         self.linear = nn.Linear(angle_input_dim, self.angle_fea_len)
 
-        # self.attention = GATv2Conv(angle_input_dim,1) # DB - GATV2
-        self.attention = nn.Sequential(  # TODO: Change to GATv2
+        self.attention = nn.Sequential(
             nn.Linear(angle_input_dim, 1),
-            # # nn.LeakyReLU(negative_slope=0.01),  # TODO: change to PRelu
-            nn.PReLU(),  # DB
-            # nn.PReLU(num_parameters=20), # DB
+            nn.LeakyReLU(negative_slope=0.01),
+            # nn.PReLU(),
+            # nn.Softmax(dim=2),
         )
 
-        self.normalized_activation = nn.Sequential(  # TODO: Change to GraphNorm
-            # nn.LayerNorm(self.angle_fea_len),
-            GraphNorm(self.angle_fea_len),  # DB
-            nn.Softplus(),
+        self.normalized_activation = nn.Sequential(
+            gnn.LayerNorm(self.angle_fea_len),
+            nn.SiLU(),
         )
 
     def forward(
         self,
-        # node_fea: torch.Tensor, # DB - GATV2
         edge_fea: torch.Tensor,
         angle_fea: torch.Tensor,
         nbr_idx: torch.Tensor,
@@ -95,6 +92,12 @@ class AngleConvLayer(nn.Module):
         eik = _edge_fea[_nbr_idx, :]
         eijk = torch.cat([eij, eik], dim=3)
         cat_fea = torch.cat([eijk, _angle_fea], dim=3)
+
+        # attn = self.attention(cat_fea)
+        # lin = self.linear(cat_fea)
+        # out = _angle_fea + attn * lin
+        # output = self.normalized_activation(out)
+
         output = self.normalized_activation(
             _angle_fea + self.attention(cat_fea) * self.linear(cat_fea)
         )

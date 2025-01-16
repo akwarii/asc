@@ -1,6 +1,6 @@
 import torch
+import torch_geometric.nn as gnn
 from torch import nn
-from torch_geometric.nn.norm import GraphNorm  # DB
 
 
 class EdgeConvLayer(nn.Module):
@@ -32,24 +32,20 @@ class EdgeConvLayer(nn.Module):
 
         self.linear = nn.Linear(edge_input_dim, self.edge_fea_len)
 
-        # self.attention = GATv2Conv(edge_fea_len, 1) # DB
         self.attention = nn.Sequential(  # TODO: Change to GATv2
             nn.Linear(edge_input_dim, 1),
-            # # nn.LeakyReLU(negative_slope=0.01),
-            # nn.PReLU(num_parameters=20), # DB
-            nn.PReLU(),  # DB
+            nn.LeakyReLU(negative_slope=0.01),
+            # nn.PReLU(),
             nn.Softmax(dim=2),
         )
 
         self.normalized_activation = nn.Sequential(  # TODO: Change to GraphNorm
-            # nn.LayerNorm(self.edge_fea_len),
-            GraphNorm(self.edge_fea_len),
-            nn.Softplus(),  # DB
+            gnn.LayerNorm(self.edge_fea_len),
+            nn.SiLU(),  # DB
         )
 
     def forward(
         self,
-        # node_fea: torch.Tensor, # DB- GATV2
         edge_fea: torch.Tensor,
         angle_fea: torch.Tensor,
         nbr_idx: torch.Tensor,
@@ -103,9 +99,14 @@ class EdgeConvLayer(nn.Module):
         eik = _edge_fea[_nbr_idx, :]
         cat_fea = torch.cat([eij, eik, _angle_fea], dim=3)
 
+        # attn = self.attention(cat_fea)
+        # lin = self.linear(cat_fea)
+        # norm = self.normalized_activation(attn * lin)
+        # out = _edge_fea + torch.sum(norm, dim=2)
+        # output = self.normalized_activation(out)
+
         output = self.normalized_activation(
-            # edge_fea
-            _edge_fea  # DB
+            _edge_fea
             + torch.sum(
                 self.normalized_activation(self.attention(cat_fea) * self.linear(cat_fea)),
                 dim=2,
