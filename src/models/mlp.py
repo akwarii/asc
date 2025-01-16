@@ -27,7 +27,7 @@ class MLP(nn.Module):
         layers += [Linear(in_channels, c_out)]
         self.layers = nn.Sequential(*layers)
 
-    def forward(self, x, *args, **kwargs):
+    def forward(self, x):
         """Forward.
 
         Args:
