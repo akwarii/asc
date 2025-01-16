@@ -1,5 +1,9 @@
 # Datasets
-predictions/
+/predictions/
+/data/
+
+# Ruff
+.ruff_cache/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -149,9 +153,13 @@ dmypy.json
 
 # Lightning-Hydra-Template
 configs/local/default.yaml
-/data/*
+/data/*.pt
+/data/*-data/*
 /logs/
 .env
 
 # Aim logging
 .aim
+
+# Lightning log
+/lightning_logs

@@ -1,0 +1,71 @@
+[project]
+name = "lightning-cegann2"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "cython>=3.0.11",
+    "lightning>=2.4.0",
+    "optuna>=4.1.0",
+    "pymatgen>=2024.11.13",
+    "python-dotenv>=1.0.1",
+    "torch-geometric>=2.6.1",
+]
+
+[project.optional-dependencies]
+api = [
+    "mp-api>=0.44.0",
+    "kaggle>=1.6.17",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 99
+
+[tool.ruff.lint]
+pydocstyle.convention = "google"
+select = [
+    "F", # flake8 rules
+    "E", # pycodestyle errors
+    "W", # pycodestyle warnings
+    "I", # isort
+    "N", # pep8 naming
+    "D", # pydocstyle
+    "UP", # pyupgrade
+    # "ANN", # flake8-annotations
+    # "S", # flake8-bandit
+    "BLE", # flake8-blind-except
+    # "FBT", # flake8-boolean-trap
+    
+]
+ignore = [
+    "N812", # lowercase imported as non lowercase
+    "D100", # missing docstring in public module
+    "D104", # missing docstring in public package
+    "D105", # missing docstring in magic method
+    "D107", # missing docstring in __init__
+    "D205", # 1 blank line required between summary line and description
+    "ANN003", # missing type annotation for **kwargs
+]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"] # Unused import
+"tests/**" = [
+    "D", # Pydocstyle
+    "S101", # Use of assert statement
+]
+"notebooks/**" = [
+    "D", # Pydocstyle
+    "ANN", # flake8-annotations
+]
+"scripts/**" = [
+    "D", # Pydocstyle
+    "ANN", # flake8-annotations
+]
+
+[tool.mypy]
+exclude = "^scripts/.*\\.py$"
