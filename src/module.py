@@ -26,11 +26,11 @@ class CEGANNModule(LightningModule):
     def __init__(
         self,
         model: torch.nn.Module,
-        compile: bool,
         optimizer: Callable | torch.optim.Optimizer,
-        scheduler: Callable | torch.optim.lr_scheduler._LRScheduler,
         metrics: torchmetrics.MetricCollection,
+        scheduler: Callable | torch.optim.lr_scheduler._LRScheduler | None = None,
         scheduler_params: dict | None = None,
+        compile: bool = True,
         learning_rate: float = 1e-3,
     ) -> None:
         super().__init__()
@@ -77,7 +77,7 @@ class CEGANNModule(LightningModule):
         preds: torch.Tensor = self(data)
         loss = F.cross_entropy(preds, torch.as_tensor(data.y, device=self.device))
 
-        batch_value = self.train_metrics(preds.argmax(dim=-1), data.y)
+        batch_value = self.train_metrics(preds.softmax(dim=-1), data.y)
         self.log_dict(batch_value, on_step=True, on_epoch=False, prog_bar=True)
 
         return loss
@@ -96,8 +96,8 @@ class CEGANNModule(LightningModule):
         Returns:
             torch.Tensor: Loss value.
         """
-        preds = self(data)
-        self.val_metrics.update(preds.argmax(dim=-1), data.y)
+        preds: torch.Tensor = self(data)
+        self.val_metrics.update(preds.softmax(dim=-1), data.y)
 
     def on_validation_epoch_end(self) -> None:
         """Call hook method at the end of each validation epoch."""
@@ -114,8 +114,8 @@ class CEGANNModule(LightningModule):
         Returns:
             torch.Tensor: Loss value.
         """
-        preds = self(data)
-        self.test_metrics.update(preds, data.y)
+        preds: torch.Tensor = self(data)
+        self.test_metrics.update(preds.softmax(dim=-1), data.y)
 
     def on_test_epoch_end(self) -> None:
         """Call hook method at the end of each testing epoch."""
