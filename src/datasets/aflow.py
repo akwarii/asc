@@ -109,6 +109,11 @@ class Aflow(InMemoryDataset):
             raw_data_list += [entry["structure"] for entry in json_data]
             target_list += [entry["spacegroup"] for entry in json_data]
 
+        # Convert the target labels to consecutive 0-based indices
+        unique_targets = sorted(set(target_list))
+        label_to_index = {label: idx for idx, label in enumerate(unique_targets)}
+        target_list = [label_to_index[target] for target in target_list]
+
         knn = KNNGraph(**self.kwargs)
 
         data_list = []
@@ -120,7 +125,7 @@ class Aflow(InMemoryDataset):
             if data.num_nodes is None or data.num_nodes == 0:
                 raise RuntimeError("The number of nodes in the graph is zero.")
 
-            data.y = torch.full((data.num_nodes,), target - 1, dtype=torch.long)
+            data.y = torch.full((data.num_nodes,), target, dtype=torch.long)
 
             data_list.append(data)
 

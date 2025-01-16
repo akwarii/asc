@@ -98,6 +98,11 @@ class CSG(InMemoryDataset):
         df = pd.read_csv(self.raw_paths[0])
         knn = KNNGraph(**self.kwargs)
 
+        # Convert the target labels to consecutive 0-based indices
+        unique_labels = sorted(set(df["SpaceGroupNumber"]))
+        label_to_index = {label: idx for idx, label in enumerate(unique_labels)}
+        df["SpaceGroupNumber"] = df["SpaceGroupNumber"].map(label_to_index)
+
         data_list = []
         for _, row in tqdm(df.iterrows(), total=len(df)):
             with warnings.catch_warnings():
@@ -107,9 +112,7 @@ class CSG(InMemoryDataset):
             if data.num_nodes is None or data.num_nodes == 0:
                 raise RuntimeError("The number of nodes in the graph is zero.")
 
-            data.y = torch.full(
-                (data.num_nodes,), int(row["SpaceGroupNumber"]) - 1
-            )  # TODO do not pad with zeros
+            data.y = torch.full((data.num_nodes,), int(row["SpaceGroupNumber"]) - 1)
 
             data_list.append(data)
 

@@ -178,7 +178,7 @@ Once you got your credentials, create a `.env` file (using `cp .env.example .env
 
 **Datasets**
 
-- [ ] Classes must be mapped in the range 0..num_classes instead of 0..229, if not PyG always assumes 230 classes
+- [X] Classes must be mapped in the range 0..num_classes instead of 0..229, if not PyG always assumes 230 classes
 - [ ] Make use of T.ToSparseTensor if models are changed as subclasses of PyG MessagePassing
 
 **Data augmentation/transformations**
