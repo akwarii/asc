@@ -36,10 +36,10 @@ class CEGANN(nn.Module):
 
     def __init__(
         self,
-        gbf_bond: dict,
-        gbf_angle: dict,
         n_conv_edge: int = 3,
-        n_conv_angle: int | None = None,  # DB, added a way to specify this parameter
+        # n_conv_angle: int | None = None,
+        rbf: dict | nn.Module | None = None,
+        sbf: dict | nn.Module | None = None,
         edge_expansion_units: int = 128,
         angle_expansion_units: int = 128,
         n_classes: int = 2,
@@ -47,43 +47,43 @@ class CEGANN(nn.Module):
     ) -> None:
         super().__init__()
 
-        self.embedding = embedding
+        if rbf is None:
+            self.rbf = GaussianBasis()
+        elif isinstance(rbf, dict):
+            self.rbf = GaussianBasis(**rbf)
+        else:
+            self.rbf = rbf
+        num_edge_features = self.rbf.num_radial
 
-        edge_features_len = gbf_bond["num_radial"]
-        angle_features_len = gbf_angle["num_radial"]
+        if sbf is None:
+            self.sbf = GaussianBasis()
+        elif isinstance(sbf, dict):
+            self.sbf = GaussianBasis(**sbf)
+        else:
+            self.sbf = sbf
+        num_angle_features = self.sbf.num_radial
 
-        # edge_features_len = gbf_bond["steps"] # DB: comment ?
-        # angle_features_len = gbf_angle["steps"] # DB: comment ?
-        # edge_features_len = gbf_bond.pop("steps") # DB as Gaussian Basis does not accept steps
-        # angle_features_len = gbf_angle.pop("steps") # DB as Gaussian Basis does not accept steps
-
-        self.gbf_edge = GaussianBasis(**gbf_bond)  # ** added by DB
-        self.linear_angle = nn.Linear(angle_features_len, angle_expansion_units)
+        self.linear_angle = nn.Linear(num_angle_features, angle_expansion_units)
         self.conv_edge = nn.ModuleList(
-            [EdgeConvLayer(edge_features_len, angle_features_len) for _ in range(n_conv_edge)]
+            [EdgeConvLayer(num_edge_features, num_angle_features) for _ in range(n_conv_edge)]
         )
 
-        self.gbf_angle = GaussianBasis(**gbf_angle)  # ** added by DB
-        self.linear_edge = nn.Linear(edge_features_len, edge_expansion_units)
-        if n_conv_angle is None:
-            n_conv_angle = n_conv_edge - 1  # DB : added line for default value
+        n_conv_angle = n_conv_edge - 1
+        self.linear_edge = nn.Linear(num_edge_features, edge_expansion_units)
         self.conv_angle = nn.ModuleList(
-            [AngleConvLayer(edge_features_len, angle_features_len) for _ in range(n_conv_angle)]
+            [AngleConvLayer(num_edge_features, num_angle_features) for _ in range(n_conv_angle)]
         )
 
-        # DB
-        self.layer_norm = GraphNorm(edge_expansion_units + angle_expansion_units)
-        # self.layer_norm = nn.LayerNorm(
-        #     edge_expansion_units + angle_expansion_units
-        # )  # TODO: change to GraphNorm
-        self.softplus = nn.Softplus()
+        self.layer_norm = nn.LayerNorm(edge_expansion_units + angle_expansion_units)
+        self.softplus = nn.SiLU()
         self.dropout = nn.Dropout()
 
         self.output_layer = nn.Linear(edge_expansion_units + angle_expansion_units, n_classes)
 
+        self.embedding = embedding
+
     def _message_passing(
         self,
-        # node_features: torch.Tensor, # DB - GATV2
         edge_features: torch.Tensor,
         angle_features: torch.Tensor,
         neigh_idx: torch.Tensor,
@@ -103,29 +103,10 @@ class CEGANN(nn.Module):
             torch.Tensor: The updated edge features.
             torch.Tensor: The updated angle features.
         """
-        # edge_features = self.conv_edge[0](edge_features, angle_features, neigh_idx)
-        # for conv_edge, conv_angle in zip(self.conv_edge[1:], self.conv_angle):
-        #     angle_features = conv_angle(angle_features, edge_features, neigh_idx)
-        #     edge_features = conv_edge(edge_features, angle_features, neigh_idx)
-        edge_features = self.conv_edge[0](
-            # node_fea=node_features, # DB - GATV2
-            edge_fea=edge_features,
-            angle_fea=angle_features,
-            nbr_idx=neigh_idx,
-        )
+        edge_features = self.conv_edge[0](edge_features, angle_features, neigh_idx)
         for conv_edge, conv_angle in zip(self.conv_edge[1:], self.conv_angle):
-            angle_features = conv_angle(
-                # node_fea=node_features, # DB - GATV2
-                edge_fea=edge_features,
-                angle_fea=angle_features,
-                nbr_idx=neigh_idx,
-            )
-            edge_features = conv_edge(
-                # node_fea=node_features, # DB - GATV2
-                edge_fea=edge_features,
-                angle_fea=angle_features,
-                nbr_idx=neigh_idx,
-            )
+            angle_features = conv_angle(edge_features, angle_features, neigh_idx)
+            edge_features = conv_edge(edge_features, angle_features, neigh_idx)
 
         return edge_features, angle_features
 
@@ -139,26 +120,19 @@ class CEGANN(nn.Module):
             torch.Tensor: Output of the model.
             torch.Tensor: Embedded features (if self.embedding is set to True).
         """
-        # [DB] TODO: ENSURE ALL IS CLEAN HERE.
         edge_features = data.edge_dist
         angle_features = data.angle_cos
         neigh_idx = data.edge_index
+        assert neigh_idx is not None
 
         # Create features using Gaussian basis function expansion
-        edge_features = self.gbf_edge(edge_features)
-        angle_features = self.gbf_angle(angle_features, bond=False)  # DB : should be fixed ?
+        edge_features = self.rbf(edge_features)
+        angle_features = self.sbf(angle_features, bond=False)  # DB : should be fixed ?
 
         # Perform message passing
         edge_features, angle_features = self._message_passing(
             edge_features, angle_features, neigh_idx
         )
-        # # GATV2 - DB
-        # edge_features, angle_features = self._message_passing(
-        #     node_features=pos,
-        #     neigh_idx=neigh_idx,
-        #     edge_features=edge_features,
-        #     angle_features=angle_features,
-        # )
 
         # Expand edge features and angle features
         edge_features = self.linear_edge(self.dropout(edge_features))
