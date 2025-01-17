@@ -8,6 +8,7 @@ from pytorch_lightning.callbacks import (
 )
 from pytorch_lightning.loggers import CSVLogger
 from torch.utils.data import random_split
+from torch_geometric.loader import ImbalancedSampler
 
 from src.constants import DEFAULT_SEED
 from src.datamodule import CEGANNLightningDataset
@@ -41,6 +42,7 @@ datamodule = CEGANNLightningDataset(
     test_dataset=test_dataset,
     batch_size=128,
     num_workers=5,
+    sampler=ImbalancedSampler(train_dataset),
 )
 
 model = CEGANN(
@@ -72,7 +74,7 @@ trainer = Trainer(
     max_epochs=100,
     precision="16-mixed",
     callbacks=[
-        #     BatchSizeFinder(steps_per_trial=100),
+        # BatchSizeFinder(steps_per_trial=100),
         LearningRateFinder(num_training_steps=10_000),
         StochasticWeightAveraging(swa_lrs=0.01),
     ],
