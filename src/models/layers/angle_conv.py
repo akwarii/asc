@@ -93,11 +93,6 @@ class AngleConvLayer(nn.Module):
         eijk = torch.cat([eij, eik], dim=3)
         cat_fea = torch.cat([eijk, _angle_fea], dim=3)
 
-        # attn = self.attention(cat_fea)
-        # lin = self.linear(cat_fea)
-        # out = _angle_fea + attn * lin
-        # output = self.normalized_activation(out)
-
         output = self.normalized_activation(
             _angle_fea + self.attention(cat_fea) * self.linear(cat_fea)
         )

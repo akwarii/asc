@@ -35,13 +35,12 @@ class EdgeConvLayer(nn.Module):
         self.attention = nn.Sequential(  # TODO: Change to GATv2
             nn.Linear(edge_input_dim, 1),
             nn.LeakyReLU(negative_slope=0.01),
-            # nn.PReLU(),
             nn.Softmax(dim=2),
         )
 
         self.normalized_activation = nn.Sequential(  # TODO: Change to GraphNorm
             gnn.LayerNorm(self.edge_fea_len),
-            nn.SiLU(),  # DB
+            nn.SiLU(),
         )
 
     def forward(

@@ -9,7 +9,6 @@ from src.models.layers import AngleConvLayer, EdgeConvLayer
 # TODO: Investigate the influence of the number of pre/post-process layers
 # TODO: Investigate the influence of BatchNorm, LayerNorm and GraphNorm in the MP layers
 #           https://doi.org/10.48550/arXiv.2009.03294
-# TODO: Make use of mini-batch
 class CEGANN(nn.Module):
     """Crystal Edge Graph Attention Neural Network (CEGANN) model.
 
