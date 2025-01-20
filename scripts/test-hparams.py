@@ -2,14 +2,13 @@ import optuna
 import pytorch_lightning as pl
 import torch_geometric.transforms as T
 import torchmetrics
-from torch import optim
-from torch.utils.data import random_split
-
 from src.datamodule import CEGANNLightningDataset
 from src.datasets import CSG
 from src.models.cegann import CEGANN
 from src.module import CEGANNModule
-from src.transforms import RandomPerturbation
+from src.transforms import LineGraph, RandomPerturbation
+from torch import optim
+from torch.utils.data import random_split
 
 
 def objective(trial: optuna.trial.Trial) -> float:
@@ -21,15 +20,16 @@ def objective(trial: optuna.trial.Trial) -> float:
 
     # Data management
     dataset = CSG(
+        pre_transform=LineGraph(),
         transform=T.Compose(
             [
-                T.NormalizeFeatures(["edge_dist"]),
-                RandomPerturbation(p=0.1),
+                T.NormalizeFeatures(["x", "edge_attr"]),
+                RandomPerturbation(),
             ]
         ),
         k=k_neigh,
         rcut=6.0,
-        force_reload=False,
+        force_reload=True,
     )
     train_dataset, val_dataset, test_dataset = random_split(
         dataset=dataset,
@@ -49,7 +49,7 @@ def objective(trial: optuna.trial.Trial) -> float:
         n_classes=dataset.num_classes,
         edge_expansion_units=edge_expansion_units,
         angle_expansion_units=angle_expansion_units,
-        n_conv_edge=n_conv_edge,
+        n_bond_conv=n_conv_edge,
     )
     module = CEGANNModule(
         model=model,

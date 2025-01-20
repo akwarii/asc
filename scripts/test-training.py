@@ -7,24 +7,24 @@ from pytorch_lightning.callbacks import (
     StochasticWeightAveraging,
 )
 from pytorch_lightning.loggers import CSVLogger
-from torch_geometric.loader import ImbalancedSampler
-
 from src.constants import DEFAULT_SEED
 from src.datamodule import CEGANNLightningDataset
 from src.datasets import CSG
 from src.models import CEGANN
 from src.module import CEGANNModule
-from src.transforms import RandomPerturbation
+from src.transforms import LineGraph, RandomPerturbation
 from src.utils.dataset import random_split
+from torch_geometric.loader import ImbalancedSampler
 
 seed_everything(DEFAULT_SEED)
 
 # Data management
 dataset = CSG(
+    pre_transform=LineGraph(),
     transform=T.Compose(
         [
-            T.NormalizeFeatures(["edge_dist"]),
-            RandomPerturbation(p=0.1),
+            T.NormalizeFeatures(["x", "edge_attr"]),
+            RandomPerturbation(),
         ]
     ),
     k=12,
@@ -48,7 +48,7 @@ model = CEGANN(
     n_classes=dataset.num_classes,
     edge_expansion_units=256,
     angle_expansion_units=256,
-    n_conv_edge=2,
+    n_bond_conv=2,
 )
 
 

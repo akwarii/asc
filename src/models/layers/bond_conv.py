@@ -2,36 +2,33 @@ import torch
 from torch import nn
 
 
-class AngleConvLayer(nn.Module):
-    """Angle Convolution Layer.
+class BondConvLayer(nn.Module):
+    """Bond Convolution Layer.
 
     Args:
-        bond_fea_len (int): The length of the bond features.
-        angle_fea_len (int): The length of the angle features.
+        bond_fea_len: The number of bond features.
+        angle_fea_len: The number of angular features
     """
 
-    def __init__(
-        self,
-        bond_fea_len: int,
-        angle_fea_len: int,
-    ) -> None:
+    def __init__(self, bond_fea_len: int, angle_fea_len: int) -> None:
         super().__init__()
 
-        self.angle_fea_len = angle_fea_len
         self.bond_fea_len = bond_fea_len
+        self.angle_fea_len = angle_fea_len
 
-        angle_input_dim = self.angle_fea_len + 2 * self.bond_fea_len
+        bond_input_dim = 2 * self.bond_fea_len + self.angle_fea_len
 
-        self.linear = nn.Linear(angle_input_dim, self.angle_fea_len)
+        self.linear = nn.Linear(bond_input_dim, self.bond_fea_len)
 
         self.attention = nn.Sequential(
-            nn.Linear(angle_input_dim, 1),
-            nn.LeakyReLU(negative_slope=0.01),
+            nn.Linear(bond_input_dim, 1),
+            nn.LeakyReLU(),
+            nn.Softmax(dim=2),
         )
 
         self.normalized_activation = nn.Sequential(
-            nn.LayerNorm(self.angle_fea_len),
-            nn.SiLU(),
+            nn.LayerNorm(self.bond_fea_len),
+            nn.Softplus(),
         )
 
     def forward(
@@ -40,7 +37,7 @@ class AngleConvLayer(nn.Module):
         angle_features: torch.Tensor,
         neighbor_indices: torch.Tensor,
     ) -> torch.Tensor:
-        """Forward pass of the AngleConv module.
+        """Forward pass of the BondConv module.
 
         Args:
             bond_features (torch.Tensor): bond features of shape `(n_at * k, n_radial_bond)`.
@@ -49,7 +46,7 @@ class AngleConvLayer(nn.Module):
             neighbor_indices (torch.Tensor): neighbor indices, shape `(n_at * k, k - 1)`.
 
         Returns:
-            torch.Tensor: The output of the module, of shape `(n_at * k, k - 1, n_radial_angle)`.
+            torch.Tensor: The output of the module, of shape `(n_at * k, n_radial_bond)`.
         """
         n = neighbor_indices.size(1)  # k - 1
         m = neighbor_indices.size(0)  # n_at * k
@@ -58,15 +55,16 @@ class AngleConvLayer(nn.Module):
         eij = bond_features.unsqueeze(1).expand(m, n, self.bond_fea_len)
         eik = bond_features[neighbor_indices]
 
-        # (n_at * k, k - 1, 2 * n_radial_bond)
-        eijk = torch.cat([eij, eik], dim=2)
-
         # (n_at * k, k - 1, 2 * n_radial_bond + n_radial_angle)
-        cat_fea = torch.cat([eijk, angle_features], dim=2)
+        cat_fea = torch.cat([eij, eik, angle_features], dim=2)
 
-        # output: (n_at * k, k - 1, n_radial_angle)
+        # (n_at * k, n_radial_bond)
         output = self.normalized_activation(
-            angle_features + self.attention(cat_fea) * self.linear(cat_fea)
+            bond_features
+            + torch.sum(
+                self.normalized_activation(self.attention(cat_fea) * self.linear(cat_fea)),
+                dim=1,
+            )
         )
 
         return output
