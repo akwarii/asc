@@ -20,16 +20,17 @@ class GaussianBasis(torch.nn.Module):
         start: float = 0.0,
         stop: float = 5.0,
         num_radial: int = 50,
+        bond: bool = True,
     ) -> None:
         super().__init__()
 
         self.num_radial = num_radial
+        self.bond = bond
         offset = torch.linspace(start, stop, num_radial)
         self.coeff = -0.5 / (offset[1] - offset[0]).item() ** 2
         self.register_buffer("offset", offset)
 
-    # def forward(self, dist_scaled: torch.Tensor) -> torch.Tensor:
-    def forward(self, dist_scaled: torch.Tensor, bond: bool = True) -> torch.Tensor:  # DB
+    def forward(self, dist_scaled: torch.Tensor) -> torch.Tensor:  # DB
         """Forward pass of the Gaussian smearing module.
 
         Args:
@@ -39,12 +40,9 @@ class GaussianBasis(torch.nn.Module):
         Returns:
             torch.Tensor: The smearing output tensor.
         """
-        if bond:
-            # print("DISTANCES", torch.min(dist_scaled), torch.max(dist_scaled))
+        if self.bond:
             dist_scaled = dist_scaled.view(-1, 1) - self.offset.view(1, -1)
         else:
-            # DB, more general to account for >1D (2D in fact) tensors like for angles
-            # print("   ANGLES", torch.min(dist_scaled), torch.max(dist_scaled))
             dist_scaled = dist_scaled.unsqueeze(-1).repeat(
                 1, 1, self.offset.size()[0]
             ) - self.offset.view(1, -1).unsqueeze(1).repeat(1, dist_scaled.size()[-1], 1)
