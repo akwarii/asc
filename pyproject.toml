@@ -20,11 +20,12 @@ api = [
 ]
 
 [tool.ruff]
-target-version = "py311"
+src = ["src"]
 line-length = 99
+indent-width = 4
+target-version = "py311"
 
 [tool.ruff.lint]
-pydocstyle.convention = "google"
 select = [
     "F", # flake8 rules
     "E", # pycodestyle errors
@@ -48,6 +49,9 @@ ignore = [
     "D205", # 1 blank line required between summary line and description
     "ANN003", # missing type annotation for **kwargs
 ]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.ruff.format]
 docstring-code-format = true
