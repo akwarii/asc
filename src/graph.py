@@ -7,48 +7,6 @@ from pymatgen.core.structure import FileFormats
 from torch_geometric.data import Data
 
 
-def get_cosine_angles(
-    struct: Structure,
-    i_indices: torch.Tensor,
-    j_neighbors: torch.Tensor,
-    k_neighbors: torch.Tensor,
-    offset: torch.Tensor,
-) -> torch.Tensor:
-    """Compute the cosine of the angles between the vectors formed by the central atom and its
-    neighbors.
-
-    Args:
-        struct: A pymatgen structure object.
-        i_indices: Indices of the central atoms.
-        j_neighbors: Indices of the j neighbors.
-        k_neighbors: Indices of the k neighbors.
-        offset: Indices of the periodic image in which neighbors belong.
-
-    Returns:
-        A tensor of shape (num_atoms, k) containing the cosine of the angles.
-    """
-    # Get coordinates of the central atoms, j neighbors, and k neighbors
-    cell = torch.from_numpy(struct.lattice.matrix.astype(np.float32))
-    struct_coords = np.array([site.coords for site in struct], dtype=np.float32)
-    central_coords = torch.from_numpy(struct_coords[i_indices])
-    j_coords = torch.from_numpy(struct_coords[j_neighbors]) + torch.matmul(offset[:, :3], cell)
-    k_coords = torch.from_numpy(struct_coords[k_neighbors]) + torch.matmul(offset[:, 3:], cell)
-
-    # Compute vectors
-    v1 = j_coords - central_coords
-    v2 = k_coords - central_coords
-
-    # Compute dot product and norms
-    dot_product = (v1 * v2).sum(dim=1)
-    v1_norm = v1.norm(dim=1)
-    v2_norm = v2.norm(dim=1)
-
-    # Compute cosine of the angles
-    cos_angles = dot_product / (v1_norm * v2_norm)
-
-    return cos_angles
-
-
 class KNNGraph:
     """Helper class for creating a k-nearest neighbors graph from periodic structures.
 
@@ -100,40 +58,40 @@ class KNNGraph:
 
         # Find the k-nearest neighbors
         while not np.all(reached_knn):
-            centers_idx, neighbors_idx, offset, distances = struct.get_neighbor_list(
-                r=self.rcut + delta_rcut, exclude_self=True
+            all_centers_idx, all_neighbors_idx, all_offset, all_distances = (
+                struct.get_neighbor_list(r=self.rcut + delta_rcut, exclude_self=True)
             )
 
-            counts = np.bincount(centers_idx, minlength=n_atoms)
+            counts = np.bincount(all_centers_idx, minlength=n_atoms)
             reached_knn[counts >= self.k] = 1
 
             delta_rcut += 0.1 * self.rcut
 
         # Create the k-nearest neighbors index in a safe way
-        # (i.e. if the number of neighbors is larger than k)
-        # The number of neighbors can't be smaller than k so we don't need to check
+        # (i.e. if the number of neighbors is larger than k, it can't be smaller)
         knn_idx = np.zeros((n_atoms, self.k), dtype=int)
         for i in range(n_atoms):
-            idx_i = np.where(centers_idx == i)[0]
+            idx_i = np.where(all_centers_idx == i)[0]
 
             if len(idx_i) == self.k:
                 knn_idx[i] = idx_i
             else:
-                knn_mask = np.argpartition(distances[idx_i], self.k)[: self.k]
+                knn_mask = np.argpartition(all_distances[idx_i], self.k)[: self.k]
                 knn_idx[i] = idx_i[knn_mask]
 
-        # Only keep the k-nearest neighbors data
+        # Only keep the k-nearest neighbors data (and jump to torch.Tensors as well)
         knn_idx = knn_idx.flatten()
-        centers_idx = torch.from_numpy(centers_idx[knn_idx])
-        neighbors_idx = torch.from_numpy(neighbors_idx[knn_idx])
-        distances = torch.from_numpy(distances[knn_idx].astype(np.float32))
-        offset = torch.from_numpy(offset[knn_idx].astype(np.float32))
+        centers_idx: torch.Tensor = torch.from_numpy(all_centers_idx[knn_idx])
+        neighbors_idx: torch.Tensor = torch.from_numpy(all_neighbors_idx[knn_idx])
+        distances: torch.Tensor = torch.from_numpy(all_distances[knn_idx].astype(np.float32))
+        offset: torch.Tensor = torch.from_numpy(all_offset[knn_idx].astype(np.float32))
 
         # Convert to PyG format
         edge_index = torch.vstack((centers_idx, neighbors_idx))
 
-        # Angle cosine computation
-        # Create indices (and offsets) for all combinations of j and k
+        # Distance components (required for LineGraph angles computations)
+        cell = torch.from_numpy(struct.lattice.matrix.astype(np.float32))
+        struct_coords = struct.cart_coords.astype(np.float32)
         neighbor_indices = neighbors_idx.view(n_atoms, self.k)
         offset = offset.view(n_atoms, self.k, 3)
         j_indices, k_indices = torch.triu_indices(self.k, self.k, offset=1)
@@ -144,22 +102,24 @@ class KNNGraph:
         # Get the corresponding neighbor indices (and offsets)
         j_neighbors = neighbor_indices[:, j_indices].reshape(-1)
         k_neighbors = neighbor_indices[:, k_indices].reshape(-1)
-        offset = torch.cat(
-            (
-                offset[:, j_indices].reshape(j_neighbors.size()[0], 3),
-                offset[:, k_indices].reshape(k_neighbors.size()[0], 3),
-            ),
-            dim=1,
+
+        # Coordinates
+        central_coords = torch.from_numpy(struct_coords[i_indices])
+        j_coords = torch.from_numpy(struct_coords[j_neighbors]) + torch.matmul(
+            offset[:, j_indices].reshape(j_neighbors.size()[0], 3), cell
+        )
+        k_coords = torch.from_numpy(struct_coords[k_neighbors]) + torch.matmul(
+            offset[:, k_indices].reshape(k_neighbors.size()[0], 3), cell
         )
 
-        angles = get_cosine_angles(struct, i_indices, j_neighbors, k_neighbors, offset)
+        # Actual distance components - we do not use `torch.stack` because
+        # adding an extra dimension (to use x[0], x[1] for ij, ik) would
+        # cause mismatches in `collate` where "Sizes of tensors must match
+        # except in dimension 0.". Instead, we use `torch.cat` to avoid this
+        # extra dimension (and use x[:,:3], x[:,3:] for ij, ik).
+        x = torch.cat((j_coords - central_coords, k_coords - central_coords), dim=1)
 
-        # Create the angle_cos tensor and fill it with computed angles
-        angle_cos = torch.zeros(n_atoms, self.k, self.k, dtype=torch.float32)
-        angle_cos[:, j_indices, k_indices] = angles.view(n_atoms, -1)
-        angle_cos = angle_cos.view(n_atoms * self.k, self.k)
-
-        return edge_index, distances, angle_cos
+        return x, edge_index, distances
 
     @staticmethod
     def _to_pymatgen_struct(
@@ -188,16 +148,15 @@ class KNNGraph:
         Returns:
             A PyG Data object with positions, edge index, distances and cosine of the angles.
         """
-        struct = self._to_pymatgen_struct(struct, fmt=fmt)  #! 40% of runtime
+        struct = self._to_pymatgen_struct(struct, fmt=fmt)
 
-        edge_index, edge_distances, angle_cos = self._get_graph_data(struct)
+        x, edge_index, edge_distances = self._get_graph_data(struct)
 
         data = Data(
             num_nodes=len(struct),
-            pos=torch.tensor(struct.cart_coords, dtype=torch.float),
+            x=x,
             edge_index=edge_index,
-            edge_dist=edge_distances,
-            angle_cos=angle_cos,
+            edge_attr=edge_distances,
         )
 
         return data

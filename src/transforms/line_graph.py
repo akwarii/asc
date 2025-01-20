@@ -26,12 +26,17 @@ def compute_bonds_cosines(x: torch.Tensor, n_bonds: int, eps=1e-8) -> torch.Tens
 
 
 class LineGraph(BaseTransform):
-    """Converts a graph to its directed line-graph version. The implementation is bases on
-    `torch_geometric.transforms.LineGraph` with three key differences:
-        1. We assume the graph is directed, meaning the resulting line-graph will be directed.
-            It is equivalent to setting `force_directed=True` in the original implementation.
-        2. We set `edge_attr` to be the cosine of the angle between bonds.
-        3. We avoid coalescing the graph to ensure periodicity invariance.
+    """Converts a graph to its directed line-graph version.
+
+    The implementation is bases on `torch_geometric.transforms.LineGraph` with three key
+    differences:
+
+    1. We assume the graph is directed, meaning the resulting line-graph will be directed.
+        It is equivalent to setting `force_directed=True` in the original implementation.
+
+    2. We set `edge_attr` to be the cosine of the angle between bonds.
+
+    3. We avoid coalescing the graph to ensure periodicity invariance.
     """
 
     def forward(self, data: Data) -> Data:
