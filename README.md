@@ -163,8 +163,6 @@ Once you got your credentials, create a `.env` file (using `cp .env.example .env
 
 - [ ] Trainer for optimal hyperparameter tuning and training execution.
   - [ ] Training function
-    - [ ] Imbalanced sampler for class imbalance (option)
-    - [ ] Dynamic batch sampler due to large std of number of atoms (option)
   - [ ] Inference function
     - [ ] Neighbor loader if graph larger than GPU memory
 - [ ] Full graph model compilation
@@ -173,18 +171,20 @@ Once you got your credentials, create a `.env` file (using `cp .env.example .env
 
 **Model Optimizations:**
 
-- [ ] Try to make use of GraphNorm instead of LayerNorm
-- [ ] GATv2 attention mechanism
+- [ ] Try to make use of GraphNorm instead of LayerNorm in CEGANN
+- [ ] GATv2 and EGAT attention mechanism
+- [ ] Look into the loss function proposed in DeepGAT
+- [ ] Residual connections to avoid over-smoothing for deeper GNN ?
 
 **Datasets**
 
-- [x] Classes must be mapped in the range 0..num_classes instead of 0..229, if not PyG always assumes 230 classes
 - [ ] Make use of T.ToSparseTensor if models are changed as subclasses of PyG MessagePassing
 
 **Data augmentation/transformations**
 
 - [ ] Node dropout
-- [ ] Better handle the probability to apply the transformations
+- [ ] Always apply transformations and change default stddev
+- [ ] DropEdge and/or PairNorm to avoid over-smoothing ?
 
 **Graph Creation:**
 
