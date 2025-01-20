@@ -28,12 +28,12 @@ class CEGANN(nn.Module):
 
     def __init__(
         self,
+        n_classes: int,
         n_bond_conv: int = 3,
         rbf: dict | nn.Module | None = None,
         sbf: dict | nn.Module | None = None,
         edge_expansion_units: int = 128,
         angle_expansion_units: int = 128,
-        n_classes: int = 2,
         embedding: bool = False,
     ) -> None:
         super().__init__()
