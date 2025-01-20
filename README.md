@@ -186,10 +186,6 @@ Once you got your credentials, create a `.env` file (using `cp .env.example .env
 - [ ] Always apply transformations and change default stddev
 - [ ] DropEdge and/or PairNorm to avoid over-smoothing ?
 
-**Graph Creation:**
-
-- [ ] Make use of line graphs
-
 **Additional Enhancements:**
 
 - [ ] Integration of Optuna for efficient hyperparameter tuning and model pruning.
