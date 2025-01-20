@@ -64,6 +64,7 @@ class CEGANNModule(LightningModule):
         """
         return self.model(x)
 
+    # TODO check type hint for data. Batch or Data?
     def training_step(self, data: Data, batch_idx: int) -> torch.Tensor:
         """Training step of the CEGANNModule.
 

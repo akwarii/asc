@@ -25,7 +25,7 @@ def random_split(
     Returns:
         list[Dataset]: List of datasets of provided lengths
     """
-    dataset = dataset.shuffle() # type: ignore
+    dataset = dataset.shuffle()  # type: ignore
 
     if math.isclose(sum(lengths), 1) and sum(lengths) <= 1:
         subset_lengths: list[int] = []
@@ -55,6 +55,5 @@ def random_split(
         raise ValueError("Sum of input lengths does not equal the length of the input dataset!")
 
     return [
-        dataset[offset - length : offset]
-        for offset, length in zip(accumulate(lengths), lengths)
-    ] # type: ignore
+        dataset[offset - length : offset] for offset, length in zip(accumulate(lengths), lengths)
+    ]  # type: ignore

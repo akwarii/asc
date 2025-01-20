@@ -1,9 +1,8 @@
 import numpy as np
-from tqdm import tqdm
-
 from src.datasets import MaterialProject
 from src.graph import KNNGraph
 from src.transforms.remove_atoms import RemoveAtoms
+from tqdm import tqdm
 
 # Source data
 mp = MaterialProject(root="data/mp-data", fetch_data=False)

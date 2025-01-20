@@ -1,7 +1,6 @@
 import pandas as pd
-from tqdm import tqdm
-
 from src.graph import KNNGraph
+from tqdm import tqdm
 
 df = pd.read_csv("data/csg/raw/CSG.csv")
 knn = KNNGraph(rcut=7.5)
