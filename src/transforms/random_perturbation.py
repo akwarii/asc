@@ -14,19 +14,19 @@ class RandomPerturbation(BaseTransform):
         if std <= 0.0:
             raise ValueError("The standard deviation must be strictly positive.")
 
-        self.stddev = std
+        self.std = std
 
     def forward(self, data: Data) -> Data:
         """Runs the transform."""
         if data.x is not None:
-            data.x = data.x + torch.normal(mean=0.0, std=self.stddev, size=data.x.size())
+            data.x = data.x + torch.normal(mean=0.0, std=self.std, size=data.x.size())
 
         if data.edge_attr is not None:
             data.edge_attr = data.edge_attr + torch.normal(
-                mean=0.0, std=self.stddev, size=data.edge_attr.size()
+                mean=0.0, std=self.std, size=data.edge_attr.size()
             )
 
         return data
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(stddev={self.stddev})"
+        return f"{self.__class__.__name__}(stddev={self.std})"
