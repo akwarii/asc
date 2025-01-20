@@ -51,7 +51,7 @@ class Aflow(InMemoryDataset):
     def download(self) -> None:
         """Download the dataset from the AFLOW database and store it in the raw directory."""
         from src.api import AflowAPI
-        from src.datasets.utils import poscar_from_entry
+        from src.utils.lattice import poscar_from_entry
 
         for idx in tqdm(range(1, 231)):
             page_number = 1
