@@ -114,12 +114,12 @@ class CSG(InMemoryDataset):
 
             data.y = torch.full((data.num_nodes,), int(row["SpaceGroupNumber"]))
 
+            if self.pre_filter is not None and not self.pre_filter(data):
+                continue
+
+            if self.pre_transform is not None:
+                data = self.pre_transform(data)
+
             data_list.append(data)
-
-        if self.pre_filter is not None:
-            data_list = [data for data in data_list if self.pre_filter(data)]
-
-        if self.pre_transform is not None:
-            data_list = [self.pre_transform(data) for data in data_list]
 
         self.save(data_list, self.processed_paths[0])
