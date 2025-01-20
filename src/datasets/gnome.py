@@ -67,7 +67,7 @@ class Gnome(InMemoryDataset):
         force_reload: bool = False,
         **kwargs: Any,
     ) -> None:
-        self.kwargs = kwargs
+        self.kwargs = kwargs.copy()
 
         kwargs.pop("k", None)
         kwargs.pop("rcut", None)
