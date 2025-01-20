@@ -7,7 +7,13 @@ import torchmetrics
 from pytorch_lightning import LightningModule
 from torch_geometric.data import Data
 
+from src.models import CEGANN, MLP
 from src.typing import SliceDictType
+
+MODEL_FACTORY = {
+    "cegann": CEGANN,
+    "mlp": MLP,
+}
 
 
 class CEGANNModule(LightningModule):
@@ -25,13 +31,14 @@ class CEGANNModule(LightningModule):
 
     def __init__(
         self,
-        model: torch.nn.Module,
+        model_name: str,
         optimizer: Callable | torch.optim.Optimizer,
         metrics: torchmetrics.MetricCollection,
-        scheduler: Callable | torch.optim.lr_scheduler._LRScheduler | None = None,
-        scheduler_params: dict | None = None,
         compile: bool = True,
         learning_rate: float = 1e-3,
+        scheduler: Callable | torch.optim.lr_scheduler._LRScheduler | None = None,
+        scheduler_params: dict[str, Any] | None = None,
+        **model_kwargs: dict[str, Any] | None,
     ) -> None:
         super().__init__()
 
@@ -39,7 +46,13 @@ class CEGANNModule(LightningModule):
             scheduler_params = dict()
         self.scheduler_params = scheduler_params
 
-        self.model = model
+        model = MODEL_FACTORY.get(model_name.lower())
+        if model is None:
+            raise NotImplementedError(
+                f"Model {model_name} is not implemented. Available models: {MODEL_FACTORY.keys()}"
+            )
+
+        self.model = model(**model_kwargs)
         if compile:
             self.model = torch.compile(self.model, fullgraph=False)
 

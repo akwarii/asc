@@ -44,16 +44,9 @@ datamodule = CEGANNLightningDataset(
     sampler=ImbalancedSampler(torch.tensor([data.y[0].item() for data in train_dataset])),
 )
 
-model = CEGANN(
-    n_classes=dataset.num_classes,
-    edge_expansion_units=256,
-    angle_expansion_units=256,
-    n_bond_conv=2,
-)
-
-
 module = CEGANNModule(
-    model=model,
+    model_name="cegann",
+    model_kwargs={"n_classes": dataset.num_classes},
     compile=True,
     optimizer=torch.optim.AdamW,
     scheduler=torch.optim.lr_scheduler.StepLR,
