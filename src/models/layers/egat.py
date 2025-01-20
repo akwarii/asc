@@ -5,7 +5,6 @@ import torch.nn.functional as F
 from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import softmax
 from torch_scatter import scatter
-from torch_sparse import SparseTensor, matmul
 
 
 class MLP(torch.nn.Module):
@@ -119,10 +118,12 @@ class EGAT(MessagePassing):
         f_ij = self.lin_edge_ij(edge_feature)  # shape [E,H*C]
 
         # new multi-head node features
-        node_out = self.propagate(edge_index, x=(h_prime_i, h_prime_j), size=size, f_ij=f_ij)  
+        node_out = self.propagate(edge_index, x=(h_prime_i, h_prime_j), size=size, f_ij=f_ij)
         self.node_out = self.node_mlp(node_out.reshape(-1, H * C))
 
-        self.edge_out = self.lin_edge(edge_feature) + self.edge_mlp(self.edge_out.reshape(-1, H * C))
+        self.edge_out = self.lin_edge(edge_feature) + self.edge_mlp(
+            self.edge_out.reshape(-1, H * C)
+        )
         self.node_out = self.lin_node(h) + self.node_out
 
         if self.get_attn:
