@@ -13,6 +13,7 @@ class GaussianBasis(torch.nn.Module):
         start: The starting value of the smearing offset.
         stop: The stopping value of the smearing offset.
         num_radial: The number of Gaussian functions to use for smearing.
+        bond: Whether the input is a bond distance or an angle.
     """
 
     def __init__(
@@ -30,12 +31,11 @@ class GaussianBasis(torch.nn.Module):
         self.coeff = -0.5 / (offset[1] - offset[0]).item() ** 2
         self.register_buffer("offset", offset)
 
-    def forward(self, dist_scaled: torch.Tensor) -> torch.Tensor:  # DB
+    def forward(self, dist_scaled: torch.Tensor) -> torch.Tensor:
         """Forward pass of the Gaussian smearing module.
 
         Args:
             dist_scaled: The input scaled distance tensor.
-            bond: Whether the input is a bond distance or an angle.
 
         Returns:
             torch.Tensor: The smearing output tensor.
