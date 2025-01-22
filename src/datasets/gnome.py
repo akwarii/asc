@@ -50,6 +50,7 @@ class Gnome(InMemoryDataset):
         pre_filter: A function that takes in a graph and returns a boolean value indicating
             whether the graph should be included in the dataset.
         force_reload: Whether to reload the dataset even if it already exists.
+        download_only: Whether to download the dataset only without processing and loading it.
         kwargs: Additional keyword arguments to be passed to the KNNGraph or InMemoryDataset class.
 
     """
@@ -65,8 +66,10 @@ class Gnome(InMemoryDataset):
         pre_transform: Callable | None = None,
         pre_filter: Callable | None = None,
         force_reload: bool = False,
+        download_only: bool = False,
         **kwargs: Any,
     ) -> None:
+        self.download_only = download_only
         self.kwargs = kwargs.copy()
 
         kwargs.pop("k", None)
@@ -75,7 +78,8 @@ class Gnome(InMemoryDataset):
             root, transform, pre_transform, pre_filter, force_reload=force_reload, **kwargs
         )
 
-        self.load(self.processed_paths[0])
+        if not self.download_only:
+            self.load(self.processed_paths[0])
 
     @property
     def raw_file_names(self) -> list[str]:
@@ -114,6 +118,9 @@ class Gnome(InMemoryDataset):
         from tqdm.auto import tqdm
 
         from src.graph import KNNGraph
+
+        if self.download_only:
+            return
 
         df = pd.read_csv(self.raw_paths[0])
 

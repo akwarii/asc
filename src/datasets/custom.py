@@ -11,15 +11,12 @@ class CustomDataset(InMemoryDataset):
     Args:
         root: Root directory of the dataset.
         transform: A function that takes in a graph and returns a transformed version.
-        struct_transform: A function that takes in a structure and returns a transformed version.
-        target_transform: A function that takes in a target and returns a transformed version.
-        fetch_data: Whether we need to pretreat raw data if the dataset doesn't exist.
-        origin_dir: Directory containing the raw files (in non-json format)
-        graph_kwargs: Additional keyword arguments to be passed to the Graph class.
-
-    Attributes:
-        classes (list): a list of space group numbers ranking from 1 to 230.
-        resources (list): Names of the files containing the dataset.
+        pre_transform: A function that takes in a graph and returns a transformed version.
+        pre_filter: A function that takes in a graph and returns a boolean value indicating
+            whether the graph should be included in the dataset.
+        force_reload: Whether to reload the dataset even if it already exists.
+        download_only: Whether to download the dataset only without processing and loading it.
+        kwargs: Additional keyword arguments to be passed to the KNNGraph or InMemoryDataset class.
     """
 
     def __init__(
@@ -29,8 +26,10 @@ class CustomDataset(InMemoryDataset):
         pre_transform: Callable | None = None,
         pre_filter: Callable | None = None,
         force_reload: bool = False,
+        download_only: bool = False,
         **kwargs: Any,
     ) -> None:
+        self.download_only = download_only
         self.kwargs = kwargs.copy()
 
         kwargs.pop("k", None)
@@ -39,7 +38,8 @@ class CustomDataset(InMemoryDataset):
             root, transform, pre_transform, pre_filter, force_reload=force_reload, **kwargs
         )
 
-        self.load(self.processed_paths[0])
+        if not self.download_only:
+            self.load(self.processed_paths[0])
 
     @property
     def raw_file_names(self) -> list[str]:
@@ -63,6 +63,9 @@ class CustomDataset(InMemoryDataset):
         from tqdm.auto import tqdm
 
         from src.graph import KNNGraph
+
+        if self.download_only:
+            return
 
         raw_data_list, target_list = [], []
         for file in self.raw_paths:
