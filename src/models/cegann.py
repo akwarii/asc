@@ -1,14 +1,12 @@
 import torch
 import torch.nn as nn
 from torch_geometric.data import Data
+from torch_geometric.nn import MLP
 
 from src.models.expansion import GaussianBasis
 from src.models.layers import AngleConvLayer, BondConvLayer
 
 
-# TODO: Investigate the influence of the number of pre/post-process layers
-# TODO: Investigate the influence of BatchNorm, LayerNorm and GraphNorm in the MP layers
-#           https://doi.org/10.48550/arXiv.2009.03294
 class CEGANN(nn.Module):
     """Crystal Edge Graph Attention Neural Network (CEGANN) model.
 
@@ -71,11 +69,17 @@ class CEGANN(nn.Module):
             [AngleConvLayer(n_bond_features, n_angle_features) for _ in range(n_angle_conv)]
         )
 
-        self.layer_norm = nn.LayerNorm(edge_expansion_units + angle_expansion_units)
+        cat_units = edge_expansion_units + angle_expansion_units
+        self.layer_norm = nn.LayerNorm(cat_units)
         self.softplus = nn.Softplus()
-        self.dropout = nn.Dropout(p=dropout)
 
-        self.output_layer = nn.Linear(edge_expansion_units + angle_expansion_units, n_classes)
+        self.classification_head = MLP(
+            channel_list=[cat_units]
+            # + [hidden_channels]
+            + [n_classes],
+            dropout=dropout,
+            act=nn.SiLU,
+        )
 
         self.embedding = embedding
 
@@ -99,6 +103,10 @@ class CEGANN(nn.Module):
             torch.Tensor: The updated bond features of shape `(n_at * k, n_radial_bond)`.
             torch.Tensor: The updated angle features of shape `(n_at * k, k - 1, n_radial_angle)`.
         """
+        n = angle_features.size(1)  # k-1
+        m = neigh_idx.size(1) // n  # N_at * k
+        neigh_idx = torch.reshape(neigh_idx[1], (m, n))
+
         bond_features = self.bond_conv[0](bond_features, angle_features, neigh_idx)
         for conv_edge, conv_angle in zip(self.bond_conv[1:], self.angle_conv):
             angle_features = conv_angle(bond_features, angle_features, neigh_idx)
@@ -163,7 +171,7 @@ class CEGANN(nn.Module):
             embedded_features = crystal_features
 
         # Apply dropout and linear layer
-        output = self.output_layer(self.dropout(crystal_features))
+        output = self.classification_head(crystal_features)
 
         if self.embedding:
             return output, embedded_features

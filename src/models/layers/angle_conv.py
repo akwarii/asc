@@ -51,8 +51,8 @@ class AngleConvLayer(nn.Module):
         Returns:
             torch.Tensor: The output of the module, of shape `(n_at * k, k - 1, n_radial_angle)`.
         """
+        m = neighbor_indices.size(0)  # N_at * k
         n = neighbor_indices.size(1)  # k - 1
-        m = neighbor_indices.size(0)  # n_at * k
 
         # (n_at * k, k - 1, n_radial_bond)
         eij = bond_features.unsqueeze(1).expand(m, n, self.bond_fea_len)
