@@ -34,6 +34,7 @@ class CEGANN(nn.Module):
         sbf: dict | nn.Module | None = None,
         edge_expansion_units: int = 128,
         angle_expansion_units: int = 128,
+        dropout: float = 0.1,
         embedding: bool = False,
     ) -> None:
         super().__init__()
@@ -48,13 +49,16 @@ class CEGANN(nn.Module):
         n_bond_features = self.rbf.num_radial
 
         if sbf is None:
-            self.sbf = GaussianBasis()
+            self.sbf = GaussianBasis(bond=False)
         elif isinstance(sbf, dict):
             sbf.pop("bond", None)
             self.sbf = GaussianBasis(bond=False, **sbf)
         else:
             self.sbf = sbf
         n_angle_features = self.sbf.num_radial
+
+        assert self.rbf.bond is True
+        assert self.sbf.bond is False
 
         self.linear_bond = nn.Linear(n_bond_features, edge_expansion_units)
         self.bond_conv = nn.ModuleList(
@@ -68,8 +72,8 @@ class CEGANN(nn.Module):
         )
 
         self.layer_norm = nn.LayerNorm(edge_expansion_units + angle_expansion_units)
-        self.softplus = nn.SiLU()
-        self.dropout = nn.Dropout()
+        self.softplus = nn.Softplus()
+        self.dropout = nn.Dropout(p=dropout)
 
         self.output_layer = nn.Linear(edge_expansion_units + angle_expansion_units, n_classes)
 
@@ -95,11 +99,6 @@ class CEGANN(nn.Module):
             torch.Tensor: The updated bond features of shape `(n_at * k, n_radial_bond)`.
             torch.Tensor: The updated angle features of shape `(n_at * k, k - 1, n_radial_angle)`.
         """
-        # Reshaping the index tensor
-        n = angle_features.size(1)  # k - 1
-        m = neigh_idx.size(1) // n  # n_at * k
-        neigh_idx = neigh_idx[1].view(m, n)  # (n_at * k, k - 1)
-
         bond_features = self.bond_conv[0](bond_features, angle_features, neigh_idx)
         for conv_edge, conv_angle in zip(self.bond_conv[1:], self.angle_conv):
             angle_features = conv_angle(bond_features, angle_features, neigh_idx)
@@ -121,9 +120,7 @@ class CEGANN(nn.Module):
         assert data.edge_attr is not None
         assert data.edge_index is not None
 
-        bond_features = data.x
-        angle_features = data.edge_attr
-        neigh_idx = data.edge_index
+        bond_features, neigh_idx, angle_features = data.x, data.edge_index, data.edge_attr
 
         # Create features using Gaussian basis function expansion
         bond_features = self.rbf(bond_features)
@@ -137,6 +134,17 @@ class CEGANN(nn.Module):
         # Expand edge features and angle features
         bond_features = self.linear_bond(self.dropout(bond_features))
         angle_features = self.linear_angle(self.dropout(angle_features))
+
+        # Reshape bond features and angle features
+        # This is useful as we want to sum over the k neighbors later
+        # while PyG LineGraph implied stacking the features of the k neighbors.
+        k = angle_features.size(1) + 1
+        bond_features = bond_features.reshape(
+            bond_features.size(0) // k, k, bond_features.size(-1)
+        )
+        angle_features = angle_features.reshape(
+            angle_features.size(0) // k, k, k - 1, angle_features.size(-1)
+        )
 
         # Sum over edge features and angle features
         bond_features = torch.sum(self.softplus(bond_features), dim=1)
