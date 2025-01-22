@@ -46,8 +46,7 @@ def random_split(
         for i, length in enumerate(lengths):
             if length == 0:
                 warnings.warn(
-                    f"Length of split at index {i} is 0. "
-                    f"This might result in an empty dataset."
+                    f"Length of split at index {i} is 0. This might result in an empty dataset."
                 )
 
     # Cannot verify that dataset is Sized

@@ -4,7 +4,7 @@ from torch_geometric.transforms import BaseTransform
 from torch_geometric.utils import cumsum, scatter
 
 
-def compute_bonds_cosines(x: torch.Tensor, n_bonds: int, eps=1e-8) -> torch.Tensor:
+def compute_bonds_cosines(x: torch.Tensor, n_bonds: int, eps: float = 1e-8) -> torch.Tensor:
     """Computes the bond angle cosines from the bond displacement vectors for all triplets
     in the graph.
 
@@ -52,7 +52,9 @@ class LineGraph(BaseTransform):
         assert data.edge_index is not None
         assert data.x is not None
 
-        x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
+        new_edge_attr = compute_bonds_cosines(data.x, data.edge_index.size(1))
+
+        edge_index = data.edge_index
         row, col = edge_index
 
         i = torch.arange(row.size(0), dtype=torch.long, device=row.device)
@@ -69,8 +71,8 @@ class LineGraph(BaseTransform):
         row, col = torch.cat(rows, dim=0), torch.cat(cols, dim=0)
 
         data.edge_index = torch.stack([row, col], dim=0)
-        data.x = edge_attr
+        data.x = data.edge_attr
         data.num_nodes = edge_index.size(1)
-        data.edge_attr = compute_bonds_cosines(x, edge_index.size(1))
+        data.edge_attr = new_edge_attr
 
         return data
