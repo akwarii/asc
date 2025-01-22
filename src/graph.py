@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import torch
@@ -22,7 +23,7 @@ class KNNGraph:
         rcut: Cutoff radius in Angstroms to search for neighbors.
     """
 
-    def __init__(self, k: int = 20, rcut: float = 7.5) -> None:
+    def __init__(self, k: int = 20, rcut: float = 7.5, **kwargs: Any) -> None:
         if k < 1:
             raise ValueError("The number of neighbors must be greater than 0.")
         if rcut <= 0.0:
