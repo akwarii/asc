@@ -6,8 +6,9 @@ import torch.nn.functional as F
 import torchmetrics
 from pytorch_lightning import LightningModule
 from torch_geometric.data import Data
+from torch_geometric.nn import MLP
 
-from src.models import CEGANN, MLP
+from src.models import CEGANN
 from src.typing import SliceDictType
 
 MODEL_FACTORY = {
@@ -34,16 +35,19 @@ class CEGANNModule(LightningModule):
         model_name: str,
         optimizer: Callable | torch.optim.Optimizer,
         metrics: torchmetrics.MetricCollection,
-        compile: bool = True,
         learning_rate: float = 1e-3,
         scheduler: Callable | torch.optim.lr_scheduler._LRScheduler | None = None,
         scheduler_params: dict[str, Any] | None = None,
-        **model_kwargs: dict[str, Any] | None,
+        model_kwargs: dict[str, Any] | None = None,
     ) -> None:
         super().__init__()
 
         if scheduler_params is None:
             scheduler_params = dict()
+
+        if model_kwargs is None:
+            model_kwargs = dict()
+
         self.scheduler_params = scheduler_params
 
         model = MODEL_FACTORY.get(model_name.lower())
@@ -51,10 +55,7 @@ class CEGANNModule(LightningModule):
             raise NotImplementedError(
                 f"Model {model_name} is not implemented. Available models: {MODEL_FACTORY.keys()}"
             )
-
         self.model = model(**model_kwargs)
-        if compile:
-            self.model = torch.compile(self.model, fullgraph=False)
 
         self.optimizer = optimizer
         self.scheduler = scheduler
@@ -70,20 +71,19 @@ class CEGANNModule(LightningModule):
         """Forward pass of the CEGANNModule.
 
         Args:
-            x (torch.Tensor): Input tensor.
+            x: Input data.
 
         Returns:
             torch.Tensor: Output tensor.
         """
         return self.model(x)
 
-    # TODO check type hint for data. Batch or Data?
     def training_step(self, data: Data, batch_idx: int) -> torch.Tensor:
         """Training step of the CEGANNModule.
 
         Args:
             data: Input batch.
-            batch_idx (int): Index of the current batch.
+            batch_idx: Index of the current batch.
 
         Returns:
             torch.Tensor: Loss value.
@@ -92,7 +92,7 @@ class CEGANNModule(LightningModule):
         loss = F.cross_entropy(preds, torch.as_tensor(data.y, device=self.device))
 
         batch_value = self.train_metrics(preds.softmax(dim=-1), data.y)
-        self.log_dict(batch_value, on_step=True, on_epoch=False, prog_bar=True)
+        self.log_dict(batch_value, on_step=False, on_epoch=True, prog_bar=True)
 
         return loss
 
