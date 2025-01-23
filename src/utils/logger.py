@@ -22,7 +22,7 @@ class RankedLogger(logging.LoggerAdapter):
         super().__init__(logger=logging.getLogger(name), extra=extra)
         self.rank_zero_only = rank_zero_only
 
-    def log(self, level: int, msg: str, rank: int | None = None, *args, **kwargs) -> None:
+    def log(self, level: int, msg: str, rank: int | None = None, *args, **kwargs) -> None:  # type: ignore[override]
         """Delegate a log call to the underlying logger, but prefix the message with the rank it's
         being processed from. If '`rank`' is provided, only log on that rank.
 
@@ -36,7 +36,7 @@ class RankedLogger(logging.LoggerAdapter):
         if not self.isEnabledFor(level):
             return
 
-        msg, kwargs = self.process(msg, kwargs)
+        msg, kwargs = self.process(msg, kwargs)  # type: ignore
         current_rank = getattr(rank_zero_only, "rank", None)
 
         if current_rank is None:
