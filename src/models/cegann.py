@@ -58,13 +58,17 @@ class CEGANN(nn.Module):
         assert self.rbf.bond is True
         assert self.sbf.bond is False
 
-        self.linear_bond = nn.Linear(n_bond_features, edge_expansion_units)
+        self.linear_bond = nn.Sequential(
+            nn.Dropout(dropout), nn.Linear(n_bond_features, edge_expansion_units)
+        )
         self.bond_conv = nn.ModuleList(
             [BondConvLayer(n_bond_features, n_angle_features) for _ in range(n_bond_conv)]
         )
 
         n_angle_conv = n_bond_conv - 1
-        self.linear_angle = nn.Linear(n_angle_features, angle_expansion_units)
+        self.linear_angle = nn.Sequential(
+            nn.Dropout(dropout), nn.Linear(n_angle_features, angle_expansion_units)
+        )
         self.angle_conv = nn.ModuleList(
             [AngleConvLayer(n_bond_features, n_angle_features) for _ in range(n_angle_conv)]
         )
@@ -140,8 +144,8 @@ class CEGANN(nn.Module):
         )
 
         # Expand edge features and angle features
-        bond_features = self.linear_bond(self.dropout(bond_features))
-        angle_features = self.linear_angle(self.dropout(angle_features))
+        bond_features = self.linear_bond(bond_features)
+        angle_features = self.linear_angle(angle_features)
 
         # Reshape bond features and angle features
         # This is useful as we want to sum over the k neighbors later
