@@ -2,13 +2,10 @@ import optuna
 import pytorch_lightning as pl
 import torch_geometric.transforms as T
 import torchmetrics
-from src.datamodule import CEGANNLightningDataset
-from src.datasets import CSG
-from src.models.cegann import CEGANN
+from src.datamodule import LightningDataset
 from src.module import CEGANNModule
 from src.transforms import LineGraph, RandomPerturbation
 from torch import optim
-from torch.utils.data import random_split
 
 
 def objective(trial: optuna.trial.Trial) -> float:
@@ -19,41 +16,32 @@ def objective(trial: optuna.trial.Trial) -> float:
     k_neigh = trial.suggest_int("k_neigh", 8, 24)
 
     # Data management
-    dataset = CSG(
-        pre_transform=LineGraph(),
-        transform=T.Compose(
-            [
-                T.NormalizeFeatures(["x", "edge_attr"]),
-                RandomPerturbation(),
-            ]
-        ),
+    datamodule = LightningDataset(
+        dataset_name="custom",
+        lengths=(0.7, 0.2, 0.1),
+        batch_size=8,
+        use_imbalance_sampler=True,
+        pre_transforms=LineGraph(),
+        transforms=[
+            T.NormalizeFeatures(["x", "edge_attr"]),
+            RandomPerturbation(),
+        ],
+        num_workers=5,
         k=k_neigh,
         rcut=6.0,
-        force_reload=True,
+        force_reload=False,
     )
-    train_dataset, val_dataset, test_dataset = random_split(
-        dataset=dataset,
-        lengths=(0.7, 0.2, 0.1),
-    )
-    datamodule = CEGANNLightningDataset(
-        train_dataset=train_dataset,
-        val_dataset=val_dataset,
-        test_dataset=test_dataset,
-        batch_size=128,
-        num_workers=5,
-    )
-    # Model
-    model = CEGANN(
-        rbf={"num_radial": num_radial},
-        sbf={"num_radial": num_radial},
-        n_classes=dataset.num_classes,
-        edge_expansion_units=edge_expansion_units,
-        angle_expansion_units=angle_expansion_units,
-        n_bond_conv=n_conv_edge,
-    )
-    module = CEGANNModule(
-        model=model,
-        compile=True,
+
+    model = CEGANNModule(
+        model_name="cegann",
+        model_kwargs={
+            "n_classes": datamodule.num_classes,
+            "n_conv_edge": n_conv_edge,
+            "edge_expansion_units": edge_expansion_units,
+            "angle_expansion_units": angle_expansion_units,
+            "rbf": {"num_radial": num_radial},
+            "sbf": {"num_radial": num_radial},
+        },
         optimizer=optim.AdamW,
         scheduler=optim.lr_scheduler.StepLR,
         scheduler_params={"gamma": 0.5, "step_size": 100},
@@ -61,14 +49,14 @@ def objective(trial: optuna.trial.Trial) -> float:
             {
                 "acc": torchmetrics.Accuracy(
                     task="multiclass",
-                    num_classes=dataset.num_classes,
+                    num_classes=datamodule.num_classes,
                 ),
             }
         ),
     )
 
     trainer = pl.Trainer(check_val_every_n_epoch=5, max_epochs=10)
-    trainer.fit(model=module, datamodule=datamodule)
+    trainer.fit(model=model, datamodule=datamodule)
     acc = trainer.test(datamodule=datamodule, ckpt_path="best")
 
     return acc[0]["test/acc"]

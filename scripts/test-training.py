@@ -2,46 +2,33 @@ import torch
 import torch_geometric.transforms as T
 import torchmetrics
 from pytorch_lightning import Trainer, seed_everything
-from pytorch_lightning import callbacks as pl_callbacks
 from pytorch_lightning.loggers import CSVLogger
 from src.constants import DEFAULT_SEED
-from src.datamodule import CEGANNLightningDataset
-from src.datasets import CSG
+from src.datamodule import LightningDataset
 from src.module import CEGANNModule
 from src.transforms import LineGraph, RandomPerturbation
-from src.utils.dataset import random_split
-from torch_geometric.loader import ImbalancedSampler
 
 seed_everything(DEFAULT_SEED)
 
-dataset = CSG(
-    pre_transform=LineGraph(),
-    transform=T.Compose(
-        [
-            T.NormalizeFeatures(["x", "edge_attr"]),
-            RandomPerturbation(),
-        ]
-    ),
+datamodule = LightningDataset(
+    dataset_name="custom",
+    lengths=(0.7, 0.2, 0.1),
+    batch_size=8,
+    use_imbalance_sampler=True,
+    pre_transforms=LineGraph(),
+    transforms=[
+        T.NormalizeFeatures(["x", "edge_attr"]),
+        RandomPerturbation(),
+    ],
+    num_workers=5,
     k=12,
     rcut=6.0,
     force_reload=False,
 )
-train_dataset, val_dataset, test_dataset = random_split(
-    dataset=dataset,
-    lengths=(0.7, 0.2, 0.1),
-)
-datamodule = CEGANNLightningDataset(
-    train_dataset=train_dataset,
-    val_dataset=val_dataset,
-    test_dataset=test_dataset,
-    batch_size=128,
-    num_workers=5,
-    sampler=ImbalancedSampler(torch.tensor([data.y[0].item() for data in train_dataset])),
-)
 
 model = CEGANNModule(
     model_name="cegann",
-    model_kwargs={"n_classes": dataset.num_classes},
+    model_kwargs={"n_classes": datamodule.num_classes},
     optimizer=torch.optim.AdamW,
     scheduler=torch.optim.lr_scheduler.StepLR,
     scheduler_params={"gamma": 0.5, "step_size": 100},
@@ -49,24 +36,27 @@ model = CEGANNModule(
         {
             "acc": torchmetrics.Accuracy(
                 task="multiclass",
-                num_classes=dataset.num_classes,
+                num_classes=datamodule.num_classes,
             ),
         }
     ),
 )
-model = torch.compile(model)
+# model = torch.compile(model)
 
 trainer = Trainer(
-    max_epochs=100,
+    # fast_dev_run=True,
+    max_epochs=1,
     precision="16-mixed",
     callbacks=[
-        pl_callbacks.BatchSizeFinder(steps_per_trial=100),
-        pl_callbacks.LearningRateFinder(min_lr=1e-5, max_lr=0.1, num_training_steps=5_000),
-        pl_callbacks.StochasticWeightAveraging(swa_lrs=0.01),
-        pl_callbacks.ModelCheckpoint(),
+        # pl_callbacks.BatchSizeFinder(steps_per_trial=100),
+        # pl_callbacks.LearningRateFinder(min_lr=1e-5, max_lr=0.1, num_training_steps=5_000),
+        # pl_callbacks.StochasticWeightAveraging(swa_lrs=0.01),
+        # pl_callbacks.ModelCheckpoint(),
     ],
     logger=CSVLogger(save_dir="."),
     deterministic=True,
 )
 
 trainer.fit(model=model, datamodule=datamodule)  # type: ignore
+trainer.validate(model=model, datamodule=datamodule)  # type: ignore
+trainer.test(model=model, datamodule=datamodule)  # type: ignore
