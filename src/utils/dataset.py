@@ -54,5 +54,6 @@ def random_split(
         raise ValueError("Sum of input lengths does not equal the length of the input dataset!")
 
     return [
-        dataset[offset - length : offset] for offset, length in zip(accumulate(lengths), lengths)
+        dataset[int(offset - length) : int(offset)]
+        for offset, length in zip(accumulate(lengths), lengths)
     ]  # type: ignore
