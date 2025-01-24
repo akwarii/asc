@@ -3,12 +3,13 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 import torch
-from pytorch_lightning import LightningDataModule
+from lightning import LightningDataModule
 from torch_geometric import transforms as T
 from torch_geometric.data import Dataset
 from torch_geometric.loader import DataLoader, ImbalancedSampler
 
 from src import datasets
+from src.typing import Stage
 from src.utils import random_split
 
 DATASET_FACTORY: dict[str, Callable] = {
@@ -156,7 +157,7 @@ class LightningDataset(LightningDataModule):
             transform=self.transforms,
         )
 
-    def setup(self, stage: str | None = None) -> None:
+    def setup(self, stage: Stage) -> None:
         """Load the dataset and set the train, validation, and test datasets."""
         # Create a dataset instance only if it was not provided/created before.
         # It avoids reloading the dataset at each call to `setup`.
@@ -198,8 +199,11 @@ class LightningDataset(LightningDataModule):
         """Return a DataLoader for the training dataset. The dataset is shuffled if it is not an
         iterable dataset and no sampling technique is used.
         """
-        assert self.train_dataset is not None
         from torch.utils.data import IterableDataset
+
+        if self.train_dataset is None:
+            self.setup("fit")
+        assert self.train_dataset is not None
 
         kwargs = copy.copy(self.kwargs)
 

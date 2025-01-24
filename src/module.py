@@ -1,15 +1,14 @@
-from collections.abc import Callable
 from typing import Any
 
 import torch
 import torch.nn.functional as F
 import torchmetrics
-from pytorch_lightning import LightningModule
+from lightning import LightningModule
 from torch_geometric.data import Data
 from torch_geometric.nn import MLP
 
 from src.models import CEGANN
-from src.typing import SliceDictType
+from src.optim import get_cosine_schedule_with_warmup
 
 MODEL_FACTORY = {
     "cegann": CEGANN,
@@ -17,55 +16,63 @@ MODEL_FACTORY = {
 }
 
 
-class CEGANNModule(LightningModule):
-    """CEGANNModule is a PyTorch Lightning module that implements the CEGANN (Crystal Edge Graph
-    Attention Neural Network) model.
+class Module(LightningModule):
+    """PyTorch Lightning module used for training and evaluating multi-class classification models.
 
     Args:
-        model: The generator model.
-        optimizer: The optimizer for training the model.
-        scheduler: The learning rate scheduler.
-        criterion: The loss criterion for training the model.
-        metrics: Collection of metrics to evaluate the model performance.
-        scheduler_params: Parameters for the scheduler.
+        model_name (str): The name of the model.
+        optimizer (Callable | torch.optim.Optimizer): The optimizer for training the model.
+        metrics (torchmetrics.MetricCollection): Collection of metrics to evaluate the model
+            performance.
+        compile (bool, optional): Whether to compile the model. Defaults to True.
+        learning_rate (float, optional): The learning rate for the optimizer. Defaults to 1e-3.
+        scheduler (Callable | torch.optim.lr_scheduler._LRScheduler, optional): The learning rate
+            scheduler. Defaults to None.
+        scheduler_params (dict[str, Any], optional): Parameters for the scheduler. Defaults to
+            None.
+        model_kwargs (dict[str, Any], optional): Additional keyword arguments for the model.
+            Defaults to None.
     """
 
     def __init__(
         self,
         model_name: str,
-        optimizer: Callable | torch.optim.Optimizer,
+        num_classes: int,
         metrics: torchmetrics.MetricCollection,
-        learning_rate: float = 1e-3,
-        scheduler: Callable | torch.optim.lr_scheduler._LRScheduler | None = None,
-        scheduler_params: dict[str, Any] | None = None,
+        compile: bool = True,
+        lr: float = 1e-3,
+        warmup: int = 100,
+        max_iters: int = 1_000,
         model_kwargs: dict[str, Any] | None = None,
     ) -> None:
         super().__init__()
 
-        if scheduler_params is None:
-            scheduler_params = dict()
-
-        if model_kwargs is None:
-            model_kwargs = dict()
-
-        self.scheduler_params = scheduler_params
-
-        model = MODEL_FACTORY.get(model_name.lower())
-        if model is None:
-            raise NotImplementedError(
-                f"Model {model_name} is not implemented. Available models: {MODEL_FACTORY.keys()}"
-            )
-        self.model = model(**model_kwargs)
-
-        self.optimizer = optimizer
-        self.scheduler = scheduler
-        self.learning_rate = learning_rate
+        self.save_hyperparameters(logger=False, ignore=["metrics"])
+        self._create_model()
 
         self.train_metrics = metrics.clone(prefix="train/")
         self.val_metrics = metrics.clone(prefix="val/")
         self.test_metrics = metrics.clone(prefix="test/")
 
-        self.save_hyperparameters(logger=False, ignore=["model", "criterion", "metrics"])
+    def _create_model(self) -> None:
+        """Create the model using its name and kwargs given to the module construstor."""
+        model_name = self.hparams["model_name"].lower()
+        model_kwargs = self.hparams["model_kwargs"]
+        in_channels = self.hparams["num_classes"]
+
+        if model_kwargs is None:
+            model_kwargs = dict()
+
+        model = MODEL_FACTORY.get(model_name, None)
+        if model is None:
+            raise NotImplementedError(
+                f"Model {model_name} is not implemented. Available models: {MODEL_FACTORY.keys()}"
+            )
+
+        self.model = model(in_channels=in_channels, **model_kwargs)
+
+        if self.hparams["compile"]:
+            self.model = torch.compile(self.model)
 
     def forward(self, x: Data) -> torch.Tensor:
         """Forward pass of the CEGANNModule.
@@ -78,7 +85,7 @@ class CEGANNModule(LightningModule):
         """
         return self.model(x)
 
-    def training_step(self, data: Data, batch_idx: int) -> torch.Tensor:
+    def training_step(self, data: Data) -> torch.Tensor:
         """Training step of the CEGANNModule.
 
         Args:
@@ -89,10 +96,16 @@ class CEGANNModule(LightningModule):
             torch.Tensor: Loss value.
         """
         preds: torch.Tensor = self(data)
-        loss = F.cross_entropy(preds, torch.as_tensor(data.y, device=self.device))
+        loss = F.cross_entropy(preds, torch.as_tensor(data.y))
 
         batch_value = self.train_metrics(preds.softmax(dim=-1), data.y)
-        self.log_dict(batch_value, on_step=False, on_epoch=True, prog_bar=True)
+        self.log_dict(
+            batch_value,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            batch_size=data.num_nodes,
+        )
 
         return loss
 
@@ -100,15 +113,11 @@ class CEGANNModule(LightningModule):
         """Call hook method at the end of each training epoch."""
         self.train_metrics.reset()
 
-    def validation_step(self, data: Data, batch_idx: int) -> None:
+    def validation_step(self, data: Data) -> None:
         """Validation step of the CEGANNModule.
 
         Args:
             data: Input batch.
-            batch_idx (int): Index of the current batch.
-
-        Returns:
-            torch.Tensor: Loss value.
         """
         preds: torch.Tensor = self(data)
         self.val_metrics.update(preds.softmax(dim=-1), data.y)
@@ -118,15 +127,11 @@ class CEGANNModule(LightningModule):
         self.log_dict(self.val_metrics.compute())
         self.val_metrics.reset()
 
-    def test_step(self, data: Data, batch_idx: int) -> None:
+    def test_step(self, data: Data) -> None:
         """Test step of the CEGANNModule.
 
         Args:
             data: Input batch.
-            batch_idx (int): Index of the current batch.
-
-        Returns:
-            torch.Tensor: Loss value.
         """
         preds: torch.Tensor = self(data)
         self.test_metrics.update(preds.softmax(dim=-1), data.y)
@@ -136,31 +141,16 @@ class CEGANNModule(LightningModule):
         self.log_dict(self.test_metrics.compute())
         self.test_metrics.reset()
 
-    # TODO everything below needs to be updated
-    def predict_step(
-        self, batch: tuple[Data, torch.Tensor, SliceDictType], batch_idx: int
-    ) -> torch.Tensor:
+    def predict_step(self, data: Data) -> torch.Tensor:
         """Predict step of the CEGANNModule.
 
         Args:
-            batch (tuple[torch.Tensor, torch.Tensor]): Input batch.
-            batch_idx (int): Index of the current batch.
-        """
-        preds = self.model_inference(batch)
-        return preds
-
-    def model_inference(self, batch: tuple[Data, torch.Tensor, SliceDictType]) -> torch.Tensor:
-        """Perform an inference step of the model.
-
-        Args:
-            batch (tuple[torch.Tensor, torch.Tensor]): Input batch.
+            data: Input batch.
 
         Returns:
-            torch.Tensor: Predicted labels.
+            torch.Tensor: Predicted class labels.
         """
-        x, _, _ = batch
-        logits = self.forward(x)
-        return torch.argmax(logits, dim=1)
+        return torch.argmax(self(data), dim=-1)
 
     def configure_optimizers(self) -> dict[str, Any]:
         """Configure the optimizer and learning rate scheduler.
@@ -168,22 +158,20 @@ class CEGANNModule(LightningModule):
         Returns:
             Dictionary containing the optimizer and learning rate scheduler.
         """
-        if callable(self.optimizer):
-            optimizer = self.optimizer(lr=self.learning_rate, params=self.parameters())
+        optimizer = torch.optim.AdamW(self.parameters(), lr=self.hparams["lr"])
 
-        if self.scheduler is not None:
-            if callable(self.scheduler):
-                scheduler = self.scheduler(
-                    optimizer=optimizer,
-                    **self.scheduler_params,
-                )
-            return {
-                "optimizer": optimizer,
-                "lr_scheduler": {
-                    "scheduler": scheduler,
-                    "monitor": "val/loss",
-                    "interval": "epoch",
-                    "frequency": 1,
-                },
-            }
-        return {"optimizer": optimizer}
+        lr_scheduler = get_cosine_schedule_with_warmup(
+            optimizer=optimizer,
+            num_warmup_steps=self.hparams["warmup"],
+            num_training_steps=self.hparams["max_iters"],
+        )
+
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler": lr_scheduler,
+                "interval": "step",
+                "monitor": "val/loss",
+                "frequency": 1,
+            },
+        }

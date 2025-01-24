@@ -1,7 +1,7 @@
 from collections.abc import Mapping
 from typing import Any
 
-import pytorch_lightning as pl
+import lightning as pl
 
 from src.constants import DEFAULT_SEED
 
