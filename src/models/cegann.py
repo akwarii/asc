@@ -152,8 +152,8 @@ class CEGANN(nn.Module):
         )
 
         # Expand edge features and angle features
-        bond_features: torch.Tensor = self.linear_bond(bond_features)
-        angle_features: torch.Tensor = self.linear_angle(angle_features)
+        bond_features = self.linear_bond(bond_features)
+        angle_features = self.linear_angle(angle_features)
 
         # Reshape bond features and angle features
         # This is useful as we want to sum over the k neighbors later
