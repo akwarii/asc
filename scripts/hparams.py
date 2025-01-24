@@ -4,7 +4,6 @@ from typing import Any
 
 import lightning as L
 import optuna
-import torch_geometric.transforms as T
 import torchmetrics
 from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder
 from optuna import distributions
@@ -38,7 +37,7 @@ def get_sampler_and_pruner(
 
 def report_trial_params(trial: optuna.trial.Trial) -> None:
     print(f"Trial {trial.number}/{BUDGET}:")
-    print("    Parameters: ")
+    print("  Parameters: ")
     for param, value in trial.params.items():
         print(f"  {param}: {value}")
 
@@ -57,7 +56,7 @@ def report_statistics(study: optuna.study.Study) -> None:
 
     print("Best trial:")
     print(f"  Value: {best_trial.value}")
-    print("  Params: ")
+    print("  Params:")
     hparams_importance = get_param_importances(study)
     for (param, value), (_, importance) in zip(
         best_trial.params.items(), hparams_importance.items()
@@ -71,8 +70,8 @@ def trial_step(hparams: dict[str, Any]) -> None:
     # Check whether we already evaluated the sampled hyperparameters
     # If it exists, then use the existing value as trial duplicated the parameters.
     for t in reversed(trial.study.get_trials(deepcopy=False)):
-        if trial.params == t.params:
-            study.tell(trial, t.value)
+        if trial.params == t.params and trial.number != t.number:
+            study.tell(trial, t.value, t.state)
 
     # Configure the Lightning Trainer
     trainer = L.Trainer(
@@ -119,7 +118,7 @@ def trial_step(hparams: dict[str, Any]) -> None:
         state = optuna.trial.TrialState.FAIL
 
     # If validation accuracy is not available, use None to indicate that the trial has failed.
-    val_acc = trainer.callback_metrics.get("val/acc", None)
+    val_acc = trainer.callback_metrics["val/acc"]
     if val_acc is not None:
         val_acc = val_acc.item()
 
@@ -164,7 +163,6 @@ if __name__ == "__main__":
         use_imbalance_sampler=True,
         pre_transforms=LineGraph(),
         transforms=[
-            T.NormalizeFeatures(["x", "edge_attr"]),
             RandomPerturbation(std=0.05),
         ],
         num_workers=5,
