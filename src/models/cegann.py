@@ -20,25 +20,32 @@ class CEGANN(nn.Module):
         sbf: Information about the Gaussian basis function expansion for angle features.
         edge_expansion_units: Number of units for expanding edge features.
         angle_expansion_units: Number of units for expanding angle features.
-        n_classes: Number of output classes.
+        in_channels: Number of output classes.
         embedding: Whether to return embedded features.
     """
 
     def __init__(
         self,
-        n_classes: int,
+        in_channels: int,
         n_bond_conv: int = 3,
         rbf: dict | nn.Module | None = None,
         sbf: dict | nn.Module | None = None,
+        num_radial: int | None = None,
         edge_expansion_units: int = 128,
         angle_expansion_units: int = 128,
         dropout: float = 0.1,
+        classification_units: int = 128,
+        classification_layers: int = 2,
         embedding: bool = False,
     ) -> None:
         super().__init__()
 
+        if (rbf is None or sbf is None) and num_radial is None:
+            raise ValueError("num_radial must be provided if rbf and/or sbf are not provided.")
+
         if rbf is None:
-            self.rbf = GaussianBasis()
+            assert num_radial is not None
+            self.rbf = GaussianBasis(num_radial=num_radial)
         elif isinstance(rbf, dict):
             rbf.pop("bond", None)
             self.rbf = GaussianBasis(**rbf)
@@ -47,7 +54,8 @@ class CEGANN(nn.Module):
         n_bond_features = self.rbf.num_radial
 
         if sbf is None:
-            self.sbf = GaussianBasis(bond=False)
+            assert num_radial is not None
+            self.sbf = GaussianBasis(num_radial=num_radial, bond=False)
         elif isinstance(sbf, dict):
             sbf.pop("bond", None)
             self.sbf = GaussianBasis(bond=False, **sbf)
@@ -78,11 +86,11 @@ class CEGANN(nn.Module):
         self.softplus = nn.Softplus()
 
         self.classification_head = MLP(
-            channel_list=[cat_units]
-            # + [hidden_channels]
-            + [n_classes],
-            dropout=dropout,
-            act=nn.SiLU,
+            in_channels=cat_units,
+            hidden_channels=classification_units,
+            out_channels=in_channels,
+            num_layers=classification_layers,
+            plain_last=True,
         )
 
         self.embedding = embedding
@@ -144,8 +152,8 @@ class CEGANN(nn.Module):
         )
 
         # Expand edge features and angle features
-        bond_features = self.linear_bond(bond_features)
-        angle_features = self.linear_angle(angle_features)
+        bond_features: torch.Tensor = self.linear_bond(bond_features)
+        angle_features: torch.Tensor = self.linear_angle(angle_features)
 
         # Reshape bond features and angle features
         # This is useful as we want to sum over the k neighbors later
