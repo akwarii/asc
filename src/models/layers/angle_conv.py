@@ -31,7 +31,7 @@ class AngleConvLayer(nn.Module):
 
         self.normalized_activation = nn.Sequential(
             nn.LayerNorm(self.angle_fea_len),
-            nn.SiLU(),
+            nn.Softplus(),
         )
 
     def forward(
