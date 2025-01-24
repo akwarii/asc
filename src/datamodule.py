@@ -127,6 +127,8 @@ class LightningDataset(LightningDataModule):
                 pre_filter=self.pre_filters,
                 force_reload=self.force_reload,
                 log=self.kwargs.get("log", True),
+                k=self.kwargs.get("k", 12),
+                rcut=self.kwargs.get("rcut", 6.0),
             )
 
         assert self.dataset is not None
@@ -168,6 +170,8 @@ class LightningDataset(LightningDataModule):
                 transform=self.transforms,
                 force_reload=self.force_reload,
                 log=self.kwargs.get("log", True),
+                k=self.kwargs.get("k", 12),
+                rcut=self.kwargs.get("rcut", 6.0),
             )
 
         # Make sure the dataset is split only once and ensure the dataset is not
