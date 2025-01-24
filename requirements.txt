@@ -10,8 +10,14 @@ aiosignal==1.3.2
     # via aiohttp
 alembic==1.14.0
     # via optuna
+antlr4-python3-runtime==4.9.3
+    # via
+    #   hydra-core
+    #   omegaconf
 attrs==24.2.0
     # via aiohttp
+bitsandbytes==0.45.1
+    # via lightning
 certifi==2024.8.30
     # via requests
 charset-normalizer==3.4.0
@@ -24,6 +30,8 @@ cycler==0.12.1
     # via matplotlib
 cython==3.0.11
     # via lightning-cegann2 (pyproject.toml)
+docstring-parser==0.16
+    # via jsonargparse
 filelock==3.16.1
     # via
     #   torch
@@ -42,16 +50,22 @@ fsspec==2024.10.0
     #   torch-geometric
 greenlet==3.1.1
     # via sqlalchemy
+hydra-core==1.3.2
+    # via lightning
 idna==3.10
     # via
     #   requests
     #   yarl
+importlib-resources==6.5.2
+    # via typeshed-client
 jinja2==3.1.4
     # via
     #   torch
     #   torch-geometric
 joblib==1.4.2
     # via pymatgen
+jsonargparse==4.36.0
+    # via lightning
 kiwisolver==1.4.7
     # via matplotlib
 latexcodec==3.0.0
@@ -65,12 +79,18 @@ lightning-utilities==0.11.9
     #   torchmetrics
 mako==1.3.8
     # via alembic
+markdown-it-py==3.0.0
+    # via rich
 markupsafe==3.0.2
     # via
     #   jinja2
     #   mako
 matplotlib==3.9.4
-    # via pymatgen
+    # via
+    #   lightning
+    #   pymatgen
+mdurl==0.1.2
+    # via markdown-it-py
 monty==2024.12.10
     # via pymatgen
 mpmath==1.3.0
@@ -85,6 +105,7 @@ networkx==3.4.2
     #   torch
 numpy==1.26.4
     # via
+    #   bitsandbytes
     #   contourpy
     #   matplotlib
     #   monty
@@ -93,6 +114,7 @@ numpy==1.26.4
     #   pymatgen
     #   scipy
     #   spglib
+    #   tensorboardx
     #   torch-geometric
     #   torchmetrics
 nvidia-cublas-cu12==12.4.5.8
@@ -127,16 +149,26 @@ nvidia-nvjitlink-cu12==12.4.127
     #   torch
 nvidia-nvtx-cu12==12.4.127
     # via torch
+omegaconf==2.3.0
+    # via
+    #   hydra-core
+    #   lightning
 optuna==4.1.0
+    # via
+    #   lightning-cegann2 (pyproject.toml)
+    #   optuna-integration
+optuna-integration==4.2.1
     # via lightning-cegann2 (pyproject.toml)
 packaging==24.2
     # via
+    #   hydra-core
     #   lightning
     #   lightning-utilities
     #   matplotlib
     #   optuna
     #   plotly
     #   pytorch-lightning
+    #   tensorboardx
     #   torchmetrics
 palettable==3.3.3
     # via pymatgen
@@ -150,10 +182,14 @@ propcache==0.2.1
     # via
     #   aiohttp
     #   yarl
+protobuf==5.29.3
+    # via tensorboardx
 psutil==6.1.0
     # via torch-geometric
 pybtex==0.24.0
     # via pymatgen
+pygments==2.19.1
+    # via rich
 pymatgen==2024.11.13
     # via lightning-cegann2 (pyproject.toml)
 pyparsing==3.2.0
@@ -172,7 +208,9 @@ pytz==2024.2
     # via pandas
 pyyaml==6.0.2
     # via
+    #   jsonargparse
     #   lightning
+    #   omegaconf
     #   optuna
     #   pybtex
     #   pytorch-lightning
@@ -180,6 +218,8 @@ requests==2.32.3
     # via
     #   pymatgen
     #   torch-geometric
+rich==13.9.4
+    # via lightning
 ruamel-yaml==0.18.6
     # via
     #   monty
@@ -208,8 +248,11 @@ tabulate==0.9.0
     # via pymatgen
 tenacity==9.0.0
     # via plotly
+tensorboardx==2.6.2.2
+    # via lightning
 torch==2.5.1
     # via
+    #   bitsandbytes
     #   lightning
     #   pytorch-lightning
     #   torchmetrics
@@ -228,6 +271,8 @@ tqdm==4.67.1
     #   torch-geometric
 triton==3.1.0
     # via torch
+typeshed-client==2.7.0
+    # via jsonargparse
 typing-extensions==4.12.2
     # via
     #   alembic
@@ -236,6 +281,7 @@ typing-extensions==4.12.2
     #   pytorch-lightning
     #   sqlalchemy
     #   torch
+    #   typeshed-client
 tzdata==2024.2
     # via pandas
 uncertainties==3.2.2
