@@ -1,6 +1,5 @@
 import copy
 from collections.abc import Callable, Sequence
-from typing import Any
 
 import torch
 from lightning import LightningDataModule
@@ -65,7 +64,7 @@ class LightningDataset(LightningDataModule):
         pre_transforms: Callable | list[Callable] | None = None,
         transforms: Callable | list[Callable] | None = None,
         force_reload: bool = False,
-        **kwargs: Any,
+        **kwargs,
     ) -> None:
         if dataset_name is not None and dataset_name not in DATASET_FACTORY:
             raise ValueError(
@@ -140,7 +139,7 @@ class LightningDataset(LightningDataModule):
         return self._batch_size
 
     @batch_size.setter
-    def batch_size(self, value) -> None:
+    def batch_size(self, value: int) -> None:
         self._batch_size = value
         self.kwargs["batch_size"] = value
 
@@ -192,7 +191,7 @@ class LightningDataset(LightningDataModule):
             for attr, dataset in zip(split_map[len(self.lengths)], datasets):
                 setattr(self, attr, dataset)
 
-    def dataloader(self, dataset: Dataset, **kwargs: Any) -> Any:
+    def dataloader(self, dataset: Dataset, **kwargs) -> DataLoader:
         """Return a DataLoader for the given dataset."""
         kwargs.pop("k", None)
         kwargs.pop("rcut", None)
@@ -271,6 +270,6 @@ class LightningDataset(LightningDataModule):
         return f"{self.__class__.__name__}({kwargs})"
 
 
-def kwargs_repr(**kwargs: Any) -> str:
+def kwargs_repr(**kwargs) -> str:
     """Return a string representation of the keyword arguments."""
     return ", ".join([f"{k}={v}" for k, v in kwargs.items() if v is not None])
