@@ -126,8 +126,8 @@ pip install uv
 # Install the virtual environment
 uv sync
 
-# Add the extra option if you want to download datasets
-uv sync --extra api
+# Add extra options if you want to download datasets and/or use hyperparameter optimization
+uv sync --all-groups
 
 # Activate the virtual environment
 source .venv/bin/activate

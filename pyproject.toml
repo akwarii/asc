@@ -7,20 +7,21 @@ requires-python = ">=3.11"
 dependencies = [
     "cython>=3.0.11",
     "lightning[extra]>=2.4.0",
-    "optuna-integration>=4.2.1",
-    "optuna>=4.1.0",
     "pymatgen>=2024.11.13",
     "python-dotenv>=1.0.1",
     "torch-geometric>=2.6.1",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 api = [
     "mp-api>=0.44.0",
     "kaggle>=1.6.17",
 ]
-
-[dependency-groups]
+optuna = [
+    "optuna>=4.1.0",
+    "optuna-integration>=4.2.1",
+    "scikit-learn>=1.6.1",
+]
 dev = [
     "ipykernel>=6.29.5",
     "pytest>=8.3.4",
@@ -41,7 +42,7 @@ select = [
     "N", # pep8 naming
     "D", # pydocstyle
     "UP", # pyupgrade
-    # "ANN", # flake8-annotations
+    "ANN", # flake8-annotations
     # "S", # flake8-bandit
     "BLE", # flake8-blind-except
     # "FBT", # flake8-boolean-trap
@@ -67,7 +68,7 @@ docstring-code-format = true
 "__init__.py" = ["F401"] # Unused import
 "tests/**" = [
     "D", # Pydocstyle
-    "S101", # Use of assert statement
+    "ANN", # flake8-annotations
 ]
 "notebooks/**" = [
     "D", # Pydocstyle
