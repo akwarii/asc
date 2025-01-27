@@ -5,7 +5,7 @@ from typing import Any
 import lightning as L
 import optuna
 import torchmetrics
-from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder
+from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, RichProgressBar
 from optuna import distributions
 from optuna.importance import get_param_importances
 from optuna.trial import TrialState
@@ -56,7 +56,7 @@ def report_statistics(study: optuna.study.Study) -> None:
 
     print("Best trial:")
     print(f"  Value: {best_trial.value}")
-    print("  Params:")
+    print("  Params: ")
     hparams_importance = get_param_importances(study)
     for (param, value), (_, importance) in zip(
         best_trial.params.items(), hparams_importance.items()
@@ -67,19 +67,29 @@ def report_statistics(study: optuna.study.Study) -> None:
 def trial_step(hparams: dict[str, Any]) -> None:
     trial = study.ask(fixed_distributions=hparams)
 
+    # Make sure the budget is shared across all processes
+    if trial.number >= BUDGET:
+        study.stop()
+
     # Check whether we already evaluated the sampled hyperparameters
     # If it exists, then use the existing value as trial duplicated the parameters.
     for t in reversed(trial.study.get_trials(deepcopy=False)):
         if trial.params == t.params and trial.number != t.number:
-            study.tell(trial, t.value, t.state)
+            if t.state == TrialState.RUNNING:
+                study.tell(trial, state=TrialState.PRUNED)
+            else:
+                study.tell(trial, t.value, t.state)
 
     # Configure the Lightning Trainer
     trainer = L.Trainer(
+        precision="16-mixed",
+        enable_progress_bar=True,
         logger=True,
         enable_checkpointing=False,
         max_epochs=EPOCHS,
         callbacks=[
-            BatchSizeFinder(steps_per_trial=10),
+            RichProgressBar(),
+            BatchSizeFinder(init_val=32, steps_per_trial=10),
             LearningRateFinder(min_lr=1e-5, max_lr=0.1),
             PyTorchLightningPruningCallback(trial, monitor="val/acc"),
         ],
@@ -117,12 +127,11 @@ def trial_step(hparams: dict[str, Any]) -> None:
     except (Exception, KeyboardInterrupt):
         state = optuna.trial.TrialState.FAIL
 
-    # If validation accuracy is not available, use None to indicate that the trial has failed.
-    val_acc = trainer.callback_metrics["val/acc"]
-    if val_acc is not None:
-        val_acc = val_acc.item()
-
-    study.tell(trial, val_acc, state)
+    if state in [optuna.trial.TrialState.PRUNED, optuna.trial.TrialState.FAIL]:
+        study.tell(trial, state=state)
+    else:
+        val_acc = trainer.callback_metrics["val/acc"].item()
+        study.tell(trial, val_acc, state)
 
 
 if __name__ == "__main__":
@@ -169,6 +178,7 @@ if __name__ == "__main__":
         k=K_NEIGH,
         rcut=6.0,
         force_reload=force_reload,
+        persistent_workers=False,
     )
 
     # Hyperparameter optimization loop
