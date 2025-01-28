@@ -1,6 +1,5 @@
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 from torch_geometric.data import InMemoryDataset
 
@@ -27,7 +26,7 @@ class CustomDataset(InMemoryDataset):
         pre_filter: Callable | None = None,
         force_reload: bool = False,
         download_only: bool = False,
-        **kwargs: Any,
+        **kwargs,
     ) -> None:
         self.download_only = download_only
         self.kwargs = kwargs.copy()

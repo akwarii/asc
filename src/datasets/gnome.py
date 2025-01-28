@@ -14,7 +14,6 @@
 import os
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 import pandas as pd
 from torch_geometric.data import InMemoryDataset
@@ -22,7 +21,7 @@ from torch_geometric.data import InMemoryDataset
 from src.typing import PathLike
 
 
-def download_from_link(link: str, output_dir: PathLike):
+def download_from_link(link: str, output_dir: PathLike) -> None:
     """Download a file from a public link using requests."""
     import requests
 
@@ -67,7 +66,7 @@ class Gnome(InMemoryDataset):
         pre_filter: Callable | None = None,
         force_reload: bool = False,
         download_only: bool = False,
-        **kwargs: Any,
+        **kwargs,
     ) -> None:
         self.download_only = download_only
         self.kwargs = kwargs.copy()

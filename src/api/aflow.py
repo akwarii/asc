@@ -58,7 +58,7 @@ class AflowAPI:
         """Enters the context manager."""
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
+    def __exit__(self, exc_type, exc_value, traceback) -> None:  # noqa
         """Exits the context manager."""
         self.session.close()
 

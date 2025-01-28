@@ -52,7 +52,7 @@ def lattice_from_geometry(geometry: Sequence[float]) -> np.ndarray:
     return cell
 
 
-def poscar_from_entry(entry) -> str:
+def poscar_from_entry(entry: dict) -> str:
     """Create a POSCAR string from an entry in the Aflow dataset."""
     lattice = lattice_from_geometry(entry["geometry"])
     species = re.findall("[A-Z][a-z]*", entry["compound"])

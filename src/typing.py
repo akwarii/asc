@@ -1,7 +1,7 @@
 from pathlib import Path
-from typing import Literal, TypeAlias
+from typing import Any, Literal, TypeAlias
 
-AfluxResponse: TypeAlias = list[dict[str, str]]
+AfluxResponse: TypeAlias = list[dict[str, Any]]
 PathLike: TypeAlias = str | Path
 
 Stage: TypeAlias = Literal["fit", "validate", "test", "predict"]

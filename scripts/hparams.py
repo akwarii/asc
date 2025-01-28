@@ -1,9 +1,11 @@
+import gc
 import pickle
 from pathlib import Path
 from typing import Any
 
 import lightning as L
 import optuna
+import torch
 import torchmetrics
 from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, RichProgressBar
 from optuna import distributions
@@ -87,31 +89,33 @@ def trial_step(hparams: dict[str, Any]) -> None:
         logger=True,
         enable_checkpointing=False,
         max_epochs=EPOCHS,
+        log_every_n_steps=10,
         callbacks=[
             RichProgressBar(),
-            BatchSizeFinder(init_val=32, steps_per_trial=10),
+            BatchSizeFinder(init_val=32, steps_per_trial=10, max_trials=8),
             LearningRateFinder(min_lr=1e-5, max_lr=0.1),
             PyTorchLightningPruningCallback(trial, monitor="val/acc"),
         ],
     )
 
     # Configure the Lightning Module
-    model = Module(
-        model_name="cegann",
-        num_classes=datamodule.num_classes,
-        compile=True,
-        metrics=torchmetrics.MetricCollection(
-            {
-                "acc": torchmetrics.Accuracy(
-                    task="multiclass",
-                    num_classes=datamodule.num_classes,
-                ),
-            }
-        ),
-        warmup=100,
-        max_iters=trainer.max_epochs * len(datamodule.train_dataloader()),  # type: ignore
-        model_kwargs=trial.params,
-    )
+    with trainer.init_module():
+        model = Module(
+            model_name="cegann",
+            num_classes=datamodule.num_classes,
+            compile=True,
+            metrics=torchmetrics.MetricCollection(
+                {
+                    "acc": torchmetrics.Accuracy(
+                        task="multiclass",
+                        num_classes=datamodule.num_classes,
+                    ),
+                }
+            ),
+            warmup=100,
+            max_iters=trainer.max_epochs * len(datamodule.train_dataloader()),  # type: ignore
+            model_kwargs=trial.params,
+        )
 
     # Log the hyperparameters and start the training
     report_trial_params(trial)
@@ -124,14 +128,25 @@ def trial_step(hparams: dict[str, Any]) -> None:
         trainer.fit(model, datamodule=datamodule)
     except optuna.TrialPruned:
         state = optuna.trial.TrialState.PRUNED
-    except (Exception, KeyboardInterrupt):
+        print(f"Trial {trial.number} was pruned.")
+    except (Exception, KeyboardInterrupt) as e:
         state = optuna.trial.TrialState.FAIL
+        print(f"Trial {trial.number} failed: {e}")
 
     if state in [optuna.trial.TrialState.PRUNED, optuna.trial.TrialState.FAIL]:
         study.tell(trial, state=state)
     else:
         val_acc = trainer.callback_metrics["val/acc"].item()
         study.tell(trial, val_acc, state)
+        print(
+            f"Trial {trial.number} finished with value: {val_acc} and parameters: {trial.params}"
+        )
+
+    # Make sure the memory is correctly released
+    torch.cuda.empty_cache()
+    gc.collect()
+    del model
+    del trainer
 
 
 if __name__ == "__main__":
