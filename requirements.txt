@@ -8,8 +8,6 @@ aiohttp==3.11.10
     #   torch-geometric
 aiosignal==1.3.2
     # via aiohttp
-alembic==1.14.0
-    # via optuna
 antlr4-python3-runtime==4.9.3
     # via
     #   hydra-core
@@ -22,8 +20,6 @@ certifi==2024.8.30
     # via requests
 charset-normalizer==3.4.0
     # via requests
-colorlog==6.9.0
-    # via optuna
 contourpy==1.3.1
     # via matplotlib
 cycler==0.12.1
@@ -48,8 +44,6 @@ fsspec==2024.10.0
     #   pytorch-lightning
     #   torch
     #   torch-geometric
-greenlet==3.1.1
-    # via sqlalchemy
 hydra-core==1.3.2
     # via lightning
 idna==3.10
@@ -77,14 +71,10 @@ lightning-utilities==0.11.9
     #   lightning
     #   pytorch-lightning
     #   torchmetrics
-mako==1.3.8
-    # via alembic
 markdown-it-py==3.0.0
     # via rich
 markupsafe==3.0.2
-    # via
-    #   jinja2
-    #   mako
+    # via jinja2
 matplotlib==3.9.4
     # via
     #   lightning
@@ -109,7 +99,6 @@ numpy==1.26.4
     #   contourpy
     #   matplotlib
     #   monty
-    #   optuna
     #   pandas
     #   pymatgen
     #   scipy
@@ -153,19 +142,12 @@ omegaconf==2.3.0
     # via
     #   hydra-core
     #   lightning
-optuna==4.1.0
-    # via
-    #   lightning-cegann2 (pyproject.toml)
-    #   optuna-integration
-optuna-integration==4.2.1
-    # via lightning-cegann2 (pyproject.toml)
 packaging==24.2
     # via
     #   hydra-core
     #   lightning
     #   lightning-utilities
     #   matplotlib
-    #   optuna
     #   plotly
     #   pytorch-lightning
     #   tensorboardx
@@ -211,7 +193,6 @@ pyyaml==6.0.2
     #   jsonargparse
     #   lightning
     #   omegaconf
-    #   optuna
     #   pybtex
     #   pytorch-lightning
 requests==2.32.3
@@ -236,10 +217,6 @@ six==1.17.0
     #   python-dateutil
 spglib==2.5.0
     # via pymatgen
-sqlalchemy==2.0.36
-    # via
-    #   alembic
-    #   optuna
 sympy==1.13.1
     # via
     #   pymatgen
@@ -265,7 +242,6 @@ torchmetrics==1.6.0
 tqdm==4.67.1
     # via
     #   lightning
-    #   optuna
     #   pymatgen
     #   pytorch-lightning
     #   torch-geometric
@@ -275,11 +251,9 @@ typeshed-client==2.7.0
     # via jsonargparse
 typing-extensions==4.12.2
     # via
-    #   alembic
     #   lightning
     #   lightning-utilities
     #   pytorch-lightning
-    #   sqlalchemy
     #   torch
     #   typeshed-client
 tzdata==2024.2
