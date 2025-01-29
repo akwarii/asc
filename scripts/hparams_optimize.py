@@ -13,6 +13,7 @@ from src.transforms import LineGraph, RandomPerturbation
 EPOCHS = 30
 K_NEIGH = 12
 BUDGET = 100
+FORCE_RELOAD = False
 STUDY_NAME = f"cegann-k{K_NEIGH}"
 STORAGE_URL = f"sqlite:///{STUDY_NAME}.db"
 
@@ -69,11 +70,11 @@ def objective(trial: optuna.Trial) -> float:
             if t.value is not None:
                 return t.value
 
-    # Only reload the dataset if there are no trials.
-    # It means that the number of neighbors may have changed.
-    force_reload = False
-    if trial.number == 0:
-        force_reload = True
+    # Only process the dataset if asked to do so.
+    # Enforce the dataset to NOT be reloaded if the trial is not the first one.
+    force_reload = FORCE_RELOAD
+    if trial.number != 0:
+        force_reload = False
 
     datamodule = LightningDataset(
         dataset_name="csg",
