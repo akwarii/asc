@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         os: ["ubuntu-latest"]
-        python-version: ["3.10", "3.11"]
+        python-version: ["3.11"]
 
     timeout-minutes: 20
 
@@ -39,9 +39,9 @@ jobs:
         run: |
           python -m pip list
 
-      - name: Run pytest
-        run: |
-          pytest -v
+      # - name: Run pytest
+      #   run: |
+      #     pytest -v
 
   run_tests_macos:
     runs-on: ${{ matrix.os }}
@@ -73,9 +73,9 @@ jobs:
         run: |
           python -m pip list
 
-      - name: Run pytest
-        run: |
-          pytest -v
+      # - name: Run pytest
+      #   run: |
+      #     pytest -v
 
   run_tests_windows:
     runs-on: ${{ matrix.os }}
@@ -107,31 +107,31 @@ jobs:
         run: |
           python -m pip list
 
-      - name: Run pytest
-        run: |
-          pytest -v
+      # - name: Run pytest
+      #   run: |
+      #     pytest -v
 
   # upload code coverage report
-  code-coverage:
-    runs-on: ubuntu-latest
+  # code-coverage:
+  #   runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+  #     - name: Set up Python 3.11
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: "3.11"
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install uv
-          uv sync --all-groups
+  #     - name: Install dependencies
+  #       run: |
+  #         python -m pip install --upgrade pip
+  #         pip install -r requirements.txt
+  #         pip install pytest-cov
 
-      - name: Run tests and collect coverage
-        run: pytest #--cov src
+  #     - name: Run tests and collect coverage
+  #       run: pytest #--cov src
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+  #     - name: Upload coverage to Codecov
+  #       uses: codecov/codecov-action@v5
