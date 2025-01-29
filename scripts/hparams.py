@@ -9,7 +9,6 @@ import torch
 import torchmetrics
 from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, RichProgressBar
 from optuna import distributions
-from optuna.importance import get_param_importances
 from optuna.trial import TrialState
 from optuna_integration import PyTorchLightningPruningCallback
 from src.constants import DEFAULT_SEED
@@ -18,7 +17,7 @@ from src.module import Module
 from src.transforms import LineGraph, RandomPerturbation
 
 EPOCHS = 50
-K_NEIGH = 8
+K_NEIGH = 12
 BUDGET = 100
 STUDY_NAME = f"cegann-k{K_NEIGH}"
 STORAGE = f"sqlite:///{STUDY_NAME}.db"
@@ -58,29 +57,25 @@ def report_statistics(study: optuna.study.Study) -> None:
 
     print("Best trial:")
     print(f"  Value: {best_trial.value}")
-    print("  Params: ")
-    hparams_importance = get_param_importances(study)
+    print("  Params (importance): ")
+    hparams_importance = optuna.importance.get_param_importances(study)
     for (param, value), (_, importance) in zip(
         best_trial.params.items(), hparams_importance.items()
     ):
-        print(f"    {param}: {value} ({importance:.2f})")
+        print(f"    {param:<22}: {value:<3} ({importance:.2%})")
 
 
 def trial_step(hparams: dict[str, Any]) -> None:
-    trial = study.ask(fixed_distributions=hparams)
-
-    # Make sure the budget is shared across all processes
-    if trial.number >= BUDGET:
-        study.stop()
+    trial = study.ask(hparams)
+    report_trial_params(trial)
 
     # Check whether we already evaluated the sampled hyperparameters
     # If it exists, then use the existing value as trial duplicated the parameters.
     for t in reversed(trial.study.get_trials(deepcopy=False)):
         if trial.params == t.params and trial.number != t.number:
-            if t.state == TrialState.RUNNING:
-                study.tell(trial, state=TrialState.PRUNED)
-            else:
-                study.tell(trial, t.value, t.state)
+            print(f"Trial {trial.number} is a duplicate of trial {t.number}.")
+            study.tell(trial, state=TrialState.PRUNED)
+            return
 
     # Configure the Lightning Trainer
     trainer = L.Trainer(
@@ -118,7 +113,6 @@ def trial_step(hparams: dict[str, Any]) -> None:
         )
 
     # Log the hyperparameters and start the training
-    report_trial_params(trial)
     if trainer.logger is not None:
         trainer.logger.log_hyperparams(trial.params)
 
@@ -144,6 +138,7 @@ def trial_step(hparams: dict[str, Any]) -> None:
 
     # Make sure the memory is correctly released
     torch.cuda.empty_cache()
+    torch._dynamo.reset()
     gc.collect()
     del model
     del trainer
@@ -187,17 +182,21 @@ if __name__ == "__main__":
         use_imbalance_sampler=True,
         pre_transforms=LineGraph(),
         transforms=[
-            RandomPerturbation(std=0.05),
+            RandomPerturbation(std=0.1),
         ],
         num_workers=5,
         k=K_NEIGH,
         rcut=6.0,
         force_reload=force_reload,
-        persistent_workers=False,
+        persistent_workers=False,  # optuna seems to spawn new persistent workers at each trial
     )
 
     # Hyperparameter optimization loop
     for _ in range(BUDGET):
+        # Make sure the budget is shared across all processes
+        if len(study.get_trials(deepcopy=False)) >= BUDGET:
+            break
+
         trial_step(hparam_distributions)
 
         with open(sampler_pkl_path, "wb") as f:
