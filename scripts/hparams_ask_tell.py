@@ -1,5 +1,6 @@
 import gc
 import pickle
+import signal
 from pathlib import Path
 from typing import Any
 
@@ -149,6 +150,8 @@ if __name__ == "__main__":
 
     sampler_pkl_path = Path(f"{STUDY_NAME}_sampler.pkl")
     sampler, pruner = get_sampler_and_pruner(sampler_pkl_path)
+    
+    optuna.storages.RDBStorage()
 
     study = optuna.create_study(
         direction="maximize",
