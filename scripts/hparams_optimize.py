@@ -89,6 +89,7 @@ def objective(trial: optuna.Trial) -> float:
         rcut=6.0,
         force_reload=force_reload,
         batch_size=512,
+        persistent_workers=False,
     )
 
     # Configure the Lightning Trainer
@@ -131,6 +132,10 @@ def objective(trial: optuna.Trial) -> float:
     trainer.fit(model, datamodule=datamodule)
     val_acc = trainer.callback_metrics["val/acc"].item()
 
+    del trainer
+    del datamodule
+    del model
+
     return val_acc
 
 
@@ -157,6 +162,7 @@ if __name__ == "__main__":
         objective,
         n_trials=BUDGET,
         callbacks=[optuna.study.MaxTrialsCallback(BUDGET)],
+        gc_after_trial=True,
     )
 
     report_statistics(study)
