@@ -47,17 +47,17 @@ def report_statistics(study: optuna.study.Study) -> None:
         print(f"    {param:<22}: {value:<3} ({importance:.2%})")
 
 
-def objective(trial: optuna.Trial) -> float:
+def objective(trial: optuna.Trial) -> list[float]:
     # Make sure the memory is correctly released
     torch.cuda.empty_cache()
     torch._dynamo.reset()
 
     # Sample the hyperparameters
-    _ = trial.suggest_categorical("edge_expansion_units", [32, 64, 128, 256, 512])
+    _ = trial.suggest_categorical("edge_expansion_units", [64, 128, 256, 512])
     _ = trial.suggest_categorical("angle_expansion_units", [32, 64, 128, 256, 512])
-    _ = trial.suggest_int("num_radial", 20, 100)
+    _ = trial.suggest_int("num_radial", 60, 120)
     _ = trial.suggest_int("n_bond_conv", 1, 6)
-    _ = trial.suggest_float("dropout", 0.0, 0.8, step=0.1)
+    _ = trial.suggest_float("dropout", 0.2, 0.8, step=0.1)
     _ = trial.suggest_categorical("classification_units", [32, 64, 128, 256, 512])
     _ = trial.suggest_int("classification_layers", 1, 4)
 
@@ -68,7 +68,7 @@ def objective(trial: optuna.Trial) -> float:
     for t in reversed(trial.study.get_trials(deepcopy=False)):
         if trial.params == t.params and trial.number != t.number:
             if t.value is not None:
-                return t.value
+                return t.values
 
     # Only process the dataset if asked to do so.
     # Enforce the dataset to NOT be reloaded if the trial is not the first one.
@@ -95,7 +95,7 @@ def objective(trial: optuna.Trial) -> float:
     # Configure the Lightning Trainer
     trainer = L.Trainer(
         precision="16-mixed",
-        enable_progress_bar=True,
+        enable_progress_bar=False,
         logger=True,
         enable_checkpointing=False,
         max_epochs=EPOCHS,
@@ -118,6 +118,10 @@ def objective(trial: optuna.Trial) -> float:
                         task="multiclass",
                         num_classes=datamodule.num_classes,
                     ),
+                    "f1": torchmetrics.F1Score(
+                        task="multiclass",
+                        num_classes=datamodule.num_classes,
+                    )
                 }
             ),
             warmup=100,
@@ -131,12 +135,13 @@ def objective(trial: optuna.Trial) -> float:
 
     trainer.fit(model, datamodule=datamodule)
     val_acc = trainer.callback_metrics["val/acc"].item()
+    val_f1 = trainer.callback_metrics["val/f1"].item()
 
     del trainer
     del datamodule
     del model
 
-    return val_acc
+    return [val_acc, val_f1]
 
 
 if __name__ == "__main__":
@@ -150,7 +155,7 @@ if __name__ == "__main__":
     )
 
     study = optuna.create_study(
-        direction="maximize",
+        directions=["maximize", "maximize"],
         sampler=optuna.samplers.TPESampler(),
         pruner=optuna.pruners.HyperbandPruner(),
         study_name=STUDY_NAME,
@@ -161,7 +166,7 @@ if __name__ == "__main__":
     study.optimize(
         objective,
         n_trials=BUDGET,
-        callbacks=[optuna.study.MaxTrialsCallback(BUDGET)],
+        callbacks=[optuna.study.MaxTrialsCallback(BUDGET, states=None)],
         gc_after_trial=True,
     )
 
