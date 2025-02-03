@@ -47,7 +47,7 @@ def report_statistics(study: optuna.study.Study) -> None:
         print(f"    {param:<22}: {value:<3} ({importance:.2%})")
 
 
-def objective(trial: optuna.Trial) -> list[float]:
+def objective(trial: optuna.Trial) -> float:
     # Make sure the memory is correctly released
     torch.cuda.empty_cache()
     torch._dynamo.reset()
@@ -68,7 +68,7 @@ def objective(trial: optuna.Trial) -> list[float]:
     for t in reversed(trial.study.get_trials(deepcopy=False)):
         if trial.params == t.params and trial.number != t.number:
             if t.value is not None:
-                return t.values
+                return t.value
 
     # Only process the dataset if asked to do so.
     # Enforce the dataset to NOT be reloaded if the trial is not the first one.
@@ -91,6 +91,7 @@ def objective(trial: optuna.Trial) -> list[float]:
         batch_size=512,
         persistent_workers=False,
     )
+    num_classes = datamodule.num_classes
 
     # Configure the Lightning Trainer
     trainer = L.Trainer(
@@ -110,18 +111,18 @@ def objective(trial: optuna.Trial) -> list[float]:
     with trainer.init_module():
         model = Module(
             model_name="cegann",
-            num_classes=datamodule.num_classes,
+            num_classes=num_classes,
             compile=True,
             metrics=torchmetrics.MetricCollection(
                 {
                     "acc": torchmetrics.Accuracy(
                         task="multiclass",
-                        num_classes=datamodule.num_classes,
+                        num_classes=num_classes,
                     ),
                     "f1": torchmetrics.F1Score(
                         task="multiclass",
-                        num_classes=datamodule.num_classes,
-                    )
+                        num_classes=num_classes,
+                    ),
                 }
             ),
             warmup=100,
@@ -134,14 +135,19 @@ def objective(trial: optuna.Trial) -> list[float]:
         trainer.logger.log_hyperparams(trial.params)
 
     trainer.fit(model, datamodule=datamodule)
-    val_acc = trainer.callback_metrics["val/acc"].item()
-    val_f1 = trainer.callback_metrics["val/f1"].item()
+
+    metrics = [
+        trainer.callback_metrics["train/acc"].item(),
+        trainer.callback_metrics["train/f1"].item(),
+        trainer.callback_metrics["val/acc"].item(),
+        trainer.callback_metrics["val/f1"].item(),
+    ]
 
     del trainer
     del datamodule
     del model
 
-    return [val_acc, val_f1]
+    return sum([(1 - x) ** 2 for x in metrics])
 
 
 if __name__ == "__main__":
@@ -155,7 +161,7 @@ if __name__ == "__main__":
     )
 
     study = optuna.create_study(
-        directions=["maximize", "maximize"],
+        direction="minimize",
         sampler=optuna.samplers.TPESampler(),
         pruner=optuna.pruners.HyperbandPruner(),
         study_name=STUDY_NAME,
