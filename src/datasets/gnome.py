@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
+import os.path as osp
 from collections.abc import Callable
 from pathlib import Path
 
@@ -27,7 +27,7 @@ def download_from_link(link: str, output_dir: PathLike) -> None:
 
     response = requests.get(link, timeout=10)
     if response.status_code == 200:
-        with open(os.path.join(output_dir, os.path.basename(link)), "wb") as file:
+        with open(osp.join(output_dir, osp.basename(link)), "wb") as file:
             file.write(response.content)
             print(f"Downloaded {link} to {output_dir}")
     else:
@@ -81,6 +81,11 @@ class Gnome(InMemoryDataset):
             self.load(self.processed_paths[0])
 
     @property
+    def processed_dir(self) -> str:
+        """Return the path to the processed directory."""
+        return osp.join(self.root, "processed", f"{self.kwargs['k']}nn")
+
+    @property
     def raw_file_names(self) -> list[str]:
         """Return the name of the downloaded files."""
         return ["stable_materials_summary.csv", "by_id.zip", "LICENSE"]
@@ -92,13 +97,13 @@ class Gnome(InMemoryDataset):
 
     def download(self) -> None:
         """Download the dataset from Google and store it in the raw directory."""
-        bucket_directory = os.path.join(self.API, self.BUCKET_NAME)
-        parent_directory = os.path.join(bucket_directory, self.FOLDER_NAME)
+        bucket_directory = osp.join(self.API, self.BUCKET_NAME)
+        parent_directory = osp.join(bucket_directory, self.FOLDER_NAME)
 
-        download_from_link(os.path.join(bucket_directory, "LICENSE"), self.raw_dir)
+        download_from_link(osp.join(bucket_directory, "LICENSE"), self.raw_dir)
 
         for filename in self.raw_dir:
-            public_link = os.path.join(parent_directory, filename)
+            public_link = osp.join(parent_directory, filename)
             download_from_link(public_link, self.raw_dir)
 
         df = pd.read_csv(self.raw_paths[0], usecols=["MaterialId", "Space Group Number"])
@@ -135,7 +140,7 @@ class Gnome(InMemoryDataset):
         fnames = [
             unzipped_folder / f"{fid}.CIF"
             for fid in df["MaterialId"].to_list()
-            if os.path.isfile(unzipped_folder / f"{fid}.CIF")
+            if osp.isfile(unzipped_folder / f"{fid}.CIF")
         ]
 
         raw_data_list = [f.read_text() for f in fnames]

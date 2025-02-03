@@ -1,4 +1,5 @@
 import json
+import os.path as osp
 import warnings
 from collections.abc import Callable
 from pathlib import Path
@@ -45,6 +46,10 @@ class MaterialProject(InMemoryDataset):
 
         if not self.download_only:
             self.load(self.processed_paths[0])
+    @property
+    def processed_dir(self) -> str:
+        """Return the path to the processed directory."""
+        return osp.join(self.root, "processed", f"{self.kwargs['k']}nn")
 
     @property
     def raw_file_names(self) -> list[str]:
