@@ -112,9 +112,7 @@ class KNNGraph:
         struct_coords = struct.cart_coords.astype(np.float32)
         neighbor_indices = neighbors_idx.view(n_atoms, self.k)
         offset = offset.view(n_atoms, self.k, 3)
-        j_indices, k_indices = torch.triu_indices(
-            self.k, self.k, offset=1, device=neighbor_indices.device
-        )
+        j_indices, k_indices = torch.triu_indices(self.k, self.k, offset=1)
 
         # Expand indices to match the number of atoms
         i_indices = torch.arange(n_atoms).repeat_interleave(len(j_indices))
