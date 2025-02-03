@@ -49,7 +49,7 @@ class Aflow(InMemoryDataset):
     @property
     def processed_file_names(self) -> list[str]:
         """Return the name of the processed files ie the transformed data saved to the disk."""
-        return ["data.pt"]
+        return [f"data_{self.kwargs['k']}nn.pt"]
 
     def download(self) -> None:
         """Download the dataset from the AFLOW database and store it in the raw directory."""
