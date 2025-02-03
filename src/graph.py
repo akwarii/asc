@@ -20,9 +20,18 @@ class KNNGraph:
     Args:
         k: Number of neighbors.
         rcut: Cutoff radius in Angstroms to search for neighbors.
+        periodicity_invariance: Whether to enforce periodicity invariance by checking for neighbors
+            with the same distances and adding them to the graph even if it produces more than k
+            neighbors.
     """
 
-    def __init__(self, k: int = 20, rcut: float = 7.5, **kwargs) -> None:
+    def __init__(
+        self,
+        k: int = 20,
+        rcut: float = 7.5,
+        periodicity_invariance: bool = False,
+        **kwargs,
+    ) -> None:
         if k < 1:
             raise ValueError("The number of neighbors must be greater than 0.")
         if rcut <= 0.0:
@@ -30,6 +39,7 @@ class KNNGraph:
 
         self.k = k
         self.rcut = rcut
+        self.periodicity_invariance = periodicity_invariance
 
     # TODO docstring
     def _get_graph_data(
@@ -76,7 +86,15 @@ class KNNGraph:
             if len(idx_i) == self.k:
                 knn_idx[i] = idx_i
             else:
-                knn_mask = np.argpartition(all_distances[idx_i], self.k)[: self.k]
+                sorted_nn = np.argpartition(all_distances[idx_i], self.k)
+                knn_mask, remaining_neigh_mask = sorted_nn[: self.k], sorted_nn[self.k :]
+
+                # TODO test this part
+                if self.periodicity_invariance:
+                    sym_nn = np.any(all_distances[knn_idx] == all_distances[remaining_neigh_mask])
+                    if sym_nn:
+                        knn_mask = np.append(knn_mask, sorted_nn[sym_nn])
+
                 knn_idx[i] = idx_i[knn_mask]
 
         # Only keep the k-nearest neighbors data (and jump to torch.Tensors as well)
