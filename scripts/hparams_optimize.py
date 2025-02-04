@@ -2,7 +2,7 @@ import lightning as L
 import optuna
 import torch
 import torchmetrics
-from lightning.pytorch.callbacks import LearningRateFinder
+from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder
 from optuna.trial import TrialState
 from optuna_integration import PyTorchLightningPruningCallback
 from src.constants import DEFAULT_SEED
@@ -11,10 +11,8 @@ from src.module import Module
 from src.transforms import LineGraph, RandomPerturbation
 
 EPOCHS = 30
-K_NEIGH = 12
 BUDGET = 100
-FORCE_RELOAD = False
-STUDY_NAME = f"cegann-k{K_NEIGH}"
+STUDY_NAME = "cegann"
 STORAGE_URL = f"sqlite:///{STUDY_NAME}.db"
 
 
@@ -60,6 +58,10 @@ def objective(trial: optuna.Trial) -> float:
     _ = trial.suggest_float("dropout", 0.2, 0.8, step=0.1)
     _ = trial.suggest_categorical("classification_units", [32, 64, 128, 256, 512])
     _ = trial.suggest_int("classification_layers", 1, 4)
+    _ = trial.suggest_int("k", 10, 18)
+
+    hparams = trial.params.copy()
+    k_neigh = hparams.pop("k")
 
     report_trial_params(trial)
 
@@ -70,12 +72,7 @@ def objective(trial: optuna.Trial) -> float:
             if t.value is not None:
                 return t.value
 
-    # Only process the dataset if asked to do so.
-    # Enforce the dataset to NOT be reloaded if the trial is not the first one.
-    force_reload = FORCE_RELOAD
-    if trial.number != 0:
-        force_reload = False
-
+    # Configure the Lightning DataModule
     datamodule = LightningDataset(
         dataset_name="csg",
         lengths=(0.8, 0.2),
@@ -85,9 +82,8 @@ def objective(trial: optuna.Trial) -> float:
             RandomPerturbation(std=0.1),
         ],
         num_workers=5,
-        k=K_NEIGH,
+        k=k_neigh,
         rcut=6.0,
-        force_reload=force_reload,
         batch_size=512,
         persistent_workers=False,
     )
@@ -102,6 +98,7 @@ def objective(trial: optuna.Trial) -> float:
         max_epochs=EPOCHS,
         log_every_n_steps=10,
         callbacks=[
+            BatchSizeFinder(init_val=128, max_trials=3),
             LearningRateFinder(min_lr=1e-5, max_lr=0.1),
             PyTorchLightningPruningCallback(trial, monitor="val/acc"),
         ],
@@ -127,7 +124,7 @@ def objective(trial: optuna.Trial) -> float:
             ),
             warmup=100,
             max_iters=trainer.max_epochs * len(datamodule.train_dataloader()),  # type: ignore
-            model_kwargs=trial.params,
+            model_kwargs=hparams,
         )
 
     # Log the hyperparameters and start the training
