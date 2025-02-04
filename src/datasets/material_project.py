@@ -46,6 +46,7 @@ class MaterialProject(InMemoryDataset):
 
         if not self.download_only:
             self.load(self.processed_paths[0])
+
     @property
     def processed_dir(self) -> str:
         """Return the path to the processed directory."""
