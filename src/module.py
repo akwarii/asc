@@ -109,6 +109,14 @@ class Module(LightningModule):
 
         return loss
 
+    def on_train_epoch_start(self) -> None:
+        """Call hook method at the start of each training epoch."""
+        if self.trainer.sanity_checking:
+            return
+
+        if self.trainer.progress_bar_callback is None:
+            print(f"Epoch {self.trainer.current_epoch} started")
+
     def on_train_epoch_end(self) -> None:
         """Call hook method at the end of each training epoch."""
         self.train_metrics.reset()
