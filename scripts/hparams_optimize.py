@@ -2,9 +2,10 @@ import lightning as L
 import optuna
 import torch
 import torchmetrics
-from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder
+from lightning.pytorch.callbacks import LearningRateFinder
 from optuna.trial import TrialState
 from optuna_integration import PyTorchLightningPruningCallback
+from src.callbacks import HalfBatchSizeFinder
 from src.constants import DEFAULT_SEED
 from src.datamodule import LightningDataset
 from src.module import Module
@@ -58,7 +59,7 @@ def objective(trial: optuna.Trial) -> float:
     _ = trial.suggest_float("dropout", 0.2, 0.8, step=0.1)
     _ = trial.suggest_categorical("classification_units", [32, 64, 128, 256, 512])
     _ = trial.suggest_int("classification_layers", 1, 4)
-    _ = trial.suggest_int("k", 10, 18)
+    _ = trial.suggest_int("k", 10, 18, step=2)
 
     hparams = trial.params.copy()
     k_neigh = hparams.pop("k")
@@ -98,7 +99,7 @@ def objective(trial: optuna.Trial) -> float:
         max_epochs=EPOCHS,
         log_every_n_steps=10,
         callbacks=[
-            BatchSizeFinder(init_val=128, max_trials=3),
+            HalfBatchSizeFinder(),
             LearningRateFinder(min_lr=1e-5, max_lr=0.1),
             PyTorchLightningPruningCallback(trial, monitor="val/acc"),
         ],
