@@ -18,7 +18,7 @@ class HalfBatchSizeFinder(BatchSizeFinder):
 
     def __init__(
         self,
-        steps_per_trial: int = 100,
+        steps_per_trial: int = 1000,
         init_val: int = 2,
         max_trials: int = 10,
     ) -> None:
