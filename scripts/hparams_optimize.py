@@ -59,7 +59,7 @@ def objective(trial: optuna.Trial) -> float:
     _ = trial.suggest_float("dropout", 0.2, 0.8, step=0.1)
     _ = trial.suggest_categorical("classification_units", [32, 64, 128, 256, 512])
     _ = trial.suggest_int("classification_layers", 1, 4)
-    _ = trial.suggest_int("k", 10, 18, step=2)
+    _ = trial.suggest_int("k", 10, 16, step=2)
 
     hparams = trial.params.copy()
     k_neigh = hparams.pop("k")
