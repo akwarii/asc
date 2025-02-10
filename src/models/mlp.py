@@ -29,12 +29,12 @@ class MLP(PyGMLP):  # noqa
         num_atoms = num_nodes // k
 
         # Embed the features
-        x: torch.Tensor = self.rbf(x)
-        edge_attr: torch.Tensor = self.sbf(edge_attr)
+        x_emb: torch.Tensor = self.rbf(x)
+        edge_attr_emb: torch.Tensor = self.sbf(edge_attr)
 
         # Aggregate the features and reshape the tensor to the inverse line graph structure
-        edge_attr = edge_attr.view(num_nodes, (k - 1) * num_radial)
-        features = torch.cat([x, edge_attr], dim=1)
+        edge_attr_emb = edge_attr_emb.view(num_nodes, (k - 1) * num_radial)
+        features = torch.cat([x_emb, edge_attr_emb], dim=1)
         features = features.view(num_atoms, k, -1).flatten(1)
 
         out = super().forward(features)

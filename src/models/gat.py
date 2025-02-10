@@ -8,7 +8,7 @@ from torch_geometric.nn import GAT
 from src.models.expansion.radial import GaussianBasis
 
 
-class GATClassifier(GAT): # noqa
+class GATClassifier(GAT):  # noqa
     def __init__(
         self,
         in_channels: int,
@@ -62,7 +62,7 @@ class GATClassifier(GAT): # noqa
             self.rbf = GaussianBasis(num_radial=num_radial)
             self.sbf = GaussianBasis(num_radial=num_radial)
 
-    def forward( # noqa
+    def forward(  # noqa
         self,
         data: Data,
         batch: torch.Tensor | None = None,
