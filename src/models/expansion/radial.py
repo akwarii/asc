@@ -21,12 +21,10 @@ class GaussianBasis(torch.nn.Module):
         start: float = 0.0,
         stop: float = 5.0,
         num_radial: int = 50,
-        bond: bool = True,
     ) -> None:
         super().__init__()
 
         self.num_radial = num_radial
-        self.bond = bond
         offset = torch.linspace(start, stop, num_radial)
         self.coeff = -0.5 / (offset[1] - offset[0]).item() ** 2
         self.register_buffer("offset", offset)
@@ -40,12 +38,7 @@ class GaussianBasis(torch.nn.Module):
         Returns:
             torch.Tensor: The smearing output tensor.
         """
-        if self.bond:
-            dist_scaled = dist_scaled.view(-1, 1) - self.offset.view(1, -1)
-        else:
-            dist_scaled = dist_scaled.unsqueeze(-1).repeat(
-                1, 1, self.offset.size()[0]
-            ) - self.offset.view(1, -1).unsqueeze(1).repeat(1, dist_scaled.size()[-1], 1)
+        dist_scaled = dist_scaled.view(-1, 1) - self.offset.view(1, -1)
         return torch.exp(self.coeff * dist_scaled**2)
 
 

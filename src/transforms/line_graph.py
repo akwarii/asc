@@ -22,7 +22,7 @@ def compute_bonds_cosines(x: torch.Tensor, n_bonds: int, eps: float = 1e-8) -> t
     v1 = torch.cat((x[:, :3], x[:, 3:])).reshape(n_bonds, k, 3)  # (i -> j, i -> k)
     v2 = torch.cat((x[:, 3:], x[:, :3])).reshape(n_bonds, k, 3)  # (i -> k, i -> j)
     angle_cos = (v1 * v2).sum(dim=2) / (v1.norm(dim=2) * v2.norm(dim=2) + eps)
-    return angle_cos
+    return angle_cos.flatten().unsqueeze(1)
 
 
 class LineGraph(BaseTransform):
@@ -73,6 +73,8 @@ class LineGraph(BaseTransform):
         data.edge_index = torch.stack([row, col], dim=0)
         data.x = data.edge_attr
         data.num_nodes = edge_index.size(1)
-        data.edge_attr = new_edge_attr
+        data.edge_attr = (
+            new_edge_attr  # TODO incorrect shape, should be (num_edges, 1) not (num_edges, k)
+        )
 
         return data

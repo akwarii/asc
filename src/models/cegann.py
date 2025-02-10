@@ -20,13 +20,13 @@ class CEGANN(nn.Module):
         sbf: Information about the Gaussian basis function expansion for angle features.
         edge_expansion_units: Number of units for expanding edge features.
         angle_expansion_units: Number of units for expanding angle features.
-        in_channels: Number of output classes.
+        out_channels: Number of output classes.
         embedding: Whether to return embedded features.
     """
 
     def __init__(
         self,
-        in_channels: int,
+        out_channels: int,
         n_bond_conv: int = 3,
         rbf: dict | nn.Module | None = None,
         sbf: dict | nn.Module | None = None,
@@ -55,16 +55,13 @@ class CEGANN(nn.Module):
 
         if sbf is None:
             assert num_radial is not None
-            self.sbf = GaussianBasis(num_radial=num_radial, bond=False)
+            self.sbf = GaussianBasis(num_radial=num_radial)
         elif isinstance(sbf, dict):
             sbf.pop("bond", None)
-            self.sbf = GaussianBasis(bond=False, **sbf)
+            self.sbf = GaussianBasis(**sbf)
         else:
             self.sbf = sbf
         n_angle_features = self.sbf.num_radial
-
-        assert self.rbf.bond is True
-        assert self.sbf.bond is False
 
         self.linear_bond = nn.Sequential(
             nn.Dropout(dropout), nn.Linear(n_bond_features, edge_expansion_units)
@@ -88,8 +85,8 @@ class CEGANN(nn.Module):
         self.classification_head = MLP(
             in_channels=cat_units,
             hidden_channels=classification_units,
-            out_channels=in_channels,
             num_layers=classification_layers,
+            out_channels=out_channels,
             plain_last=True,
         )
 
@@ -97,9 +94,9 @@ class CEGANN(nn.Module):
 
     def _message_passing(
         self,
-        bond_features: torch.Tensor,
-        angle_features: torch.Tensor,
-        neigh_idx: torch.Tensor,
+        x: torch.Tensor,
+        edge_attr: torch.Tensor,
+        edge_index: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Performs hierarchical message passing on the edge and angle features. The edge layer is
         updated before the angle layer. This follows the hierarchy that the bond angles are
@@ -107,24 +104,24 @@ class CEGANN(nn.Module):
         the angle level.
 
         Args:
-            bond_features (torch.Tensor): The bond features.
-            angle_features (torch.Tensor): The angle features.
-            neigh_idx (torch.Tensor): The neighbor indices.
+            x (torch.Tensor): The bond features ie the node attributes of the line graph.
+            edge_attr (torch.Tensor): The angle features ie the edge attributes of the line graph.
+            edge_index (torch.Tensor): The neighbor indices.
 
         Returns:
             torch.Tensor: The updated bond features of shape `(n_at * k, n_radial_bond)`.
             torch.Tensor: The updated angle features of shape `(n_at * k, k - 1, n_radial_angle)`.
         """
-        n = angle_features.size(1)  # k-1
-        m = neigh_idx.size(1) // n  # N_at * k
-        neigh_idx = torch.reshape(neigh_idx[1], (m, n))
+        num_nodes, num_edges = x.size(0), edge_attr.size(0)
+        k = num_edges // num_nodes + 1
+        neigh_index = torch.reshape(edge_index[1], (num_nodes, k - 1))
 
-        bond_features = self.bond_conv[0](bond_features, angle_features, neigh_idx)
+        x = self.bond_conv[0](x, edge_attr, neigh_index)
         for conv_edge, conv_angle in zip(self.bond_conv[1:], self.angle_conv):
-            angle_features = conv_angle(bond_features, angle_features, neigh_idx)
-            bond_features = conv_edge(bond_features, angle_features, neigh_idx)
+            edge_attr = conv_angle(x, edge_attr, neigh_index)
+            x = conv_edge(x, edge_attr, neigh_index)
 
-        return bond_features, angle_features
+        return x, edge_attr
 
     def forward(self, data: Data) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         """Forward pass of the CEGANN model.
@@ -140,41 +137,35 @@ class CEGANN(nn.Module):
         assert data.edge_attr is not None
         assert data.edge_index is not None
 
-        bond_features, neigh_idx, angle_features = data.x, data.edge_index, data.edge_attr
+        x, edge_attr, edge_index = data.x, data.edge_attr, data.edge_index
 
         # Create features using Gaussian basis function expansion
-        bond_features = self.rbf(bond_features)
-        angle_features = self.sbf(angle_features)
+        x = self.rbf(x)
+        edge_attr = self.sbf(edge_attr)
 
         # Perform message passing
-        bond_features, angle_features = self._message_passing(
-            bond_features, angle_features, neigh_idx
-        )
+        x, edge_attr = self._message_passing(x, edge_attr, edge_index)
 
         # Expand edge features and angle features
-        bond_features = self.linear_bond(bond_features)
-        angle_features = self.linear_angle(angle_features)
+        x = self.linear_bond(x)
+        edge_attr = self.linear_angle(edge_attr)
 
         # Reshape bond features and angle features
         # This is useful as we want to sum over the k neighbors later
         # while PyG LineGraph implied stacking the features of the k neighbors.
-        k = angle_features.size(1) + 1
-        bond_features = bond_features.reshape(
-            bond_features.size(0) // k, k, bond_features.size(-1)
-        )
-        angle_features = angle_features.reshape(
-            angle_features.size(0) // k, k, k - 1, angle_features.size(-1)
-        )
+        k = edge_attr.size(1) + 1
+        x = x.reshape(x.size(0) // k, k, x.size(-1))
+        edge_attr = edge_attr.reshape(edge_attr.size(0) // k, k, k - 1, edge_attr.size(-1))
 
         # Sum over edge features and angle features
-        bond_features = torch.sum(self.softplus(bond_features), dim=1)
-        angle_features = torch.sum(
-            self.softplus(torch.sum(self.softplus(angle_features), dim=2)),
+        x = torch.sum(self.softplus(x), dim=1)
+        edge_attr = torch.sum(
+            self.softplus(torch.sum(self.softplus(edge_attr), dim=2)),
             dim=1,
         )
 
         # Concatenate edge features and angle features
-        crystal_features = torch.cat([bond_features, angle_features], dim=1)
+        crystal_features = torch.cat([x, edge_attr], dim=1)
 
         # Normalize and apply softplus activation
         crystal_features = self.softplus(self.layer_norm(crystal_features))
@@ -189,3 +180,76 @@ class CEGANN(nn.Module):
             return output, embedded_features
         else:
             return output
+
+
+if __name__ == "__main__":
+    import lightning as L
+    import torchmetrics
+    from lightning.pytorch.profilers import AdvancedProfiler
+
+    from src.datamodule import LightningDataset
+    from src.module import Module
+    from src.transforms import LineGraph, RandomPerturbation
+
+    L.seed_everything(42)
+    K = 10
+
+    datamodule = LightningDataset(
+        dataset_name="custom",
+        lengths=(0.9, 0.1),
+        use_imbalance_sampler=True,
+        pre_transforms=LineGraph(),
+        transforms=[
+            RandomPerturbation(std=0.1),
+        ],
+        num_workers=2,
+        k=K,
+        rcut=6.0,
+        batch_size=1,
+        persistent_workers=True,
+        # force_reload=True,
+    )
+    num_classes = datamodule.num_classes
+
+    # Configure the Lightning Trainer
+    trainer = L.Trainer(
+        max_epochs=10,
+        # callbacks=[RichModelSummary()],
+        deterministic=True,
+        profiler=AdvancedProfiler(filename="profiler"),
+        logger=False,
+        enable_checkpointing=False,
+        enable_progress_bar=False,
+        enable_model_summary=False,
+    )
+
+    # Configure the Lightning Module
+    with trainer.init_module():
+        model = Module(
+            model_name="cegann",
+            num_classes=num_classes,
+            compile=True,
+            metrics=torchmetrics.MetricCollection(
+                {
+                    "acc": torchmetrics.Accuracy(
+                        task="multiclass",
+                        num_classes=num_classes,
+                    ),
+                    "f1": torchmetrics.F1Score(
+                        task="multiclass",
+                        num_classes=num_classes,
+                    ),
+                }
+            ),
+            warmup=100,
+            max_iters=trainer.max_epochs * len(datamodule.train_dataloader()),  # type: ignore
+            model_kwargs={
+                "num_radial": 25,
+                "n_bond_conv": 2,
+                "edge_expansion_units": 64,
+                "angle_expansion_units": 64,
+                "classification_units": 64,
+                "classification_layers": 1,
+            },
+        )
+    trainer.fit(model, datamodule=datamodule)

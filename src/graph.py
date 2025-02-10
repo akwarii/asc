@@ -137,7 +137,7 @@ class KNNGraph:
         # extra dimension (and use x[:,:3], x[:,3:] for ij, ik).
         x = torch.cat((j_coords - central_coords, k_coords - central_coords), dim=1)
 
-        return x, edge_index, distances
+        return x, edge_index, distances.unsqueeze(1)
 
     @staticmethod
     def _to_pymatgen_struct(

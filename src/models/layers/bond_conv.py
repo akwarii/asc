@@ -26,45 +26,43 @@ class BondConvLayer(nn.Module):
             nn.Softmax(dim=2),
         )
 
-        self.normalized_activation = nn.Sequential(
-            nn.LayerNorm(self.bond_fea_len),
-            nn.Softplus(),
-        )
+        self.norm = nn.LayerNorm(self.bond_fea_len)
+        self.act = nn.Softplus()
 
     def forward(
         self,
-        bond_features: torch.Tensor,
-        angle_features: torch.Tensor,
-        neighbor_indices: torch.Tensor,
+        x: torch.Tensor,
+        edge_attr: torch.Tensor,
+        neigh_index: torch.Tensor,
     ) -> torch.Tensor:
         """Forward pass of the BondConv module.
 
         Args:
-            bond_features (torch.Tensor): bond features of shape `(n_at * k, n_radial_bond)`.
-            angle_features (torch.Tensor): angle features of shape
-                `(n_at * k, k - 1, n_radial_angle)`.
-            neighbor_indices (torch.Tensor): neighbor indices, shape `(n_at * k, k - 1)`.
+            x (torch.Tensor): bond features of shape `(n_at * k, n_radial_bond)`.
+            edge_attr (torch.Tensor): angle features of shape `(n_at * k, k - 1, n_radial_angle)`.
+            neigh_index (torch.Tensor): neighbor indices, shape `(n_at * k, k - 1)`.
 
         Returns:
             torch.Tensor: The output of the module, of shape `(n_at * k, n_radial_bond)`.
         """
-        m = neighbor_indices.size(0)  # N_at * k
-        n = neighbor_indices.size(1)  # k - 1
+        m = neigh_index.size(0)  # N_at * k
+        n = neigh_index.size(1)  # k - 1
 
         # (n_at * k, k - 1, n_radial_bond)
-        eij = bond_features.unsqueeze(1).expand(m, n, self.bond_fea_len)
-        eik = bond_features[neighbor_indices]
+        eij = x.unsqueeze(1).expand(m, n, self.bond_fea_len)
+        eik = x[neigh_index]
+        aijk = edge_attr.view(m, n, self.angle_fea_len)
 
         # (n_at * k, k - 1, 2 * n_radial_bond + n_radial_angle)
-        cat_fea = torch.cat([eij, eik, angle_features], dim=2)
+        features = torch.cat([eij, eik, aijk], dim=2)
+
+        x_att = self.attention(features) * self.linear(features)
+        x_att = self.norm(x_att)
+        x_att = self.act(x_att)
 
         # (n_at * k, n_radial_bond)
-        output = self.normalized_activation(
-            bond_features
-            + torch.sum(
-                self.normalized_activation(self.attention(cat_fea) * self.linear(cat_fea)),
-                dim=1,
-            )
-        )
+        output = x + torch.sum(x_att, dim=1)
+        output = self.norm(output)
+        output = self.act(output)
 
         return output
