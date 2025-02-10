@@ -31,6 +31,12 @@ def parse_args() -> argparse.Namespace:
         help="Number of trials to run for the optimization.",
     )
     parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=256,
+        help="Batch size to use for the training.",
+    )
+    parser.add_argument(
         "--epochs",
         type=int,
         default=30,
@@ -147,7 +153,7 @@ def objective(trial: optuna.Trial) -> float:
         ],
         num_workers=5,
         k=k_neigh,
-        batch_size=256,
+        batch_size=BATCH_SIZE,
         persistent_workers=False,
     )
     num_classes = datamodule.num_classes
@@ -206,6 +212,7 @@ if __name__ == "__main__":
 
     MODEL_NAME = args.model
     BUDGET = args.budget
+    BATCH_SIZE = args.batch_size
     EPOCHS = args.epochs
     STORAGE = args.storage
 
@@ -214,7 +221,7 @@ if __name__ == "__main__":
         heartbeat_interval=60,
         grace_period=120,
         failed_trial_callback=optuna.storages.RetryFailedTrialCallback(max_retry=3),
-        engine_kwargs={"connect_args": {"timeout": 20.0}},
+        engine_kwargs={"connect_args": {"timeout": 60.0}},
     )
 
     study = optuna.create_study(
