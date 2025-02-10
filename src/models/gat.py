@@ -8,7 +8,7 @@ from torch_geometric.nn import GAT
 from src.models.expansion.radial import GaussianBasis
 
 
-class GATClassifier(GAT):
+class GATClassifier(GAT): # noqa
     def __init__(
         self,
         in_channels: int,
@@ -62,7 +62,7 @@ class GATClassifier(GAT):
             self.rbf = GaussianBasis(num_radial=num_radial)
             self.sbf = GaussianBasis(num_radial=num_radial)
 
-    def forward(
+    def forward( # noqa
         self,
         data: Data,
         batch: torch.Tensor | None = None,
@@ -100,77 +100,3 @@ class GATClassifier(GAT):
         out = torch.sum(out, dim=1)
 
         return out
-
-
-if __name__ == "__main__":
-    import lightning as L
-    import torchmetrics
-    from lightning.pytorch.profilers import AdvancedProfiler
-
-    from src.datamodule import LightningDataset
-    from src.module import Module
-    from src.transforms import LineGraph, RandomPerturbation
-
-    L.seed_everything(42)
-    K = 10
-
-    datamodule = LightningDataset(
-        dataset_name="custom",
-        lengths=(0.9, 0.1),
-        use_imbalance_sampler=True,
-        pre_transforms=LineGraph(),
-        transforms=[
-            RandomPerturbation(std=0.1),
-        ],
-        num_workers=2,
-        k=K,
-        rcut=6.0,
-        batch_size=4,
-        persistent_workers=True,
-        # force_reload=True,
-    )
-    num_classes = datamodule.num_classes
-
-    # Configure the Lightning Trainer
-    trainer = L.Trainer(
-        max_epochs=1,
-        # callbacks=[RichModelSummary()],
-        deterministic=True,
-        profiler=AdvancedProfiler(filename="profiler.txt"),
-        logger=False,
-        enable_checkpointing=False,
-        enable_progress_bar=False,
-        enable_model_summary=False,
-    )
-
-    # Configure the Lightning Module
-    with trainer.init_module():
-        model = Module(
-            model_name="gat",
-            num_classes=num_classes,
-            compile=False,
-            metrics=torchmetrics.MetricCollection(
-                {
-                    "acc": torchmetrics.Accuracy(
-                        task="multiclass",
-                        num_classes=num_classes,
-                    ),
-                    "f1": torchmetrics.F1Score(
-                        task="multiclass",
-                        num_classes=num_classes,
-                    ),
-                }
-            ),
-            warmup=100,
-            max_iters=trainer.max_epochs * len(datamodule.train_dataloader()),  # type: ignore
-            model_kwargs={
-                "in_channels": -1,
-                "num_layers": 2,
-                "hidden_channels": 64,
-                "heads": 1,
-                # "edge_dim": 6,
-                "num_radial": 25,
-            },
-        )
-    trainer.fit(model, datamodule=datamodule)
-    # trainer.validate(model, datamodule=datamodule)

@@ -5,14 +5,14 @@ import torch.nn.functional as F
 import torchmetrics
 from lightning import LightningModule
 from torch_geometric.data import Data
-from torch_geometric.nn import MLP
 
-from src.models import CEGANN
+from src import models
 from src.optim import get_cosine_schedule_with_warmup
 
 MODEL_FACTORY = {
-    "cegann": CEGANN,
-    "mlp": MLP,
+    "cegann": models.CEGANN,
+    "mlp": models.MLP,
+    "gat": models.GATClassifier,
 }
 
 
@@ -58,7 +58,7 @@ class Module(LightningModule):
         """Create the model using its name and kwargs given to the module construstor."""
         model_name = self.hparams["model_name"].lower()
         model_kwargs = self.hparams["model_kwargs"]
-        in_channels = self.hparams["num_classes"]
+        out_channels = self.hparams["num_classes"]
 
         if model_kwargs is None:
             model_kwargs = dict()
@@ -69,7 +69,7 @@ class Module(LightningModule):
                 f"Model {model_name} is not implemented. Available models: {MODEL_FACTORY.keys()}"
             )
 
-        self.model = model(in_channels=in_channels, **model_kwargs)
+        self.model = model(out_channels=out_channels, **model_kwargs)
 
         if self.hparams["compile"]:
             self.model = torch.compile(self.model)
