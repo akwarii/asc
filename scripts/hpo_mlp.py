@@ -12,7 +12,7 @@ from src.transforms import LineGraph, RandomPerturbation
 
 EPOCHS = 30
 BUDGET = 100
-STUDY_NAME = "cegann"
+STUDY_NAME = "mlp"
 STORAGE_URL = f"sqlite:///{STUDY_NAME}.db"
 
 
@@ -51,16 +51,17 @@ def objective(trial: optuna.Trial) -> float:
     torch._dynamo.reset()
 
     # Sample the hyperparameters
-    _ = trial.suggest_categorical("edge_expansion_units", [64, 128, 256, 512])
-    _ = trial.suggest_categorical("angle_expansion_units", [32, 64, 128, 256, 512])
-    _ = trial.suggest_int("num_radial", 60, 120)
-    _ = trial.suggest_int("n_bond_conv", 1, 6)
+    _ = trial.suggest_int("num_layers", 3, 8)
+    _ = trial.suggest_categorical("hidden_channels", [64, 128, 256, 512, 1024])
+    _ = trial.suggest_int("num_radial", 25, 120)
+    _ = trial.suggest_categorical("act", ["ReLU", "LeakyReLU", "SiLU", "ELU"])
     _ = trial.suggest_float("dropout", 0.2, 0.8, step=0.1)
-    _ = trial.suggest_categorical("classification_units", [32, 64, 128, 256, 512])
-    _ = trial.suggest_int("classification_layers", 1, 4)
     _ = trial.suggest_int("k", 10, 16, step=2)
 
+
     hparams = trial.params.copy()
+    hparams["in_channels"] = hparams["hidden_channels"]
+
     k_neigh = hparams.pop("k")
 
     report_trial_params(trial)
@@ -84,7 +85,7 @@ def objective(trial: optuna.Trial) -> float:
         num_workers=5,
         k=k_neigh,
         rcut=6.0,
-        batch_size=256,
+        batch_size=128,
         persistent_workers=False,
     )
     num_classes = datamodule.num_classes
@@ -92,11 +93,11 @@ def objective(trial: optuna.Trial) -> float:
     # Configure the Lightning Trainer
     trainer = L.Trainer(
         precision="16-mixed",
-        enable_progress_bar=False,
+        enable_progress_bar=True,
         logger=True,
         enable_checkpointing=False,
         max_epochs=EPOCHS,
-        log_every_n_steps=50,
+        log_every_n_steps=10,
         callbacks=[
             LearningRateFinder(min_lr=1e-5, max_lr=0.1),
             PyTorchLightningPruningCallback(trial, monitor="val/acc"),
@@ -106,9 +107,9 @@ def objective(trial: optuna.Trial) -> float:
     # Configure the Lightning Module
     with trainer.init_module():
         model = Module(
-            model_name="cegann",
+            model_name="mlp",
             num_classes=num_classes,
-            compile=True,
+            compile=False,
             metrics=torchmetrics.MetricCollection(
                 {
                     "acc": torchmetrics.Accuracy(
@@ -153,7 +154,7 @@ if __name__ == "__main__":
     )
 
     study = optuna.create_study(
-        direction="maximize",
+        direction="minimize",
         sampler=optuna.samplers.TPESampler(),
         pruner=optuna.pruners.HyperbandPruner(),
         study_name=STUDY_NAME,
