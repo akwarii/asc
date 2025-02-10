@@ -1,17 +1,16 @@
-from itertools import product
+from src.datasets import CSG
+from src.transforms.line_graph import LineGraph
 
-from src.datasets import CSG, Aflow, CustomDataset, MaterialProject
-from torch_geometric.data import Dataset
-
-k = 12
 rcut = 6.0
 reload = True
 
-datasets = [CustomDataset, Aflow, CSG, MaterialProject]
-knn = [10, 12, 14, 16]
-
-for dataset, k in product(datasets, knn):
-    data: Dataset = dataset(force_reload=reload, k=k, rcut=rcut)
+for k in [10, 12, 14, 16]:
+    dataset = CSG(
+        pre_transform=LineGraph(),
+        force_reload=reload,
+        k=k,
+        rcut=rcut,
+    )
     print(dataset)
-    print("Num classes: ", data.num_classes)
-    data.print_summary()
+    print("Num classes: ", dataset.num_classes)
+    dataset.print_summary()

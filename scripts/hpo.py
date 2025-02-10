@@ -104,6 +104,8 @@ def sample_hyperparameters(trial: optuna.Trial) -> dict:
         _ = trial.suggest_float("negative_slope", 0.1, 0.3, step=0.1)
         _ = trial.suggest_categorical("share_weights", [True, False])
         _ = trial.suggest_categorical("residual", [True, False])
+        _ = trial.suggest_categorical("classification_units", [32, 64, 128, 256, 512])
+        _ = trial.suggest_int("classification_layers", 1, 4)
 
     else:
         raise NotImplementedError(f"HPO is not implemented for {MODEL_NAME} models.")
