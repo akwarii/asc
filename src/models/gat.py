@@ -3,7 +3,7 @@ from typing import Any
 
 import torch
 from torch_geometric.data import Data
-from torch_geometric.nn import GAT
+from torch_geometric.nn import GAT, MLP
 
 from src.models.expansion.radial import GaussianBasis
 
@@ -26,6 +26,8 @@ class GATClassifier(GAT):  # noqa
         negative_slope: float = 0.2,
         share_weights: bool = False,
         residual: bool = False,
+        classification_units: int | None = None,
+        classification_layers: int | None = 1,
         **kwargs,
     ) -> None:
         if edge_dim is None and num_radial is None:
@@ -56,6 +58,15 @@ class GATClassifier(GAT):  # noqa
             **kwargs,
         )
 
+        self.mlp = MLP(
+            in_channels=-1,
+            hidden_channels=classification_units,
+            num_layers=classification_layers,
+            out_channels=out_channels,
+            dropout=dropout,
+            plain_last=True,
+        )
+
         self.supports_expansion = False
         if num_radial is not None:
             self.supports_expansion = True
@@ -82,7 +93,7 @@ class GATClassifier(GAT):  # noqa
             x = self.rbf(x)
             edge_attr = self.sbf(edge_attr)
 
-        out = super().forward(
+        emb = super().forward(
             x=x,
             edge_index=edge_index,
             edge_attr=edge_attr,
@@ -96,7 +107,71 @@ class GATClassifier(GAT):  # noqa
         k = edge_attr.size(0) // x.size(0) + 1
         num_atoms = x.size(0) // k
 
-        out = out.reshape(num_atoms, k, self.out_channels)
-        out = torch.sum(out, dim=1)
+        out = torch.sum(emb.view(num_atoms, k, self.out_channels), dim=1)
+        return self.mlp(out)
 
-        return out
+
+if __name__ == "__main__":
+    import lightning as L
+    import torchmetrics
+
+    from src.datamodule import LightningDataset
+    from src.module import Module
+    from src.transforms import LineGraph, RandomPerturbation
+
+    L.seed_everything(42)
+
+    datamodule = LightningDataset(
+        dataset_name="custom",
+        lengths=(0.9, 0.1),
+        use_imbalance_sampler=True,
+        pre_transforms=LineGraph(),
+        transforms=[
+            RandomPerturbation(std=0.1),
+        ],
+        num_workers=2,
+        k=10,
+        rcut=6.0,
+        batch_size=1,
+        persistent_workers=True,
+    )
+    num_classes = datamodule.num_classes
+
+    # Configure the Lightning Trainer
+    trainer = L.Trainer(
+        fast_dev_run=True,
+        deterministic=True,
+        logger=False,
+        enable_checkpointing=False,
+    )
+
+    # Configure the Lightning Module
+    with trainer.init_module():
+        model = Module(
+            model_name="gat",
+            num_classes=num_classes,
+            compile=False,
+            metrics=torchmetrics.MetricCollection(
+                {
+                    "acc": torchmetrics.Accuracy(
+                        task="multiclass",
+                        num_classes=num_classes,
+                    ),
+                    "f1": torchmetrics.F1Score(
+                        task="multiclass",
+                        num_classes=num_classes,
+                    ),
+                }
+            ),
+            warmup=100,
+            max_iters=trainer.max_epochs * len(datamodule.train_dataloader()),  # type: ignore
+            model_kwargs={
+                "in_channels": -1,
+                "num_layers": 2,
+                "hidden_channels": 64,
+                "heads": 1,
+                # "edge_dim": 6,
+                "num_radial": 25,
+            },
+        )
+    trainer.fit(model, datamodule=datamodule)
