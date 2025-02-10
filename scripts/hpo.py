@@ -84,37 +84,36 @@ def sample_hyperparameters(trial: optuna.Trial) -> dict:
     if MODEL_NAME == "cegann":
         _ = trial.suggest_categorical("edge_expansion_units", [64, 128, 256, 512])
         _ = trial.suggest_categorical("angle_expansion_units", [32, 64, 128, 256, 512])
-        _ = trial.suggest_int("num_radial", 60, 120)
+        _ = trial.suggest_int("num_radial", 30, 120, step=10)
         _ = trial.suggest_int("n_bond_conv", 1, 6)
-        _ = trial.suggest_float("dropout", 0.2, 0.8, step=0.1)
-        _ = trial.suggest_categorical("classification_units", [32, 64, 128, 256, 512])
+        _ = trial.suggest_float("dropout", 0.1, 0.6, step=0.1)
+        _ = trial.suggest_categorical("classification_units", [64, 128, 256, 512])
         _ = trial.suggest_int("classification_layers", 1, 4)
-        _ = trial.suggest_int("k", 10, 16, step=2)
 
     elif MODEL_NAME == "mlp":
         _ = trial.suggest_int("num_layers", 3, 8)
         _ = trial.suggest_categorical("hidden_channels", [64, 128, 256, 512, 1024])
-        _ = trial.suggest_int("num_radial", 25, 120)
+        _ = trial.suggest_int("num_radial", 30, 120, step=10)
         _ = trial.suggest_categorical("act", ["ReLU", "LeakyReLU", "SiLU", "ELU"])
-        _ = trial.suggest_float("dropout", 0.2, 0.8, step=0.1)
-        _ = trial.suggest_int("k", 10, 16, step=2)
+        _ = trial.suggest_float("dropout", 0.1, 0.6, step=0.1)
 
     elif MODEL_NAME == "gat":
         _ = trial.suggest_categorical("hidden_channels", [64, 128, 256, 512])
         _ = trial.suggest_int("num_layers", 1, 6)
-        _ = trial.suggest_int("num_radial", 25, 120)
-        _ = trial.suggest_float("dropout", 0.2, 0.8, step=0.1)
+        _ = trial.suggest_int("num_radial", 30, 120, step=10)
+        _ = trial.suggest_float("dropout", 0.1, 0.6, step=0.1)
         _ = trial.suggest_categorical("act", ["ReLU", "LeakyReLU", "SiLU", "ELU"])
         _ = trial.suggest_categorical("norm", ["batch_norm", "layer_norm", None])
         _ = trial.suggest_categorical("heads", [1, 2, 4, 8])
-        _ = trial.suggest_float("negative_slope", 0.1, 0.3, step=0.1)
         _ = trial.suggest_categorical("share_weights", [True, False])
         _ = trial.suggest_categorical("residual", [True, False])
-        _ = trial.suggest_categorical("classification_units", [32, 64, 128, 256, 512])
+        _ = trial.suggest_categorical("classification_units", [64, 128, 256, 512])
         _ = trial.suggest_int("classification_layers", 1, 4)
 
     else:
-        raise NotImplementedError(f"HPO is not implemented for {MODEL_NAME} models.")
+        raise NotImplementedError(f"HPO is not implemented for {MODEL_NAME} model.")
+
+    _ = trial.suggest_int("k", 10, 16, step=2)
 
     hparams = trial.params.copy()
 
@@ -226,7 +225,7 @@ if __name__ == "__main__":
 
     study = optuna.create_study(
         direction="maximize",
-        sampler=optuna.samplers.TPESampler(),
+        sampler=optuna.samplers.TPESampler(constant_liar=True),
         pruner=optuna.pruners.HyperbandPruner(),
         study_name=MODEL_NAME,
         storage=storage,
