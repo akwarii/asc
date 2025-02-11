@@ -87,6 +87,7 @@ class CEGANN(nn.Module):
             hidden_channels=classification_units,
             num_layers=classification_layers,
             out_channels=out_channels,
+            dropout=dropout,
             plain_last=True,
         )
 
