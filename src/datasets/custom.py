@@ -72,6 +72,9 @@ class CustomDataset(InMemoryDataset):
         if self.download_only:
             return
 
+        if not self.raw_paths:
+            raise RuntimeError(f"No data found in {self.raw_dir}.")
+
         raw_data_list, target_list = [], []
         for file in self.raw_paths:
             with open(file) as f:
