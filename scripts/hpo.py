@@ -1,4 +1,5 @@
 import argparse
+import warnings
 
 import lightning as L
 import optuna
@@ -11,6 +12,8 @@ from src.constants import DEFAULT_SEED
 from src.datamodule import LightningDataset
 from src.module import Module
 from src.transforms import LineGraph, RandomPerturbation
+
+warnings.filterwarnings("ignore", category=optuna.exceptions.ExperimentalWarning)
 
 
 def parse_args() -> argparse.Namespace:
@@ -77,7 +80,10 @@ def report_statistics(study: optuna.study.Study) -> None:
     for (param, value), (_, importance) in zip(
         best_trial.params.items(), hparams_importance.items()
     ):
-        print(f"    {param:<22}: {value:<3} ({importance:.2%})")
+        if value is None:
+            print(f"    {param:<22}: None ({importance:.2%})")
+        else:
+            print(f"    {param:<22}: {value:<3} ({importance:.2%})")
 
 
 def sample_hyperparameters(trial: optuna.Trial) -> dict:
@@ -117,7 +123,7 @@ def sample_hyperparameters(trial: optuna.Trial) -> dict:
 
     hparams = trial.params.copy()
 
-    if MODEL_NAME in ("cegann", "mlp"):
+    if MODEL_NAME in ("gat", "mlp"):
         hparams["in_channels"] = -1
 
     return hparams
@@ -141,6 +147,21 @@ def objective(trial: optuna.Trial) -> float:
             if t.value is not None:
                 return t.value
 
+    # Configure the Lightning Trainer
+    trainer = L.Trainer(
+        precision="16-mixed",
+        enable_progress_bar=False,
+        logger=True,
+        enable_checkpointing=False,
+        max_epochs=EPOCHS,
+        log_every_n_steps=50,
+        callbacks=[
+            LearningRateFinder(min_lr=1e-5, max_lr=0.1),
+            PyTorchLightningPruningCallback(trial, monitor="val/f1"),
+        ],
+        deterministic=True,  # TODO GAT compilation fails if set to False
+    )
+
     # Configure the Lightning DataModule
     datamodule = LightningDataset(
         dataset_name="csg",
@@ -156,20 +177,6 @@ def objective(trial: optuna.Trial) -> float:
         persistent_workers=False,
     )
     num_classes = datamodule.num_classes
-
-    # Configure the Lightning Trainer
-    trainer = L.Trainer(
-        precision="16-mixed",
-        enable_progress_bar=False,
-        logger=True,
-        enable_checkpointing=False,
-        max_epochs=EPOCHS,
-        log_every_n_steps=50,
-        callbacks=[
-            LearningRateFinder(min_lr=1e-5, max_lr=0.1),
-            PyTorchLightningPruningCallback(trial, monitor="val/f1"),
-        ],
-    )
 
     # Configure the Lightning Module
     with trainer.init_module():
@@ -195,7 +202,9 @@ def objective(trial: optuna.Trial) -> float:
 
     trainer.fit(model, datamodule=datamodule)
 
-    metric = trainer.callback_metrics["val/f1"].item()
+    metric = trainer.callback_metrics.get("val/f1", 0.0)
+    if isinstance(metric, torch.Tensor):
+        metric = metric.item()
 
     del trainer
     del datamodule
