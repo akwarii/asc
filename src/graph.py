@@ -41,11 +41,10 @@ class KNNGraph:
         self.rcut = rcut
         self.periodicity_invariance = periodicity_invariance
 
-    # TODO docstring
     def _get_graph_data(
         self, struct: Structure
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Performs a nearest neighbor search and returns edge index, distances.
+        """Performs a nearest neighbor search and returns all the data needed to create a graph.
 
         The number of neighbors is determined by the `k` attribute.
         However, if the number of atoms in the unit cell is smaller than `k`, the
@@ -57,10 +56,11 @@ class KNNGraph:
             struct: A pymatgen structure object.
 
         Returns:
-            edge_index (torch.LongTensor): A tensor of shape (2, num_edges) where each column
-                represents an edge between two atoms.
-            edge_distances (torch.FloatTensor): A tensor of shape (num_edges,) containing the
-                distances between atoms in the edge_index tensor.
+            A tuple containing:
+                A (num_nodes, 6) tensor with the distance components between central atom i and
+                    neighbors j and k in all 3 spatial dimensions.
+                A (2, num_edges) tensor where each column represents an edge between two atoms.
+                A (num_edges, 1) tensor containing the distances between atoms.
         """
         n_atoms = len(struct)
         reached_knn = np.zeros(n_atoms, dtype=bool)
@@ -89,7 +89,10 @@ class KNNGraph:
                 sorted_nn = np.argpartition(all_distances[idx_i], self.k)
                 knn_mask, remaining_neigh_mask = sorted_nn[: self.k], sorted_nn[self.k :]
 
-                # TODO test this part
+                # TODO test this part and update the models accordingly
+                # Note that it will change the number of neighbors, as such the current
+                # implementation of the models will not work, as they rely on a fixed number of
+                # neighbors for the aggregation.
                 if self.periodicity_invariance:
                     sym_nn = np.any(all_distances[knn_idx] == all_distances[remaining_neigh_mask])
                     if sym_nn:

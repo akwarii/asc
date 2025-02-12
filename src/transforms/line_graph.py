@@ -73,8 +73,6 @@ class LineGraph(BaseTransform):
         data.edge_index = torch.stack([row, col], dim=0)
         data.x = data.edge_attr
         data.num_nodes = edge_index.size(1)
-        data.edge_attr = (
-            new_edge_attr  # TODO incorrect shape, should be (num_edges, 1) not (num_edges, k)
-        )
+        data.edge_attr = new_edge_attr
 
         return data

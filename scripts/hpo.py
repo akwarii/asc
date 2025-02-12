@@ -159,7 +159,7 @@ def objective(trial: optuna.Trial) -> float:
             LearningRateFinder(min_lr=1e-5, max_lr=0.1),
             PyTorchLightningPruningCallback(trial, monitor="val/f1"),
         ],
-        deterministic=True,  # TODO GAT compilation fails if set to False
+        deterministic=True,  # FIXME GAT compilation fails if set to False
     )
 
     # Configure the Lightning DataModule
