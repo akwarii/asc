@@ -145,18 +145,20 @@ class CEGANN(nn.Module):
         edge_attr = self.sbf(edge_attr)
 
         # Perform message passing
-        x, edge_attr = self._message_passing(x, edge_attr, edge_index)
+        x_m, edge_attr_m = self._message_passing(x, edge_attr, edge_index)
 
         # Expand edge features and angle features
-        x = self.linear_bond(x)
-        edge_attr = self.linear_angle(edge_attr)
+        x_l = self.linear_bond(x_m)
+        edge_attr_l = self.linear_angle(edge_attr_m)
 
         # Reshape bond features and angle features
         # This is useful as we want to sum over the k neighbors later
         # while PyG LineGraph implied stacking the features of the k neighbors.
-        k = edge_attr.size(1) + 1
-        x = x.reshape(x.size(0) // k, k, x.size(-1))
-        edge_attr = edge_attr.reshape(edge_attr.size(0) // k, k, k - 1, edge_attr.size(-1))
+        k = edge_attr.size(0) // x.size(0) + 1
+        num_atoms = x.size(0) // k
+
+        x = x_l.view(num_atoms, k, x_l.size(-1))
+        edge_attr = edge_attr_l.view(num_atoms, k, k - 1, edge_attr_l.size(-1))
 
         # Sum over edge features and angle features
         x = torch.sum(self.softplus(x), dim=1)
