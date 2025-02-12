@@ -15,6 +15,7 @@ from src.transforms import LineGraph, RandomPerturbation
 
 warnings.filterwarnings("ignore", category=optuna.exceptions.ExperimentalWarning)
 
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Hyperparameter optimization for the CEGANN model."
