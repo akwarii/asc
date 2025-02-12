@@ -54,7 +54,7 @@ class GATClassifier(GAT):  # noqa
         )
 
         self.mlp = MLP(
-            in_channels=-1,
+            in_channels=out_channels,
             hidden_channels=classification_units,
             num_layers=classification_layers,
             out_channels=out_channels,
@@ -99,4 +99,5 @@ class GATClassifier(GAT):  # noqa
         num_atoms = x.size(0) // k
 
         out = torch.sum(emb.view(num_atoms, k, self.out_channels), dim=1)
+
         return self.mlp(out)

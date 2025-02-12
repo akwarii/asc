@@ -12,9 +12,6 @@ class MLP(PyGMLP):  # noqa
         self.rbf = GaussianBasis(num_radial=num_radial)
         self.sbf = GaussianBasis(num_radial=num_radial)
 
-        self.lin_edge = torch.nn.Linear(num_radial, self.out_channels, bias=False)
-        self.lin_node = torch.nn.Linear(num_radial, self.out_channels)
-
     def forward(self, data: Data) -> torch.Tensor:  # noqa
         assert data.x is not None
         assert data.edge_attr is not None

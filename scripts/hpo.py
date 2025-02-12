@@ -15,7 +15,6 @@ from src.transforms import LineGraph, RandomPerturbation
 
 warnings.filterwarnings("ignore", category=optuna.exceptions.ExperimentalWarning)
 
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Hyperparameter optimization for the CEGANN model."
@@ -23,7 +22,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model",
         type=str,
-        choices=["cegann", "mlp", "gat"],
+        choices=("cegann", "mlp", "gat"),
         default="cegann",
         help="Model to optimize the hyperparameters for.",
     )
@@ -36,7 +35,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--batch_size",
         type=int,
-        default=256,
+        default=128,
         help="Batch size to use for the training.",
     )
     parser.add_argument(
@@ -44,6 +43,13 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=30,
         help="Number of epochs to train the model for.",
+    )
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        choices=("csg", "mp", "aflow", "gnome", "custom"),
+        default="csg",
+        help="Name of the dataset to use for the training.",
     )
     parser.add_argument(
         "--storage",
@@ -123,8 +129,10 @@ def sample_hyperparameters(trial: optuna.Trial) -> dict:
 
     hparams = trial.params.copy()
 
-    if MODEL_NAME in ("gat", "mlp"):
-        hparams["in_channels"] = -1
+    if MODEL_NAME == "mlp":
+        hparams["in_channels"] = hparams["k"] ** 2 * hparams["num_radial"]
+    elif MODEL_NAME == "gat":
+        hparams["in_channels"] = hparams["num_radial"]
 
     return hparams
 
@@ -164,7 +172,7 @@ def objective(trial: optuna.Trial) -> float:
 
     # Configure the Lightning DataModule
     datamodule = LightningDataset(
-        dataset_name="csg",
+        dataset_name=DATASET,
         lengths=(0.8, 0.2),
         use_imbalance_sampler=True,
         pre_transforms=LineGraph(),
@@ -222,6 +230,7 @@ if __name__ == "__main__":
     BUDGET = args.budget
     BATCH_SIZE = args.batch_size
     EPOCHS = args.epochs
+    DATASET = args.dataset
     STORAGE = args.storage
 
     storage = optuna.storages.RDBStorage(
