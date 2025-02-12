@@ -161,35 +161,16 @@ Once you got your credentials, create a `.env` file (using `cp .env.example .env
 
 **Code and Framework:**
 
-- [ ] Trainer for optimal hyperparameter tuning and training execution.
-  - [ ] Training function
-  - [ ] Inference function
-    - [ ] Neighbor loader if graph larger than GPU memory
-- [ ] Full graph model compilation
+- [ ] Inference function
+  - [ ] Neighbor loader if graph larger than GPU memory
 - [ ] Log the loss
-- [ ] Find out why val/acc is not logged
-
-**Model Optimizations:**
-
-- [ ] Try to make use of GraphNorm instead of LayerNorm in CEGANN
-- [ ] GATv2 and EGAT attention mechanism
-- [ ] Look into the loss function proposed in DeepGAT
-- [ ] Residual connections to avoid over-smoothing for deeper GNN ?
-
-**Datasets**
-
-- [ ] Make use of T.ToSparseTensor if models are changed as subclasses of PyG MessagePassing
 
 **Data augmentation/transformations**
 
 - [ ] Node dropout
-- [ ] Always apply transformations and change default stddev
-- [ ] DropEdge and/or PairNorm to avoid over-smoothing ?
 
 **Additional Enhancements:**
 
-- [ ] Integration of Optuna for efficient hyperparameter tuning and model pruning.
-- [ ] Implementation of at least one comprehensive logging system (Neptune/TensorBoard/Wandb) for detailed analysis and reproducibility.
 - [ ] Use of a config file to make use of e.g., Hydra + Submitit
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
