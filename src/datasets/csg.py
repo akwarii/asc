@@ -95,11 +95,8 @@ class CSG(InMemoryDataset):
         pre-transform functions, and saving the processed data to disk. The data is saved in the
         processed directory as a single file named "data.pt".
         """
-        import warnings
-
         import pandas as pd
         import torch
-        from pymatgen.io.vasp.inputs import BadPoscarWarning
         from tqdm.auto import tqdm
 
         from src.graph import KNNGraph
@@ -117,9 +114,7 @@ class CSG(InMemoryDataset):
 
         data_list = []
         for _, row in tqdm(df.iterrows(), total=len(df)):
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", BadPoscarWarning)
-                data = knn.convert(row["Structure"])
+            data = knn.convert(row["Structure"])
 
             if data.num_nodes is None or data.num_nodes == 0:
                 raise RuntimeError("The number of nodes in the graph is zero.")
