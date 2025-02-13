@@ -58,6 +58,11 @@ def parse_args() -> argparse.Namespace:
         default="sqlite:///hpo.db",
         help="URL to the database to store the optimization results.",
     )
+    parser.add_argument(
+        "--no-compile",
+        action="store_false",
+        help="Disable model compilation.",
+    )
     return parser.parse_args()
 
 
@@ -111,8 +116,8 @@ def sample_hyperparameters(trial: optuna.Trial) -> dict:
         _ = trial.suggest_float("dropout", 0.1, 0.6, step=0.1)
 
     elif MODEL_NAME == "gat":
-        _ = trial.suggest_categorical("hidden_channels", [64, 128, 256, 512])
-        _ = trial.suggest_int("num_layers", 1, 6)
+        _ = trial.suggest_categorical("hidden_channels", [64, 128, 256])
+        _ = trial.suggest_int("num_layers", 1, 5)
         _ = trial.suggest_int("num_radial", 30, 120, step=10)
         _ = trial.suggest_float("dropout", 0.1, 0.6, step=0.1)
         _ = trial.suggest_categorical("act", ["ReLU", "LeakyReLU", "SiLU", "ELU"])
@@ -132,8 +137,6 @@ def sample_hyperparameters(trial: optuna.Trial) -> dict:
 
     if MODEL_NAME == "mlp":
         hparams["in_channels"] = hparams["k"] ** 2 * hparams["num_radial"]
-    elif MODEL_NAME == "gat":
-        hparams["in_channels"] = hparams["num_radial"]
 
     return hparams
 
@@ -191,6 +194,7 @@ def objective(trial: optuna.Trial) -> float:
     with trainer.init_module():
         model = Module(
             model_name=MODEL_NAME,
+            compile=COMPILE,
             num_classes=num_classes,
             metrics=torchmetrics.MetricCollection(
                 {
@@ -233,6 +237,7 @@ if __name__ == "__main__":
     EPOCHS = args.epochs
     DATASET = args.dataset
     STORAGE = args.storage
+    COMPILE = not args.no_compile
 
     storage = optuna.storages.RDBStorage(
         url=STORAGE,
@@ -254,7 +259,7 @@ if __name__ == "__main__":
     study.optimize(
         objective,
         n_trials=BUDGET,
-        callbacks=[optuna.study.MaxTrialsCallback(BUDGET, states=None)],
+        callbacks=[optuna.study.MaxTrialsCallback(BUDGET)],
         gc_after_trial=True,
     )
 
