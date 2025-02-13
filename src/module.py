@@ -74,16 +74,16 @@ class Module(LightningModule):
         if self.hparams["compile"]:
             self.model = torch.compile(self.model)
 
-    def forward(self, x: Data) -> torch.Tensor:
+    def forward(self, data: Data) -> torch.Tensor:
         """Forward pass of the CEGANNModule.
 
         Args:
-            x: Input data.
+            data: Input data.
 
         Returns:
             torch.Tensor: Output tensor.
         """
-        return self.model(x)
+        return self.model(data)
 
     def training_step(self, data: Data) -> torch.Tensor:
         """Training step of the CEGANNModule.
