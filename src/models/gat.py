@@ -11,7 +11,6 @@ from src.models.expansion.radial import GaussianBasis
 class GATClassifier(GAT):  # noqa
     def __init__(
         self,
-        in_channels: int,
         hidden_channels: int,
         num_layers: int,
         out_channels: int,
@@ -32,6 +31,7 @@ class GATClassifier(GAT):  # noqa
         v2 = kwargs.pop("v2", True)
         add_self_loops = kwargs.pop("add_self_loops", False)
         edge_dim = num_radial
+        in_channels = num_radial
 
         super().__init__(
             in_channels=in_channels,
@@ -97,7 +97,6 @@ class GATClassifier(GAT):  # noqa
         # Reduce the output to the number of atoms
         k = edge_attr.size(0) // x.size(0) + 1
         num_atoms = x.size(0) // k
-
         out = torch.sum(emb.view(num_atoms, k, self.out_channels), dim=1)
 
         return self.mlp(out)
