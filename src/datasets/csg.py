@@ -6,7 +6,7 @@ from torch_geometric.data import InMemoryDataset
 
 class CSG(InMemoryDataset):
     """The Crystal Space Group (CSG) dataset is a preprocessed version of the AFLOW, GNoME, and
-    Material Project datasets. The dataset contains ~470,000 crystal structures with space group
+    Material Project datasets. The dataset contains ~200,000 crystal structures with space group
     numbers ranging from 1 to 230. The dataset is formatted as a CSV file with two columns:
     "SpaceGroupNumber" and "Structure". The "Structure" column contains the string representation
     of the crystal structure in the POSCAR format.
@@ -15,11 +15,13 @@ class CSG(InMemoryDataset):
     +/-0.1 GPa and a maximum force component of +/-0.01 eV/A. Material Project data was filtered
     to remove structures with depreciation or warning flags. All GNoME data predicted to be stable
     were included. In addition, structures with the same space group number and composition were
-    removed to avoid redundancy. To reduce class imbalance to ~100, the most represented classes
-    are limited to 10,000 samples, while the least represented have a minimum of 100 samples.The
-    maximum number of atoms in a structure is 444.
+    removed to avoid redundancy. To reduce class imbalance to ~25, the most represented classes
+    are limited to 2,500 samples, while the least represented have a minimum of 100 samples. The
+    maximum number of atoms is limited to 50. In the end, 149 space groups are represented in the
+    dataset.
 
-    The dataset is available for download from Kaggle at https://www.kaggle.com/datasets/gaelhuynh/space-group.
+    The dataset is available for download from Kaggle at
+    https://www.kaggle.com/datasets/gaelhuynh/space-group-small.
 
     Args:
         root: Root directory of the dataset.
