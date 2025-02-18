@@ -28,7 +28,7 @@ class KeyValueParserAction(argparse.Action):
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        values: str | Sequence[str],
+        values: str | Sequence[str] | None,
         option_string: str | None = None,
     ) -> None:
         """Parse key=value pairs and convert values to int, float, or bool."""
