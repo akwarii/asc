@@ -27,6 +27,7 @@ class CEGANN(nn.Module):
     def __init__(
         self,
         out_channels: int,
+        *,
         n_bond_conv: int = 3,
         rbf: dict | nn.Module | None = None,
         sbf: dict | nn.Module | None = None,

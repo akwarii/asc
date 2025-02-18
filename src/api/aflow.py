@@ -143,6 +143,7 @@ class AflowAPI:
         matchbook: str,
         paging: int | None = None,
         chunk_size: int | None = None,
+        *,
         no_directives: bool = False,
     ) -> AfluxResponse:
         """Sends a request to the AFLOW API and retrieves the response.

@@ -14,21 +14,14 @@ dependencies = [
 ]
 
 [dependency-groups]
-api = [
-    "mp-api>=0.44.0",
-    "kaggle>=1.6.17",
-]
+api = ["mp-api>=0.44.0", "kaggle>=1.6.17"]
 optuna = [
     "optuna>=4.1.0",
     "optuna-integration>=4.2.1",
     "rich>=13.9.4",
     "scikit-learn>=1.6.1",
 ]
-dev = [
-    "ipykernel>=6.29.5",
-    "pytest-cov>=6.0.0",
-    "pytest>=8.3.4",
-]
+dev = ["ipykernel>=6.29.5", "pytest-cov>=6.0.0", "pytest>=8.3.4"]
 
 [tool.ruff]
 src = ["src"]
@@ -38,26 +31,26 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = [
-    "F", # flake8 rules
-    "E", # pycodestyle errors
-    "W", # pycodestyle warnings
-    "I", # isort
-    "N", # pep8 naming
-    "D", # pydocstyle
-    "UP", # pyupgrade
+    "F",   # flake8 rules
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "N",   # pep8 naming
+    "D",   # pydocstyle
+    "UP",  # pyupgrade
     "ANN", # flake8-annotations
     # "S", # flake8-bandit
     "BLE", # flake8-blind-except
-    # "FBT", # flake8-boolean-trap
-    
+    "FBT", # flake8-boolean-trap
+
 ]
 ignore = [
-    "N812", # lowercase imported as non lowercase
-    "D100", # missing docstring in public module
-    "D104", # missing docstring in public package
-    "D105", # missing docstring in magic method
-    "D107", # missing docstring in __init__
-    "D205", # 1 blank line required between summary line and description
+    "N812",   # lowercase imported as non lowercase
+    "D100",   # missing docstring in public module
+    "D104",   # missing docstring in public package
+    "D105",   # missing docstring in magic method
+    "D107",   # missing docstring in __init__
+    "D205",   # 1 blank line required between summary line and description
     "ANN003", # missing type annotation for **kwargs
 ]
 
@@ -70,17 +63,18 @@ docstring-code-format = true
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"] # Unused import
 "tests/**" = [
-    "D", # Pydocstyle
+    "D",   # Pydocstyle
     "ANN", # flake8-annotations
 ]
 "notebooks/**" = [
-    "D", # Pydocstyle
+    "D",   # Pydocstyle
     "ANN", # flake8-annotations
 ]
 "scripts/**" = [
-    "D", # Pydocstyle
+    "D",   # Pydocstyle
     "ANN", # flake8-annotations
 ]
+"src/module.py" = ["D102"] # Missing docstring in public method
 
 [tool.mypy]
 exclude = "^scripts/.*\\.py$"

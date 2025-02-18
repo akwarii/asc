@@ -29,6 +29,7 @@ class KNNGraph:
         self,
         k: int = 20,
         rcut: float = 7.5,
+        *,
         periodicity_invariance: bool = False,
         **kwargs,
     ) -> None:

@@ -23,6 +23,7 @@ class Aflow(InMemoryDataset):
     def __init__(
         self,
         root: str = "data/aflow",
+        *,
         transform: Callable | None = None,
         pre_transform: Callable | None = None,
         pre_filter: Callable | None = None,

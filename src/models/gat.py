@@ -15,6 +15,7 @@ class GATClassifier(GAT):  # noqa
         num_layers: int,
         out_channels: int,
         num_radial: int,
+        *,
         dropout: float = 0.0,
         act: str | Callable | None = "relu",
         act_kwargs: dict[str, Any] | None = None,

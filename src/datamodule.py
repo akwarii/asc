@@ -55,14 +55,15 @@ class LightningDataset(LightningDataModule):
 
     def __init__(
         self,
+        *,
         dataset: Dataset | None = None,
         dataset_name: str | None = None,
         lengths: Sequence[int | float] | None = None,
         pred_dataset: Dataset | None = None,
-        use_imbalance_sampler: bool = False,
         pre_filters: Callable | list[Callable] | None = None,
         pre_transforms: Callable | list[Callable] | None = None,
         transforms: Callable | list[Callable] | None = None,
+        use_imbalance_sampler: bool = False,
         force_reload: bool = False,
         **kwargs,
     ) -> None:

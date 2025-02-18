@@ -61,6 +61,7 @@ class Gnome(InMemoryDataset):
     def __init__(
         self,
         root: str = "data/gnome",
+        *,
         transform: Callable | None = None,
         pre_transform: Callable | None = None,
         pre_filter: Callable | None = None,
