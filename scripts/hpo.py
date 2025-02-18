@@ -1,16 +1,15 @@
 import argparse
 import warnings
 
-import lightning as L
 import optuna
 import torch
 import torchmetrics
+from lightning import Trainer, seed_everything
 from lightning.pytorch.callbacks import LearningRateFinder
 from optuna.trial import TrialState
 from optuna_integration import PyTorchLightningPruningCallback
+from src import LightningDataset, Module
 from src.constants import DEFAULT_SEED
-from src.datamodule import LightningDataset
-from src.module import Module
 from src.transforms import LineGraph, RandomPerturbation
 
 warnings.filterwarnings("ignore", category=optuna.exceptions.ExperimentalWarning)
@@ -153,7 +152,7 @@ def objective(trial: optuna.Trial) -> float:
                 return t.value
 
     # Configure the Lightning Trainer
-    trainer = L.Trainer(
+    trainer = Trainer(
         precision="16-mixed",
         enable_progress_bar=False,
         logger=True,
@@ -220,7 +219,7 @@ def objective(trial: optuna.Trial) -> float:
 
 
 if __name__ == "__main__":
-    L.seed_everything(DEFAULT_SEED)
+    seed_everything(DEFAULT_SEED)
 
     args = parse_args()
 

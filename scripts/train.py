@@ -9,10 +9,9 @@ from lightning.pytorch.callbacks import (
     LearningRateFinder,
     ModelCheckpoint,
 )
+from src import LightningDataset, Module
 from src.callbacks import HalfBatchSizeFinder
 from src.constants import DEFAULT_SEED
-from src.datamodule import LightningDataset
-from src.module import Module
 from src.transforms import LineGraph, RandomPerturbation
 from src.utils.cli import KeyValueParserAction
 
