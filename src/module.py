@@ -64,6 +64,11 @@ class Module(LightningModule):
         if model_kwargs is None:
             model_kwargs = dict()
 
+        if model_name == "mlp":
+            model_kwargs["in_channels"] = model_kwargs["k"] ** 2 * model_kwargs["num_radial"]
+
+        model_kwargs.pop("k", None)
+
         model = MODEL_FACTORY.get(model_name, None)
         if model is None:
             raise NotImplementedError(

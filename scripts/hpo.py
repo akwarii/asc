@@ -18,7 +18,7 @@ warnings.filterwarnings("ignore", category=optuna.exceptions.ExperimentalWarning
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Hyperparameter optimization for the CEGANN model."
+        description="Models hyperparameter optimization."
     )
     parser.add_argument(
         "--model",
@@ -60,7 +60,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--no-compile",
-        action="store_false",
+        action="store_true",
         help="Disable model compilation.",
     )
     return parser.parse_args()
@@ -135,9 +135,6 @@ def sample_hyperparameters(trial: optuna.Trial) -> dict:
 
     hparams = trial.params.copy()
 
-    if MODEL_NAME == "mlp":
-        hparams["in_channels"] = hparams["k"] ** 2 * hparams["num_radial"]
-
     return hparams
 
 
@@ -148,8 +145,6 @@ def objective(trial: optuna.Trial) -> float:
 
     # Sample the hyperparameters
     hparams = sample_hyperparameters(trial)
-    k_neigh = hparams.pop("k")
-
     report_trial_params(trial)
 
     # Check whether we already evaluated the sampled hyperparameters
@@ -184,7 +179,7 @@ def objective(trial: optuna.Trial) -> float:
             RandomPerturbation(std=0.1),
         ],
         num_workers=5,
-        k=k_neigh,
+        k=hparams["k"],
         batch_size=BATCH_SIZE,
         persistent_workers=False,
     )
