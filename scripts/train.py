@@ -14,45 +14,7 @@ from src.constants import DEFAULT_SEED
 from src.datamodule import LightningDataset
 from src.module import Module
 from src.transforms import LineGraph, RandomPerturbation
-
-
-def convert_value(value: str):
-    """Convert a string value to int, float, or bool when appropriate."""
-    try:
-        return int(value)
-    except ValueError:
-        pass
-
-    try:
-        return float(value)
-    except ValueError:
-        pass
-
-    lower_value = value.lower()
-    if lower_value in ("true", "false"):
-        return lower_value == "true"
-
-    return value
-
-
-class KeyValueParserAction(argparse.Action):
-    """Custom argparse action to parse key=value pairs and convert values."""
-
-    def __call__(self, parser, namespace, values, option_string=None) -> None:
-        if values is None:
-            return
-        if isinstance(values, str):
-            values = [values]
-
-        result = {}
-        for pair in values:
-            try:
-                key, value = pair.split("=")
-                result[key] = convert_value(value)
-            except ValueError as e:
-                message = f"Error on '{pair}' - it should be in key=value format.\nTraceback: {e}"
-                raise argparse.ArgumentError(self, message)
-        setattr(namespace, self.dest, result)
+from src.utils.cli import KeyValueParserAction
 
 
 def validate_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
@@ -81,7 +43,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--batch_size_finder",
         action="store_true",
-        default=False,
         help="Find the optimal batch size. Overrides the batch_size argument.",
     )
     parser.add_argument(
@@ -105,7 +66,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--use_best_model",
         action="store_true",
-        default=True,
         help=(
             "Use the best architecture found for the model during HPO. "
             "--study argument is required."
@@ -133,7 +93,7 @@ def get_best_model_params(storage, study) -> dict:
     try:
         import optuna
     except ImportError:
-        raise ImportError("Optuna is required to load the best model.")
+        raise ImportError("Optuna package is required to load the best model.")
 
     storage_path = Path(storage.split(":///")[-1])
     if not storage_path.exists():
