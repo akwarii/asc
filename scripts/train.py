@@ -30,14 +30,14 @@ def parse_args() -> argparse.Namespace:
         "--model",
         type=str,
         choices=("cegann", "mlp", "gat"),
-        default="cegann",
+        required=True,
         help="Model to optimize the hyperparameters for.",
     )
     parser.add_argument(
         "--batch_size",
         type=int,
         default=128,
-        help="Batch size to use for the training.",
+        help="Batch size to use for the training. Default: 128.",
     )
     parser.add_argument(
         "--batch_size_finder",
@@ -48,14 +48,14 @@ def parse_args() -> argparse.Namespace:
         "--epochs",
         type=int,
         default=300,
-        help="Number of epochs to train the model for.",
+        help="Number of epochs to train the model for. Default: 300.",
     )
     parser.add_argument(
         "--dataset",
         type=str,
         choices=("csg", "mp", "aflow", "gnome", "custom"),
         default="csg",
-        help="Name of the dataset to use for the training.",
+        help="Name of the dataset to use for the training. Default: csg.",
     )
     parser.add_argument(
         "--model_kwargs",
@@ -67,13 +67,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help=(
             "Use the best architecture found for the model during HPO. "
-            "--study argument is required."
+            "The --storage argument must also be set. Overrides the --model_kwargs argument."
         ),
     )
     parser.add_argument(
         "--storage",
         type=str,
-        default="sqlite:///hpo.db",
         help="URL to the database to store the optimization results.",
     )
     parser.add_argument(
