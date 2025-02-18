@@ -26,4 +26,4 @@ test: ## Run tests
 	pytest
 
 train: ## Train the model
-	python3 src/train.py
+	python scripts/train.py
