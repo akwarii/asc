@@ -17,9 +17,7 @@ from src.transforms import LineGraph, RandomPerturbation
 
 
 def convert_value(value: str):
-    """
-    Convert a string value to int, float, or bool when appropriate.
-    """
+    """Convert a string value to int, float, or bool when appropriate."""
     try:
         return int(value)
     except ValueError:
@@ -38,9 +36,7 @@ def convert_value(value: str):
 
 
 class KeyValueParserAction(argparse.Action):
-    """
-    Custom argparse action to parse key=value pairs and convert values.
-    """
+    """Custom argparse action to parse key=value pairs and convert values."""
 
     def __call__(self, parser, namespace, values, option_string=None) -> None:
         if values is None:
@@ -60,9 +56,7 @@ class KeyValueParserAction(argparse.Action):
 
 
 def validate_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
-    """
-    Validate the parsed arguments.
-    """
+    """Validate the parsed arguments."""
     if args.use_best_model and not args.storage:
         parser.error("--use_best_model requires the --storage argument to be set.")
     if args.use_best_model and args.model_kwargs:
@@ -130,13 +124,12 @@ def parse_args() -> argparse.Namespace:
     )
 
     args = parser.parse_args()
-
     validate_args(args, parser)
 
     return args
 
 
-def try_load_best_model(storage, study) -> dict:
+def get_best_model_params(storage, study) -> dict:
     try:
         import optuna
     except ImportError:
@@ -160,7 +153,7 @@ def main() -> None:
     args = parse_args()
 
     if args.use_best_model:
-        best_params = try_load_best_model(args.storage, args.model)
+        best_params = get_best_model_params(args.storage, args.model)
         args.model_kwargs = best_params
 
     if args.model_kwargs.get("k") is None:
