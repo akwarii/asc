@@ -17,9 +17,7 @@ warnings.filterwarnings("ignore", category=optuna.exceptions.ExperimentalWarning
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Models hyperparameter optimization."
-    )
+    parser = argparse.ArgumentParser(description="Models hyperparameter optimization.")
     parser.add_argument(
         "--model",
         type=str,
