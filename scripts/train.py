@@ -60,6 +60,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model_kwargs",
         action=KeyValueParserAction,
+        nargs="+",
         help="Model hyperparameters as key=value pairs.",
     )
     parser.add_argument(
@@ -79,6 +80,12 @@ def parse_args() -> argparse.Namespace:
         "--no-compile",
         action="store_true",
         help="Disable model compilation.",
+    )
+    parser.add_argument(
+        "--resume_from",
+        type=str,
+        help="Path to a checkpoint to resume training from. Default: None.",
+        default=None,
     )
 
     args = parser.parse_args()
@@ -114,22 +121,34 @@ def main() -> None:
         best_params = get_best_model_params(args.storage, args.model)
         args.model_kwargs = best_params
 
-    if args.model_kwargs.get("k") is None:
-        raise ValueError("The number of neighbors 'k' is required as a model kwarg.")
+    print(f"Training model {args.model} with hyperparameters: {args.model_kwargs}")
+
+    if args.model_kwargs is None:
+        args.model_kwargs = dict()
+        if args.resume_from is not None:
+            ckpt = torch.load(args.resume_from)
+            args.model_kwargs = ckpt["hyper_parameters"]["model_kwargs"]
+            args.model_kwargs["k"] = ckpt["datamodule_hyper_parameters"]["k"]
+
+    if args.model_kwargs["k"] is None:
+        raise ValueError(
+            "Please provide the number of neighbors with the --model_kwargs argument."
+        )
 
     callbacks = [
         LearningRateFinder(min_lr=1e-5, max_lr=0.1),
-        EarlyStopping(monitor="val/loss", patience=10, check_on_train_epoch_end=False),
+        # EarlyStopping(monitor="val/loss", patience=10, check_on_train_epoch_end=False),
         ModelCheckpoint(monitor="val/loss", save_on_train_epoch_end=False),
     ]
     if args.batch_size_finder:
-        callbacks.insert(0, HalfBatchSizeFinder(steps_per_trial=100, init_val=64))
+        callbacks.insert(0, HalfBatchSizeFinder(steps_per_trial=100, init_val=64, max_trials=6))
 
     trainer = Trainer(
         max_epochs=args.epochs,
         precision="16-mixed" if torch.cuda.is_available() else 32,
         callbacks=callbacks,
-        deterministic=True,
+        deterministic=False,
+        enable_progress_bar=True,
     )
 
     datamodule = LightningDataset(
@@ -140,12 +159,14 @@ def main() -> None:
         transforms=RandomPerturbation(std=0.1),
         num_workers=8,
         batch_size=args.batch_size,
-        k=args.model_kwargs["k"],
+        k=args.model_kwargs.get("k"),
     )
 
     num_classes = datamodule.num_classes
     metrics = {
         "f1": torchmetrics.F1Score(task="multiclass", num_classes=num_classes),
+        "auroc": torchmetrics.AUROC(task="multiclass", num_classes=num_classes),
+        "acc": torchmetrics.Accuracy(task="multiclass", num_classes=num_classes),
     }
 
     with trainer.init_module():
@@ -154,12 +175,13 @@ def main() -> None:
             num_classes=num_classes,
             compile=not args.no_compile,
             metrics=torchmetrics.MetricCollection(metrics),
-            warmup=args.epochs // 100 * len(datamodule.train_dataloader()),
+            warmup=100,
+            # warmup=args.epochs // 100 * len(datamodule.train_dataloader()),
             max_iters=args.epochs * len(datamodule.train_dataloader()),
             model_kwargs=args.model_kwargs,
         )
 
-    trainer.fit(model=model, datamodule=datamodule)
+    trainer.fit(model=model, datamodule=datamodule, ckpt_path=args.resume_from)
     trainer.validate(model=model, datamodule=datamodule)
     trainer.test(model=model, datamodule=datamodule)
 
