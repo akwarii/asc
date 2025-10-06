@@ -2,9 +2,9 @@ from typing import Any
 
 import torch
 import torch.nn as nn
-import torchmetrics
 from lightning import LightningModule
 from torch_geometric.data import Data
+from torchmetrics import MetricCollection
 
 from src import models
 from src.optim import get_cosine_schedule_with_warmup
@@ -38,7 +38,7 @@ class Module(LightningModule):
         self,
         model_name: str,
         num_classes: int,
-        metrics: torchmetrics.MetricCollection,
+        metrics: MetricCollection,
         *,
         compile: bool = True,
         lr: float = 1e-3,
@@ -136,7 +136,8 @@ class Module(LightningModule):
         self.test_metrics.reset()
 
     def predict_step(self, data: Data) -> torch.Tensor:
-        return torch.argmax(self(data), dim=-1)
+        preds: torch.Tensor = self(data)
+        return torch.argmax(preds, dim=-1)
 
     def configure_optimizers(self) -> dict[str, Any]:
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.hparams["lr"])
@@ -146,6 +147,10 @@ class Module(LightningModule):
             num_warmup_steps=self.hparams["warmup"],
             num_training_steps=self.hparams["max_iters"],
         )
+        # lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+        #     optimizer=optimizer,
+        #     T_max=self.hparams["max_iters"],
+        # )
 
         return {
             "optimizer": optimizer,
