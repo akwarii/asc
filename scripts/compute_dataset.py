@@ -1,7 +1,6 @@
 from src.datasets import CSG
 from src.transforms import LineGraph
 
-rcut = 6.0
 reload = False
 
 for k in [10, 12, 14, 16]:
@@ -9,7 +8,6 @@ for k in [10, 12, 14, 16]:
         pre_transform=LineGraph(),
         force_reload=reload,
         k=k,
-        rcut=rcut,
     )
     print(dataset)
     print("Num classes: ", dataset.num_classes)

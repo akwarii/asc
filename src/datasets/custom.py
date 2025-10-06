@@ -34,7 +34,6 @@ class CustomDataset(InMemoryDataset):
         self.kwargs = kwargs.copy()
 
         kwargs.pop("k", None)
-        kwargs.pop("rcut", None)
         super().__init__(
             root, transform, pre_transform, pre_filter, force_reload=force_reload, **kwargs
         )
@@ -80,8 +79,22 @@ class CustomDataset(InMemoryDataset):
         for file in self.raw_paths:
             with open(file) as f:
                 lines = f.readlines()
+
             raw_data_list.append("".join(lines))
-            target_list.append(int(lines[0].strip().split()[0][0]))
+
+            if Path(file).suffix.lower() == ".dump":
+                targets = []
+                for line in lines:
+                    if line[:11] == "ITEM: ATOMS":
+                        atom_lines = lines[lines.index(line) + 1 :]
+                        break
+
+                for atom_line in atom_lines:
+                    targets.append(int(atom_line.strip().split()[-1]))
+
+                target_list.append(targets)
+            else:
+                target_list.append(int(lines[0].strip().split()[0][0]))
 
         knn = KNNGraph(**self.kwargs)
 
@@ -94,7 +107,12 @@ class CustomDataset(InMemoryDataset):
             if data.num_nodes is None or data.num_nodes == 0:
                 raise RuntimeError("The number of nodes in the graph is zero.")
 
-            data.y = torch.full((data.num_nodes,), target, dtype=torch.long)
+            if isinstance(target, int):
+                data.y = torch.full((data.num_nodes,), target, dtype=torch.long)
+            elif isinstance(target, list):
+                data.y = torch.tensor(target, dtype=torch.long)
+            else:
+                raise ValueError("Something went wrong with the target.")
 
             if self.pre_filter is not None and not self.pre_filter(data):
                 continue

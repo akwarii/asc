@@ -37,7 +37,7 @@ class CSG(InMemoryDataset):
         KAGGLE_DATASET (str): The name of the Kaggle dataset.
     """
 
-    KAGGLE_DATASET = "gaelhuynh/space-group-small"
+    KAGGLE_DATASET = "gaelhuynh/space-group-tiny"
 
     def __init__(
         self,
@@ -54,7 +54,6 @@ class CSG(InMemoryDataset):
         self.kwargs = kwargs.copy()
 
         kwargs.pop("k", None)
-        kwargs.pop("rcut", None)
         super().__init__(
             root, transform, pre_transform, pre_filter, force_reload=force_reload, **kwargs
         )
@@ -70,7 +69,7 @@ class CSG(InMemoryDataset):
     @property
     def raw_file_names(self) -> list[str]:
         """Return the name of the downloaded files."""
-        return ["CSG_small.csv"]
+        return ["CSG_tiny.csv"]
 
     @property
     def processed_file_names(self) -> list[str]:

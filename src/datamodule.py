@@ -67,13 +67,15 @@ class LightningDataset(LightningDataModule):
         force_reload: bool = False,
         **kwargs,
     ) -> None:
+        if dataset is None and dataset_name is None and pred_dataset is None:
+            raise ValueError(
+                "Either `dataset`, `dataset_name`, or `pred_dataset` must be provided."
+            )
+
         if dataset_name is not None and dataset_name not in DATASET_FACTORY:
             raise ValueError(
                 f"Unknown dataset: {dataset_name}. Available datasets: {DATASET_FACTORY.keys()}"
             )
-
-        if dataset is None and dataset_name is None:
-            raise ValueError("Either `dataset` or `dataset_name` must be provided.")
 
         if lengths is not None and len(lengths) not in {1, 2, 3}:
             raise ValueError(f"Invalid lengths: {lengths}. Expected 1, 2, or 3 values.")
@@ -128,7 +130,6 @@ class LightningDataset(LightningDataModule):
                 force_reload=self.force_reload,
                 log=self.kwargs.get("log", True),
                 k=self.kwargs.get("k", 12),
-                rcut=self.kwargs.get("rcut", 6.0),
             )
 
         assert self.dataset is not None
@@ -171,7 +172,6 @@ class LightningDataset(LightningDataModule):
                 force_reload=self.force_reload,
                 log=self.kwargs.get("log", True),
                 k=self.kwargs.get("k", 12),
-                rcut=self.kwargs.get("rcut", 6.0),
             )
 
         # Make sure the dataset is split only once and ensure the dataset is not
@@ -195,7 +195,6 @@ class LightningDataset(LightningDataModule):
     def dataloader(self, dataset: Dataset, **kwargs) -> DataLoader:
         """Return a DataLoader for the given dataset."""
         kwargs.pop("k", None)
-        kwargs.pop("rcut", None)
 
         return DataLoader(dataset, **kwargs)
 

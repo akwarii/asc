@@ -1,10 +1,17 @@
+import io
 from pathlib import Path
 
-import numpy as np
+import faiss
+import faiss.contrib.torch_utils
 import torch
+from ase import Atoms
+from ase.io import read
 from pymatgen.core import Structure
-from pymatgen.core.structure import FileFormats
 from torch_geometric.data import Data
+
+from src.typing import FileFormats
+
+CENTRAL_CELL = 13
 
 
 class KNNGraph:
@@ -19,166 +26,188 @@ class KNNGraph:
 
     Args:
         k: Number of neighbors.
-        rcut: Cutoff radius in Angstroms to search for neighbors.
-        periodicity_invariance: Whether to enforce periodicity invariance by checking for neighbors
-            with the same distances and adding them to the graph even if it produces more than k
-            neighbors.
     """
 
     def __init__(
         self,
         k: int = 20,
-        rcut: float = 7.5,
-        *,
-        periodicity_invariance: bool = False,
         **kwargs,
     ) -> None:
         if k < 1:
             raise ValueError("The number of neighbors must be greater than 0.")
-        if rcut <= 0.0:
-            raise ValueError("The cutoff radius must be greater than 0.0")
 
         self.k = k
-        self.rcut = rcut
-        self.periodicity_invariance = periodicity_invariance
 
     def _get_graph_data(
-        self, struct: Structure
+        self, struct: Structure | Atoms
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Performs a nearest neighbor search and returns all the data needed to create a graph.
-
-        The number of neighbors is determined by the `k` attribute.
-        However, if the number of atoms in the unit cell is smaller than `k`, the
-        number of neighbors will be reduced to the number of atoms minus one. This is
-        not a problem for space group classification as taking `k=n-1` neighbors gives
-        all the symmetry information contained in the unit cell.
-
-        Args:
-            struct: A pymatgen structure object.
-
-        Returns:
-            A tuple containing:
-                A (num_nodes, 6) tensor with the distance components between central atom i and
-                    neighbors j and k in all 3 spatial dimensions.
-                A (2, num_edges) tensor where each column represents an edge between two atoms.
-                A (num_edges, 1) tensor containing the distances between atoms.
-        """
         n_atoms = len(struct)
-        reached_knn = np.zeros(n_atoms, dtype=bool)
-        delta_rcut = 0.0
 
-        # Find the k-nearest neighbors
-        while not np.all(reached_knn):
-            all_centers_idx, all_neighbors_idx, all_offset, all_distances = (
-                struct.get_neighbor_list(r=self.rcut + delta_rcut, exclude_self=True)
-            )
+        if isinstance(struct, Atoms):
+            cart_coords = torch.as_tensor(struct.positions, dtype=torch.float32)
+            lat = torch.as_tensor(struct.cell.array, dtype=torch.float32)
+        else:
+            cart_coords = torch.as_tensor(struct.cart_coords, dtype=torch.float32)
+            lat = torch.as_tensor(struct.lattice.matrix.copy(), dtype=torch.float32)
 
-            counts = np.bincount(all_centers_idx, minlength=n_atoms)
-            reached_knn[counts >= self.k] = 1
+        # TODO handle non periodic directions
+        shifts = torch.tensor(
+            [[i, j, k] for i in (-1, 0, 1) for j in (-1, 0, 1) for k in (-1, 0, 1)],
+            dtype=torch.int32,
+        )
+        shifts_cart = shifts.to(torch.float32) @ lat
 
-            delta_rcut += 0.1 * self.rcut
+        imgs_cart = cart_coords.unsqueeze(0) + shifts_cart.unsqueeze(1)
+        pts = imgs_cart.reshape(-1, 3).contiguous()
 
-        # Create the k-nearest neighbors index in a safe way
-        # (i.e. if the number of neighbors is larger than k, it can't be smaller)
-        knn_idx = np.zeros((n_atoms, self.k), dtype=int)
-        for i in range(n_atoms):
-            idx_i = np.where(all_centers_idx == i)[0]
+        is_faiss_gpu = hasattr(faiss, "StandardGpuResources")
+        if is_faiss_gpu and faiss.get_num_gpus() > 0 and n_atoms > 10_000:
+            res = faiss.StandardGpuResources()
+            squared_dist, neighbors_idx = faiss.knn_gpu(
+                res, cart_coords.contiguous(), pts, self.k + 1
+            )  # type: ignore
+        else:
+            squared_dist, neighbors_idx = faiss.knn(cart_coords.contiguous(), pts, self.k + 1)  # type: ignore
 
-            if len(idx_i) == self.k:
-                knn_idx[i] = idx_i
-            else:
-                sorted_nn = np.argpartition(all_distances[idx_i], self.k)
-                knn_mask, remaining_neigh_mask = sorted_nn[: self.k], sorted_nn[self.k :]
+        squared_dist: torch.Tensor
+        neighbors_idx: torch.Tensor
 
-                # TODO test this part and update the models accordingly
-                # Note that it will change the number of neighbors, as such the current
-                # implementation of the models will not work, as they rely on a fixed number of
-                # neighbors for the aggregation.
-                if self.periodicity_invariance:
-                    sym_nn = np.any(all_distances[knn_idx] == all_distances[remaining_neigh_mask])
-                    if sym_nn:
-                        knn_mask = np.append(knn_mask, sorted_nn[sym_nn])
+        distances = torch.sqrt(squared_dist)
 
-                knn_idx[i] = idx_i[knn_mask]
+        img_id = neighbors_idx // n_atoms
+        atom_id = neighbors_idx % n_atoms
 
-        # Only keep the k-nearest neighbors data (and jump to torch.Tensors as well)
-        knn_idx = knn_idx.flatten()
-        centers_idx: torch.Tensor = torch.from_numpy(all_centers_idx[knn_idx])
-        neighbors_idx: torch.Tensor = torch.from_numpy(all_neighbors_idx[knn_idx])
-        distances: torch.Tensor = torch.from_numpy(all_distances[knn_idx].astype(np.float32))
-        offset: torch.Tensor = torch.from_numpy(all_offset[knn_idx].astype(np.float32))
+        # Drop self (central atom in central image) ---
+        mask = ~((img_id == CENTRAL_CELL) & (atom_id == torch.arange(n_atoms)[:, None]))
+        distances = distances[mask].reshape(n_atoms, -1)[:, : self.k]
+        atom_id = atom_id[mask].reshape(n_atoms, -1)[:, : self.k]
+        img_id = img_id[mask].reshape(n_atoms, -1)[:, : self.k]
 
-        # Convert to PyG format
+        # Offset to get the actual coordinates of the neighbors
+        offset_cart = shifts[img_id].to(torch.float32) @ lat
+
+        # Build edge index
+        centers_idx = torch.arange(n_atoms).repeat_interleave(self.k)
+        neighbors_idx = atom_id.reshape(-1)
+        distances = distances.reshape(-1)
         edge_index = torch.vstack((centers_idx, neighbors_idx))
 
-        # Distance components (required for LineGraph angles computations)
-        cell = torch.from_numpy(struct.lattice.matrix.astype(np.float32))
-        struct_coords = struct.cart_coords.astype(np.float32)
+        # Distance components for line graph angles
         neighbor_indices = neighbors_idx.view(n_atoms, self.k)
-        offset = offset.view(n_atoms, self.k, 3)
-        j_indices, k_indices = torch.triu_indices(self.k, self.k, offset=1)
 
-        # Expand indices to match the number of atoms
+        j_indices, k_indices = torch.triu_indices(self.k, self.k, offset=1)
         i_indices = torch.arange(n_atoms).repeat_interleave(len(j_indices))
 
-        # Get the corresponding neighbor indices (and offsets)
         j_neighbors = neighbor_indices[:, j_indices].reshape(-1)
         k_neighbors = neighbor_indices[:, k_indices].reshape(-1)
 
-        # Coordinates
-        central_coords = torch.from_numpy(struct_coords[i_indices])
-        j_coords = torch.from_numpy(struct_coords[j_neighbors]) + torch.matmul(
-            offset[:, j_indices].reshape(j_neighbors.size()[0], 3), cell
-        )
-        k_coords = torch.from_numpy(struct_coords[k_neighbors]) + torch.matmul(
-            offset[:, k_indices].reshape(k_neighbors.size()[0], 3), cell
-        )
+        j_offset = offset_cart[:, j_indices].reshape(-1, 3)
+        k_offset = offset_cart[:, k_indices].reshape(-1, 3)
 
-        # Actual distance components - we do not use `torch.stack` because
-        # adding an extra dimension (to use x[0], x[1] for ij, ik) would
-        # cause mismatches in `collate` where "Sizes of tensors must match
-        # except in dimension 0.". Instead, we use `torch.cat` to avoid this
-        # extra dimension (and use x[:,:3], x[:,3:] for ij, ik).
+        central_coords = cart_coords[i_indices]
+        j_coords = cart_coords[j_neighbors] + j_offset
+        k_coords = cart_coords[k_neighbors] + k_offset
+
+        # Concatenate distance components (ij | ik)
         x = torch.cat((j_coords - central_coords, k_coords - central_coords), dim=1)
 
         return x, edge_index, distances.unsqueeze(1)
 
+    @profile
     @staticmethod
-    def _to_pymatgen_struct(
-        struct_repr: Structure | str | Path, fmt: FileFormats = "poscar"
-    ) -> Structure:
-        if isinstance(struct_repr, Structure):
-            struct = struct_repr
-        elif isinstance(struct_repr, str):
-            struct = Structure.from_str(struct_repr, fmt=fmt)
-        elif isinstance(struct_repr, Path) and not struct_repr.is_file():
-            if not struct_repr.is_file():
-                raise FileNotFoundError(f"The file {struct_repr} does not exist.")
-            struct = Structure.from_file(struct_repr)
+    def to_ase_atoms(atoms_repr: str | Path | Atoms, fmt: str | None = None) -> Atoms:
+        """Load an ASE Atoms object from either.
+
+        - a file path (str or Path), ASE will detect format by extension
+        - a string containing structure data (CIF, VASP POSCAR, XYZ, LAMMPS-data, ...)
+
+        Parameters:
+            struct_input: Either a file path or a string containing the structure.
+            fmt: The format of the structure if `struct_input` is a string.
+
+        Returns:
+            atoms : ase.Atoms
+        """
+        if isinstance(atoms_repr, Atoms):
+            atoms = atoms_repr
+
+        elif isinstance(atoms_repr, Path):
+            if not atoms_repr.exists():
+                raise ValueError(f"The file {atoms_repr} does not exist.")
+            atoms = read(atoms_repr)
+
+        elif isinstance(atoms_repr, str):
+            import os
+
+            if os.path.isfile(atoms_repr):
+                atoms = read(atoms_repr)
+            else:
+                if fmt is None:
+                    fmt = detect_format_from_str(atoms_repr)
+
+                stream = io.StringIO(atoms_repr.strip())
+                atoms = read(stream, format=fmt)
+
         else:
-            raise ValueError("The input must be a pymatgen structure object, a string or a path.")
+            raise TypeError(f"Unsupported input type {type(atoms_repr)}")
 
-        return struct
+        return atoms  # type: ignore
 
-    def convert(self, struct: Structure | str | Path, fmt: FileFormats = "poscar") -> Data:
+    def convert(self, atoms_repr: Atoms | str | Path, fmt: str | None = None) -> Data:
         """Convert a single atomic structure to a PyG Data object.
 
         Args:
-            struct: A pymatgen structure or an object convertible to a pymatgen structure.
+            atoms_repr: A pymatgen structure or an object convertible to a pymatgen structure.
             fmt: The format of the input structure if it is a string.
 
         Returns:
             A PyG Data object with positions, edge index, distances and cosine of the angles.
         """
-        struct = self._to_pymatgen_struct(struct, fmt=fmt)
+        atoms = self.to_ase_atoms(atoms_repr, fmt=fmt)
 
-        x, edge_index, edge_distances = self._get_graph_data(struct)
+        x, edge_index, edge_distances = self._get_graph_data(atoms)
 
         data = Data(
-            num_nodes=len(struct),
+            num_nodes=len(atoms),
             x=x,
             edge_index=edge_index,
             edge_attr=edge_distances,
         )
 
         return data
+
+def detect_format_from_str(atoms_str: str) -> FileFormats:
+    """Detect the format of a structure given as a string.
+
+    Args:
+        atoms_str: A string containing the structure.
+
+    Returns:
+        The format of the structure.
+    """
+    text = atoms_str.strip()
+    first_line = text.splitlines()[0].strip()
+
+    if "_cell_length_a" in text and "_atom_site" in text:
+        fmt = "cif"
+    elif first_line.startswith("POSCAR") or first_line.startswith("CONTCAR"):
+        fmt = "vasp"
+    elif first_line.isdigit():
+        fmt = "xyz"
+    elif first_line.startswith("ITEM:"):
+        fmt = "lammps-dump-text"
+    elif "Masses" in text and "Atoms" in text:
+        fmt = "lammps-data"
+    else:
+        lines = text.splitlines()
+        try:
+            float(lines[1].split()[0]) # scaling factor
+            if all(len(line.split()) == 3 for line in lines[2:5]): # lattice
+                fmt = "vasp"
+        except ValueError:
+            pass
+
+    if fmt is None:
+        raise ValueError("Cannot guess structure format from string content")
+
+    return fmt

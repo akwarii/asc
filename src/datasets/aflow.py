@@ -35,7 +35,6 @@ class Aflow(InMemoryDataset):
         self.kwargs = kwargs.copy()
 
         kwargs.pop("k", None)
-        kwargs.pop("rcut", None)
         super().__init__(
             root, transform, pre_transform, pre_filter, force_reload=force_reload, **kwargs
         )
