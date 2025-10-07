@@ -6,6 +6,7 @@ import faiss.contrib.torch_utils
 import torch
 from ase import Atoms
 from ase.io import read
+from line_profiler import profile
 from pymatgen.core import Structure
 from torch_geometric.data import Data
 
@@ -38,6 +39,7 @@ class KNNGraph:
 
         self.k = k
 
+    @profile
     def _get_graph_data(
         self, struct: Structure | Atoms
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -69,10 +71,16 @@ class KNNGraph:
         else:
             squared_dist, neighbors_idx = faiss.knn(cart_coords.contiguous(), pts, self.k + 1)  # type: ignore
 
-        squared_dist: torch.Tensor
-        neighbors_idx: torch.Tensor
-
         distances = torch.sqrt(squared_dist)
+
+        # Calculate KNN using pure PyTorch
+        # a_norm = torch.sum(cart_coords ** 2, dim=1, keepdim=True)
+        # b_norm = torch.sum(pts ** 2, dim=1).view(1, -1)
+        # squared_dists = a_norm + b_norm - 2 * torch.mm(cart_coords, pts.t())
+        # distances, neighbors_idx = torch.topk(
+        #     squared_dists, k=self.k + 1, dim=1, largest=False, sorted=False
+        # )  # as k is small 'sorted=False' should be equivalent to 'sorted=True' for performance
+        # distances = torch.sqrt(distances)  # Convert to actual distances
 
         img_id = neighbors_idx // n_atoms
         atom_id = neighbors_idx % n_atoms
@@ -153,6 +161,7 @@ class KNNGraph:
 
         return atoms  # type: ignore
 
+    @profile
     def convert(self, atoms_repr: Atoms | str | Path, fmt: str | None = None) -> Data:
         """Convert a single atomic structure to a PyG Data object.
 
@@ -175,6 +184,7 @@ class KNNGraph:
         )
 
         return data
+
 
 def detect_format_from_str(atoms_str: str) -> FileFormats:
     """Detect the format of a structure given as a string.
@@ -201,8 +211,8 @@ def detect_format_from_str(atoms_str: str) -> FileFormats:
     else:
         lines = text.splitlines()
         try:
-            float(lines[1].split()[0]) # scaling factor
-            if all(len(line.split()) == 3 for line in lines[2:5]): # lattice
+            float(lines[1].split()[0])  # scaling factor
+            if all(len(line.split()) == 3 for line in lines[2:5]):  # lattice
                 fmt = "vasp"
         except ValueError:
             pass
@@ -210,4 +220,4 @@ def detect_format_from_str(atoms_str: str) -> FileFormats:
     if fmt is None:
         raise ValueError("Cannot guess structure format from string content")
 
-    return fmt
+    return fmt  # type: ignore

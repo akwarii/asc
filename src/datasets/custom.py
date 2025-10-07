@@ -94,7 +94,7 @@ class CustomDataset(InMemoryDataset):
 
                 target_list.append(targets)
             else:
-                target_list.append(int(lines[0].strip().split()[0][0]))
+                target_list.append(int(lines[0].strip().split()[0][0]))  # type: ignore
 
         knn = KNNGraph(**self.kwargs)
 
