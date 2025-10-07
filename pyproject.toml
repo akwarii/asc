@@ -89,5 +89,5 @@ docstring-code-format = true
 ]
 "src/module.py" = ["D102"] # Missing docstring in public method
 
-# [tool.mypy]
-# exclude = "^scripts/.*\\.py$"
+[tool.mypy]
+exclude = "^scripts/.*\\.py$"
