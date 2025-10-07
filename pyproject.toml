@@ -3,16 +3,22 @@ name = "lightning-cegann2"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
     "ase>=3.26.0",
     "cython>=3.0.11",
-    "faiss-cpu>=1.12.0",
     "lightning>=2.4.0",
+    "pandas>=2.2.3",
+    "pymatgen>=2024.11.13",
     "python-dotenv>=1.0.1",
     "tensorboard>=2.18.0",
     "torch-geometric>=2.6.1",
     "typing-extensions>=4.12.2",
+]
+
+[project.optional-dependencies]
+cpu = [
+    "faiss-cpu>=1.12.0",
 ]
 
 [dependency-groups]
@@ -23,13 +29,18 @@ optuna = [
     "rich>=13.9.4",
     "scikit-learn>=1.6.1",
 ]
-dev = ["ipykernel>=6.29.5", "pytest-cov>=6.0.0", "pytest>=8.3.4"]
+dev = [
+    "ipykernel>=6.29.5",
+ "pytest-cov>=6.0.0",
+ "pytest>=8.3.4",
+ "line-profiler>=5.0.0",
+]
 
 [tool.ruff]
 src = ["src"]
 line-length = 99
 indent-width = 4
-target-version = "py311"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = [
@@ -78,5 +89,5 @@ docstring-code-format = true
 ]
 "src/module.py" = ["D102"] # Missing docstring in public method
 
-[tool.mypy]
-exclude = "^scripts/.*\\.py$"
+# [tool.mypy]
+# exclude = "^scripts/.*\\.py$"
