@@ -1,8 +1,6 @@
 import io
 from pathlib import Path
 
-import faiss
-import faiss.contrib.torch_utils
 import torch
 from ase import Atoms
 from ase.io import read
@@ -45,48 +43,56 @@ class KNNGraph:
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         n_atoms = len(struct)
 
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
         if isinstance(struct, Atoms):
-            cart_coords = torch.as_tensor(struct.positions, dtype=torch.float32)
-            lat = torch.as_tensor(struct.cell.array, dtype=torch.float32)
-        else:
-            cart_coords = torch.as_tensor(struct.cart_coords, dtype=torch.float32)
-            lat = torch.as_tensor(struct.lattice.matrix.copy(), dtype=torch.float32)
+            cart_coords = torch.as_tensor(struct.positions, dtype=torch.float32, device=device)
+            lat = torch.as_tensor(struct.cell.array, dtype=torch.float32, device=device)
+        # else:
+        #     cart_coords = torch.as_tensor(struct.cart_coords, dtype=torch.float32)
+        #     lat = torch.as_tensor(struct.lattice.matrix.copy(), dtype=torch.float32)
 
         # TODO handle non periodic directions
         shifts = torch.tensor(
             [[i, j, k] for i in (-1, 0, 1) for j in (-1, 0, 1) for k in (-1, 0, 1)],
             dtype=torch.int32,
+            device=device,
         )
         shifts_cart = shifts.to(torch.float32) @ lat
 
         imgs_cart = cart_coords.unsqueeze(0) + shifts_cart.unsqueeze(1)
         pts = imgs_cart.reshape(-1, 3).contiguous()
 
-        is_faiss_gpu = hasattr(faiss, "StandardGpuResources")
-        if is_faiss_gpu and faiss.get_num_gpus() > 0 and n_atoms > 10_000:
-            res = faiss.StandardGpuResources()
-            squared_dist, neighbors_idx = faiss.knn_gpu(
-                res, cart_coords.contiguous(), pts, self.k + 1
-            )  # type: ignore
-        else:
-            squared_dist, neighbors_idx = faiss.knn(cart_coords.contiguous(), pts, self.k + 1)  # type: ignore
+        # is_faiss_gpu = hasattr(faiss, "StandardGpuResources")
+        # if is_faiss_gpu and faiss.get_num_gpus() > 0 and n_atoms > 10_000:
+        #     res = faiss.StandardGpuResources()
+        #     squared_dist, neighbors_idx = faiss.knn_gpu(
+        #         res, cart_coords.contiguous(), pts, self.k + 1
+        #     )  # type: ignore
+        # else:
+        #     squared_dist, neighbors_idx = faiss.knn(
+        #         cart_coords.contiguous(), pts, self.k + 1
+        #     )  # type: ignore
 
-        distances = torch.sqrt(squared_dist)
+        # distances = torch.sqrt(squared_dist)
 
         # Calculate KNN using pure PyTorch
-        # a_norm = torch.sum(cart_coords ** 2, dim=1, keepdim=True)
-        # b_norm = torch.sum(pts ** 2, dim=1).view(1, -1)
-        # squared_dists = a_norm + b_norm - 2 * torch.mm(cart_coords, pts.t())
-        # distances, neighbors_idx = torch.topk(
-        #     squared_dists, k=self.k + 1, dim=1, largest=False, sorted=False
-        # )  # as k is small 'sorted=False' should be equivalent to 'sorted=True' for performance
-        # distances = torch.sqrt(distances)  # Convert to actual distances
+        a_norm = torch.sum(cart_coords**2, dim=1, keepdim=True)
+        b_norm = torch.sum(pts**2, dim=1).view(1, -1)
+        squared_dists = a_norm + b_norm - 2 * torch.mm(cart_coords, pts.t())
+        # print("DEVICE", device, squared_dists.device, cart_coords.device, pts.device)
+        distances, neighbors_idx = torch.topk(
+            squared_dists, k=self.k + 1, dim=1, largest=False, sorted=False
+        )  # as k is small 'sorted=False' should be equivalent to 'sorted=True' for performance
+        distances = torch.sqrt(distances)  # Convert to actual distances
 
         img_id = neighbors_idx // n_atoms
         atom_id = neighbors_idx % n_atoms
 
         # Drop self (central atom in central image) ---
-        mask = ~((img_id == CENTRAL_CELL) & (atom_id == torch.arange(n_atoms)[:, None]))
+        mask = ~(
+            (img_id == CENTRAL_CELL) & (atom_id == torch.arange(n_atoms, device=device)[:, None])
+        )
         distances = distances[mask].reshape(n_atoms, -1)[:, : self.k]
         atom_id = atom_id[mask].reshape(n_atoms, -1)[:, : self.k]
         img_id = img_id[mask].reshape(n_atoms, -1)[:, : self.k]
@@ -95,7 +101,7 @@ class KNNGraph:
         offset_cart = shifts[img_id].to(torch.float32) @ lat
 
         # Build edge index
-        centers_idx = torch.arange(n_atoms).repeat_interleave(self.k)
+        centers_idx = torch.arange(n_atoms).repeat_interleave(self.k).to(device)
         neighbors_idx = atom_id.reshape(-1)
         distances = distances.reshape(-1)
         edge_index = torch.vstack((centers_idx, neighbors_idx))
