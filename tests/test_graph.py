@@ -10,11 +10,22 @@ class TestGraph:
 
         import pandas as pd
 
+        # Small boxes used for training/testing
         df = pd.read_csv(
             Path(__file__).parent.parent / "data" / "csg" / "raw" / "CSG_tiny.csv",
             usecols=["Structure"],
         )
         structures = df.sample(frac=0.05, random_state=42)["Structure"].to_list()
+
+        # Large box used for inference
+        # structures = [
+        #     Path(__file__).parent.parent
+        #     / "data"
+        #     / "test"
+        #     / "raw"
+        #     # / "IN_154.lmp"
+        #     / "doped_zro2_surface_compression.dump"
+        # ]
 
         return structures
 
@@ -25,6 +36,8 @@ class TestGraph:
         structs = self._load_random_structure()
         for struct in tqdm(structs):
             _ = self.knn.convert(struct, fmt="vasp")
+            # _ = self.knn.convert(struct, fmt="lammps-data")
+
 
 if __name__ == "__main__":
     test = TestGraph()

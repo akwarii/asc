@@ -1,6 +1,8 @@
 import io
 from pathlib import Path
 
+import faiss
+import faiss.contrib.torch_utils  # ignore
 import torch
 from ase import Atoms
 from ase.io import read
@@ -63,28 +65,55 @@ class KNNGraph:
         imgs_cart = cart_coords.unsqueeze(0) + shifts_cart.unsqueeze(1)
         pts = imgs_cart.reshape(-1, 3).contiguous()
 
-        # is_faiss_gpu = hasattr(faiss, "StandardGpuResources")
-        # if is_faiss_gpu and faiss.get_num_gpus() > 0 and n_atoms > 10_000:
-        #     res = faiss.StandardGpuResources()
-        #     squared_dist, neighbors_idx = faiss.knn_gpu(
-        #         res, cart_coords.contiguous(), pts, self.k + 1
-        #     )  # type: ignore
-        # else:
-        #     squared_dist, neighbors_idx = faiss.knn(
-        #         cart_coords.contiguous(), pts, self.k + 1
-        #     )  # type: ignore
+        # Use FAISS for fast KNN search
+        is_faiss_gpu = hasattr(faiss, "StandardGpuResources")
+        if is_faiss_gpu and faiss.get_num_gpus() > 0 and n_atoms > 10_000:
+            res = faiss.StandardGpuResources()
+            squared_dist, neighbors_idx = faiss.knn_gpu(
+                res, cart_coords.contiguous(), pts, self.k + 1
+            )  # type: ignore
+        else:
+            squared_dist, neighbors_idx = faiss.knn(cart_coords.contiguous(), pts, self.k + 1)  # type: ignore
 
-        # distances = torch.sqrt(squared_dist)
+        distances = torch.sqrt(squared_dist)
 
         # Calculate KNN using pure PyTorch
-        a_norm = torch.sum(cart_coords**2, dim=1, keepdim=True)
-        b_norm = torch.sum(pts**2, dim=1).view(1, -1)
-        squared_dists = a_norm + b_norm - 2 * torch.mm(cart_coords, pts.t())
-        # print("DEVICE", device, squared_dists.device, cart_coords.device, pts.device)
-        distances, neighbors_idx = torch.topk(
-            squared_dists, k=self.k + 1, dim=1, largest=False, sorted=False
-        )  # as k is small 'sorted=False' should be equivalent to 'sorted=True' for performance
-        distances = torch.sqrt(distances)  # Convert to actual distances
+        # a_norm = torch.sum(cart_coords**2, dim=1, keepdim=True)
+        # b_norm = torch.sum(pts**2, dim=1).view(1, -1)
+        # squared_dists = a_norm + b_norm - 2 * torch.mm(cart_coords, pts.t())
+        # distances, neighbors_idx = torch.topk(
+        #     squared_dists, k=self.k + 1, dim=1, largest=False, sorted=False
+        # )  # as k is small 'sorted=False' should be equivalent to 'sorted=True' for performance
+        # distances = torch.sqrt(distances)  # Convert to actual distances
+
+        # Alternative: pure Pytorch with batching to reduce memory usage
+        # Use batched computation to reduce memory usage
+        # batch_size = 64  # Adjust based on available memory
+        # n_batches = (n_atoms + batch_size - 1) // batch_size
+        # neighbors_idx = torch.zeros(n_atoms, self.k + 1, dtype=torch.int64, device=device)
+        # squared_dist = torch.zeros(n_atoms, self.k + 1, device=device)
+
+        # for i in range(n_batches):
+        #     start_idx = i * batch_size
+        #     end_idx = min((i + 1) * batch_size, n_atoms)
+
+        #     batch_coords = cart_coords[start_idx:end_idx]
+
+        #     # Compute distances for this batch
+        #     a_norm = torch.sum(batch_coords**2, dim=1, keepdim=True)
+        #     b_norm = torch.sum(pts**2, dim=1).view(1, -1)
+        #     batch_dists = a_norm + b_norm - 2 * torch.mm(batch_coords, pts.t())
+
+        #     # Get top-k for this batch
+        #     batch_dist, batch_idx = torch.topk(
+        #         batch_dists, k=self.k + 1, dim=1, largest=False, sorted=False
+        #     )
+
+        #     # Store results
+        #     squared_dist[start_idx:end_idx] = batch_dist
+        #     neighbors_idx[start_idx:end_idx] = batch_idx
+
+        # distances = torch.sqrt(squared_dist)  # Convert to actual distances
 
         img_id = neighbors_idx // n_atoms
         atom_id = neighbors_idx % n_atoms
@@ -148,19 +177,20 @@ class KNNGraph:
         elif isinstance(atoms_repr, Path):
             if not atoms_repr.exists():
                 raise ValueError(f"The file {atoms_repr} does not exist.")
-            atoms = read(atoms_repr)
+            atoms = read(atoms_repr)  # type: ignore
+            # atoms = read(atoms_repr, format=fmt)  #!DB: needed for LMP files
 
         elif isinstance(atoms_repr, str):
             import os
 
             if os.path.isfile(atoms_repr):
-                atoms = read(atoms_repr)
+                atoms = read(atoms_repr)  # type: ignore
             else:
                 if fmt is None:
                     fmt = detect_format_from_str(atoms_repr)
 
                 stream = io.StringIO(atoms_repr.strip())
-                atoms = read(stream, format=fmt)
+                atoms = read(stream, format=fmt)  # type: ignore
 
         else:
             raise TypeError(f"Unsupported input type {type(atoms_repr)}")
