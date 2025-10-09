@@ -163,3 +163,6 @@ configs/local/default.yaml
 
 # Lightning log
 /lightning_logs
+
+# Images generated during testing
+/tests/*.png
