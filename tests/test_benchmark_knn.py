@@ -479,7 +479,7 @@ def plot_benchmark_results(results, crossover_time, crossover_memory):
 
     plt.tight_layout()
     plt.savefig("knn_benchmark_results.png")
-    plt.show()
+    #plt.show()
 
 
 if __name__ == "__main__":
@@ -498,16 +498,28 @@ if __name__ == "__main__":
         750,
         1_000,
         2_500,
-        5_000,  # Adding more points around the observed crossover region
-        6_000,  # Adding more points around the observed crossover region
-        6_125,  # Adding more points around the observed crossover region
-        6_250,  # Adding more points around the observed crossover region
-        6_500,  # Adding more points around the observed crossover region
-        6_750,  # Adding more points around the observed crossover region
-        7_000,  # Adding more points around the observed crossover region
-        7_500,  # Adding more points around the observed crossover region
+        5_000,   # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
+        6_000,   # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
+        6_125,   # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
+        6_250,   # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
+        6_500,   # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
+        6_750,   # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
+        7_000,   # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
+        7_500,   # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
         10_000,
+        10_100,  # Close to the IN2P3 GPU crossover region (NVIDIA V100)
+        10_150,  # Close to the IN2P3 GPU crossover region (NVIDIA V100)
+        10_175,  # Close to the IN2P3 GPU crossover region (NVIDIA V100)
+        10_200,  # Close to the IN2P3 GPU crossover region (NVIDIA V100)
+        10_500,  # Close to the IN2P3 GPU crossover region (NVIDIA V100)
+        11_000,
+        12_500,
         15_000,
+        17_250,  # Close to the IN2P3 GPU crossover region (NVIDIA H100)
+        17_400,  # Close to the IN2P3 GPU crossover region (NVIDIA H100)
+        17_450,  # Close to the IN2P3 GPU crossover region (NVIDIA H100)
+        17_475,  # Close to the IN2P3 GPU crossover region (NVIDIA H100)
+        17_500,  # Close to the IN2P3 GPU crossover region (NVIDIA H100)
         20_000,
     ]
     results, time_crossover, memory_crossover = benchmark_knn_methods(sizes=sizes, k=20)
