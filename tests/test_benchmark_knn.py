@@ -397,8 +397,8 @@ def plot_benchmark_results(results, crossover_time, crossover_memory):
         ax1.axvline(x=crossover_time, color="dimgray", linestyle="--", alpha=0.5)
         ax1.text(
             crossover_time * 0.9,
-            ax1.get_ylim()[1] * 0.995,
-            f"Time Crossover ~ {crossover_time} atoms",
+            1.5e-3,  # Should be low enough to not overlap with curves/texts
+            f"Time crossover\n~ {crossover_time} atoms",
             rotation=0,
             color="dimgray",
             alpha=0.9,
@@ -408,7 +408,7 @@ def plot_benchmark_results(results, crossover_time, crossover_memory):
 
     ax1.set_xlabel("Number of atoms")
     ax1.set_ylabel("Time (seconds)")
-    ax1.set_title("KNN Calculation Time")
+    ax1.set_title("KNN calculation time")
     ax1.set_xscale("log")
     ax1.set_yscale("log")
     # ax1.grid(which="both", linestyle="--", alpha=0.7)  # Disabled for clarity
@@ -432,7 +432,7 @@ def plot_benchmark_results(results, crossover_time, crossover_memory):
         ax2.text(
             sizes[pytorch_mask][-1],
             max_memory,
-            f"PyTorch Max Memory: {max_memory:.2f} GB",
+            f"PyTorch max. memory: {max_memory:.2f} GB",
             color="orangered",
             alpha=0.9,
             ha="right",
@@ -448,7 +448,7 @@ def plot_benchmark_results(results, crossover_time, crossover_memory):
         ax2.text(
             sizes[faiss_mask][-1],
             max_memory,
-            f"FAISS Max Memory: {max_memory:.2f} GB",
+            f"FAISS max. memory: {max_memory:.2f} GB",
             color="darkslategrey",
             alpha=0.9,
             ha="right",
@@ -460,8 +460,8 @@ def plot_benchmark_results(results, crossover_time, crossover_memory):
         ax2.axvline(x=crossover_memory, color="dimgray", linestyle="--", alpha=0.5)
         ax2.text(
             crossover_memory * 0.9,
-            ax2.get_ylim()[1] * 0.995,
-            f"Memory Crossover ~ {crossover_memory} atoms",
+            1.5e-3,  # Should be low enough to not overlap with curves/texts
+            f"Memory crossover\n~ {crossover_memory} atoms",
             rotation=0,
             color="dimgray",
             alpha=0.9,
@@ -470,8 +470,8 @@ def plot_benchmark_results(results, crossover_time, crossover_memory):
         )
 
     ax2.set_xlabel("Number of atoms")
-    ax2.set_ylabel("Memory Usage (GB)")
-    ax2.set_title("KNN Memory Usage")
+    ax2.set_ylabel("Memory usage (GB)")
+    ax2.set_title("KNN memory usage")
     ax2.set_xscale("log")
     ax2.set_yscale("log")
     # ax2.grid(which="both", linestyle="--", alpha=0.7)  # Disabled for clarity
@@ -479,7 +479,7 @@ def plot_benchmark_results(results, crossover_time, crossover_memory):
 
     plt.tight_layout()
     plt.savefig("knn_benchmark_results.png")
-    #plt.show()
+    # plt.show()
 
 
 if __name__ == "__main__":
@@ -498,14 +498,14 @@ if __name__ == "__main__":
         750,
         1_000,
         2_500,
-        5_000,   # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
-        6_000,   # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
-        6_125,   # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
-        6_250,   # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
-        6_500,   # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
-        6_750,   # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
-        7_000,   # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
-        7_500,   # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
+        5_000,  # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
+        6_000,  # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
+        6_125,  # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
+        6_250,  # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
+        6_500,  # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
+        6_750,  # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
+        7_000,  # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
+        7_500,  # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
         10_000,
         10_100,  # Close to the IN2P3 GPU crossover region (NVIDIA V100)
         10_150,  # Close to the IN2P3 GPU crossover region (NVIDIA V100)
