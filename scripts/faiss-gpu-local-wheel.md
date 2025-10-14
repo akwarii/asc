@@ -16,7 +16,7 @@ Therefore, the easiest solution is to build the wheel locally before using it in
 1. Clone the `faiss-wheels` repository:
 
    ```bash
-   git clone https://github.com/faiss-wheels/faiss-wheels.git
+   git clone --recursive https://github.com/kyamagu/faiss-wheels.git
    ```
 
 2. Navigate to the `faiss-wheels` directory:
