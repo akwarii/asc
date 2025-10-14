@@ -4,10 +4,14 @@ The `faiss-gpu-cu12` package used in `pyproject.toml` is based on [faiss-wheels]
 
 As of writing this document (October 2025), I have managed to use it on :
 
-- a local machine with an NVIDIA RTX 4000 Ada Generation GPU.
 - the IN2P3 computing center using NVIDIA V100 GPUs.
 
-For NVIDIA H100 GPUs, it seems the no fitting wheel can be made available due to Pypi restrictions on the maximum wheel size.
+For
+
+- a local machine with an NVIDIA RTX 4000 Ada Generation GPU
+- NVIDIA H100 GPUs, at IN2P3
+
+it seems the no fitting wheel can be made available due to Pypi restrictions on the maximum wheel size.
 
 Therefore, the easiest solution is to build the wheel locally before using it in the project.
 
