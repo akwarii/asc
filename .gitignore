@@ -165,4 +165,4 @@ configs/local/default.yaml
 /lightning_logs
 
 # Images generated during testing
-/tests/*.png
+/tests/knn_benchmarks/*.png
