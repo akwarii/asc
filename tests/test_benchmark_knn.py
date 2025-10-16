@@ -498,28 +498,34 @@ if __name__ == "__main__":
         750,
         1_000,
         2_500,
-        5_000,  # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
-        6_000,  # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
-        6_125,  # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
-        6_250,  # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
-        6_500,  # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
-        6_750,  # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
-        7_000,  # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
-        7_500,  # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Generation)
-        10_000,
-        10_100,  # Close to the IN2P3 GPU crossover region (NVIDIA V100)
-        10_150,  # Close to the IN2P3 GPU crossover region (NVIDIA V100)
-        10_175,  # Close to the IN2P3 GPU crossover region (NVIDIA V100)
-        10_200,  # Close to the IN2P3 GPU crossover region (NVIDIA V100)
-        10_500,  # Close to the IN2P3 GPU crossover region (NVIDIA V100)
-        11_000,
+        5_000,  # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Gen.)
+        6_000,  # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Gen.)
+        6_125,  # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Gen.)
+        6_250,  # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Gen.) <- torch OOM
+        6_500,  # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Gen.)
+        6_750,  # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Gen.)
+        7_000,  # Close to the local GPU crossover region (NVIDIA RTX 4000 Ada Gen.)
+        7_100,  # Close to Jean-Zay GPU crossover region (NVIDIA V100-16GB)
+        7_125,  # Close to Jean-Zay GPU crossover region (NVIDIA V100-16GB)
+        7_150,  # Close to Jean-Zay GPU crossover region (NVIDIA V100-16GB) <- torch OOM
+        7_500,
+        10_000,  # Close to the Jean-Zay/IN2P3 GPU crossover region (NVIDIA V100-32GB)
+        10_150,  # Close to the Jean-Zay/IN2P3 GPU crossover region (NVIDIA V100-32GB)
+        10_175,  # Close to the Jean-Zay/IN2P3 GPU crossover region (NVIDIA V100-32GB)
+        10_200,  # Close to the Jean-Zay/IN2P3 GPU crossover region (NVIDIA V100-32GB) <- torch OOM
         12_500,
         15_000,
+        15_750,  # Close to the Jean-Zay GPU crossover region (NVIDIA H100)
+        15_900,  # Close to the Jean-Zay GPU crossover region (NVIDIA H100)
+        15_925,  # Close to the Jean-Zay GPU crossover region (NVIDIA H100)
+        15_950,  # Close to the Jean-Zay GPU crossover region (NVIDIA H100)
+        15_975,  # Close to the Jean-Zay GPU crossover region (NVIDIA H100) <- torch OOM
+        16_000,  # Close to the Jean-Zay GPU crossover region (NVIDIA H100)
         17_250,  # Close to the IN2P3 GPU crossover region (NVIDIA H100)
         17_400,  # Close to the IN2P3 GPU crossover region (NVIDIA H100)
         17_450,  # Close to the IN2P3 GPU crossover region (NVIDIA H100)
         17_475,  # Close to the IN2P3 GPU crossover region (NVIDIA H100)
-        17_500,  # Close to the IN2P3 GPU crossover region (NVIDIA H100)
+        17_500,  # Close to the IN2P3 GPU crossover region (NVIDIA H100) <- torch OOM
         20_000,
     ]
     results, time_crossover, memory_crossover = benchmark_knn_methods(sizes=sizes, k=20)
