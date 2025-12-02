@@ -1358,6 +1358,9 @@ dependencies = [
 cpu = [
     { name = "faiss-cpu" },
 ]
+gpu = [
+    { name = "faiss-gpu-cu12" },
+]
 
 [package.dev-dependencies]
 api = [
@@ -1369,9 +1372,6 @@ dev = [
     { name = "line-profiler" },
     { name = "pytest" },
     { name = "pytest-cov" },
-]
-gpu = [
-    { name = "faiss-gpu-cu12" },
 ]
 optuna = [
     { name = "optuna" },
@@ -1385,6 +1385,7 @@ requires-dist = [
     { name = "ase", specifier = ">=3.26.0" },
     { name = "cython", specifier = ">=3.0.11" },
     { name = "faiss-cpu", marker = "extra == 'cpu'", specifier = ">=1.12.0" },
+    { name = "faiss-gpu-cu12", marker = "extra == 'gpu'", specifier = ">=1.12.0" },
     { name = "lightning", specifier = ">=2.4.0" },
     { name = "pandas", specifier = ">=2.2.3" },
     { name = "pymatgen", specifier = ">=2024.11.13" },
@@ -1393,7 +1394,7 @@ requires-dist = [
     { name = "torch-geometric", specifier = ">=2.6.1" },
     { name = "typing-extensions", specifier = ">=4.12.2" },
 ]
-provides-extras = ["cpu"]
+provides-extras = ["cpu", "gpu"]
 
 [package.metadata.requires-dev]
 api = [
@@ -1406,7 +1407,6 @@ dev = [
     { name = "pytest", specifier = ">=8.3.4" },
     { name = "pytest-cov", specifier = ">=6.0.0" },
 ]
-gpu = [{ name = "faiss-gpu-cu12", specifier = ">=1.12.0" }]
 optuna = [
     { name = "optuna", specifier = ">=4.1.0" },
     { name = "optuna-integration", specifier = ">=4.2.1" },

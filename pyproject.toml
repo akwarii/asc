@@ -20,6 +20,9 @@ dependencies = [
 cpu = [
     "faiss-cpu>=1.12.0",
 ]
+gpu = [
+    "faiss-gpu-cu12>=1.12.0",  # Made optional as it does not work on all GPU architectures
+]
 
 [dependency-groups]
 api = ["mp-api>=0.44.0", "kaggle>=1.6.17"]
@@ -34,9 +37,6 @@ dev = [
     "pytest-cov>=6.0.0",
     "pytest>=8.3.4",
     "line-profiler>=5.0.0",
-]
-gpu = [
-    "faiss-gpu-cu12>=1.12.0",  # Made optional as it does not work on all GPU architectures
 ]
 
 [tool.ruff]

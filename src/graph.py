@@ -1,19 +1,44 @@
 import io
+from functools import partial
 from pathlib import Path
 
-import faiss
-import faiss.contrib.torch_utils  # ignore
+try:
+    import faiss
+    import faiss.contrib.torch_utils  # ignore
+except ImportError:
+    faiss = None  # type: ignore
+
 import torch
 from ase import Atoms
 from ase.io import read
 from line_profiler import profile
-from pymatgen.core import Structure
+from torch import Tensor
 from torch_geometric.data import Data
 
 from src.typing import FileFormats
 
 CENTRAL_CELL = 13
 
+def _get_graph_method(n_atoms: int) -> tuple[str, torch.device]:
+    knn_method = "torch"
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    if faiss is not None:
+        is_faiss_gpu = hasattr(faiss, "StandardGpuResources")
+
+        if is_faiss_gpu:
+            if device.type == "cpu":
+                knn_method = "faiss_cpu"
+            else:
+                knn_method = "faiss_gpu"
+        else:
+            knn_method = "faiss_cpu"
+
+    # TODO add dry run to benchmark and user argument in parser
+    if "faiss" in knn_method and n_atoms < 2_000:
+        knn_method = "torch"
+
+    return knn_method, device
 
 class KNNGraph:
     """Helper class for creating a k-nearest neighbors graph from periodic structures.
@@ -41,86 +66,40 @@ class KNNGraph:
 
     @profile
     def _get_graph_data(
-        self, struct: Structure | Atoms
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        self, struct: Atoms
+    ) -> tuple[Tensor, Tensor, Tensor]:
         n_atoms = len(struct)
 
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        knn_method, knn_device = _get_graph_method(n_atoms)
 
-        if isinstance(struct, Atoms):
-            cart_coords = torch.as_tensor(struct.positions, dtype=torch.float32, device=device)
-            lat = torch.as_tensor(struct.cell.array, dtype=torch.float32, device=device)
-        # else:
-        #     cart_coords = torch.as_tensor(struct.cart_coords, dtype=torch.float32)
-        #     lat = torch.as_tensor(struct.lattice.matrix.copy(), dtype=torch.float32)
+        cart_coords = torch.as_tensor(struct.positions, dtype=torch.float32, device=knn_device)
+        lat = torch.as_tensor(struct.cell.array, dtype=torch.float32, device=knn_device)
 
         # TODO handle non periodic directions
         shifts = torch.tensor(
             [[i, j, k] for i in (-1, 0, 1) for j in (-1, 0, 1) for k in (-1, 0, 1)],
             dtype=torch.int32,
-            device=device,
+            device=knn_device,
         )
         shifts_cart = shifts.to(torch.float32) @ lat
 
         imgs_cart = cart_coords.unsqueeze(0) + shifts_cart.unsqueeze(1)
         pts = imgs_cart.reshape(-1, 3).contiguous()
 
-        # Use FAISS for fast KNN search
-        is_faiss_gpu = hasattr(faiss, "StandardGpuResources")
-        if is_faiss_gpu and faiss.get_num_gpus() > 0 and n_atoms > 10_000:
-            res = faiss.StandardGpuResources()
-            squared_dist, neighbors_idx = faiss.knn_gpu(
-                res, cart_coords.contiguous(), pts, self.k + 1
-            )  # type: ignore
-        else:
-            squared_dist, neighbors_idx = faiss.knn(cart_coords.contiguous(), pts, self.k + 1)  # type: ignore
+        knn_map = {"faiss_cpu": partial(self._faiss_knn, use_faiss_gpu=False),
+                   "faiss_gpu": partial(self._faiss_knn, use_faiss_gpu=True),
+                   "torch": self._torch_knn}
+
+        squared_dist, neighbors_idx = knn_map[knn_method](cart_coords, pts)
 
         distances = torch.sqrt(squared_dist)
-
-        # Calculate KNN using pure PyTorch
-        # a_norm = torch.sum(cart_coords**2, dim=1, keepdim=True)
-        # b_norm = torch.sum(pts**2, dim=1).view(1, -1)
-        # squared_dists = a_norm + b_norm - 2 * torch.mm(cart_coords, pts.t())
-        # distances, neighbors_idx = torch.topk(
-        #     squared_dists, k=self.k + 1, dim=1, largest=False, sorted=False
-        # )  # as k is small 'sorted=False' should be equivalent to 'sorted=True' for performance
-        # distances = torch.sqrt(distances)  # Convert to actual distances
-
-        # Alternative: pure Pytorch with batching to reduce memory usage
-        # Use batched computation to reduce memory usage
-        # batch_size = 64  # Adjust based on available memory
-        # n_batches = (n_atoms + batch_size - 1) // batch_size
-        # neighbors_idx = torch.zeros(n_atoms, self.k + 1, dtype=torch.int64, device=device)
-        # squared_dist = torch.zeros(n_atoms, self.k + 1, device=device)
-
-        # for i in range(n_batches):
-        #     start_idx = i * batch_size
-        #     end_idx = min((i + 1) * batch_size, n_atoms)
-
-        #     batch_coords = cart_coords[start_idx:end_idx]
-
-        #     # Compute distances for this batch
-        #     a_norm = torch.sum(batch_coords**2, dim=1, keepdim=True)
-        #     b_norm = torch.sum(pts**2, dim=1).view(1, -1)
-        #     batch_dists = a_norm + b_norm - 2 * torch.mm(batch_coords, pts.t())
-
-        #     # Get top-k for this batch
-        #     batch_dist, batch_idx = torch.topk(
-        #         batch_dists, k=self.k + 1, dim=1, largest=False, sorted=False
-        #     )
-
-        #     # Store results
-        #     squared_dist[start_idx:end_idx] = batch_dist
-        #     neighbors_idx[start_idx:end_idx] = batch_idx
-
-        # distances = torch.sqrt(squared_dist)  # Convert to actual distances
 
         img_id = neighbors_idx // n_atoms
         atom_id = neighbors_idx % n_atoms
 
         # Drop self (central atom in central image) ---
         mask = ~(
-            (img_id == CENTRAL_CELL) & (atom_id == torch.arange(n_atoms, device=device)[:, None])
+            (img_id == CENTRAL_CELL) & (atom_id == torch.arange(n_atoms, device=knn_device)[:, None])
         )
         distances = distances[mask].reshape(n_atoms, -1)[:, : self.k]
         atom_id = atom_id[mask].reshape(n_atoms, -1)[:, : self.k]
@@ -130,7 +109,7 @@ class KNNGraph:
         offset_cart = shifts[img_id].to(torch.float32) @ lat
 
         # Build edge index
-        centers_idx = torch.arange(n_atoms).repeat_interleave(self.k).to(device)
+        centers_idx = torch.arange(n_atoms).repeat_interleave(self.k).to(knn_device)
         neighbors_idx = atom_id.reshape(-1)
         distances = distances.reshape(-1)
         edge_index = torch.vstack((centers_idx, neighbors_idx))
@@ -154,7 +133,34 @@ class KNNGraph:
         # Concatenate distance components (ij | ik)
         x = torch.cat((j_coords - central_coords, k_coords - central_coords), dim=1)
 
+        # Move to the appropriate device
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if knn_device != device:
+            x = x.to(device)
+            edge_index = edge_index.to(device)
+            distances = distances.to(device)
+
         return x, edge_index, distances.unsqueeze(1)
+
+    def _faiss_knn(self, cart_coords: Tensor, pts: Tensor, *, use_faiss_gpu: bool = False) -> tuple[Tensor, Tensor]:
+        cart_coords = cart_coords.contiguous()
+
+        if use_faiss_gpu:
+            res = faiss.StandardGpuResources() # type: ignore
+            squared_dist, neighbors_idx = faiss.knn_gpu(res, cart_coords, pts, self.k + 1)  # type: ignore
+        else:
+            squared_dist, neighbors_idx = faiss.knn(cart_coords, pts, self.k + 1)  # type: ignore
+
+        return squared_dist, neighbors_idx # type: ignore
+
+    def _torch_knn(self, cart_coords: Tensor, pts: Tensor) -> tuple[Tensor, Tensor]:
+        a_norm = torch.sum(cart_coords**2, dim=1, keepdim=True)
+        b_norm = torch.sum(pts**2, dim=1).view(1, -1)
+        all_squared_dist = a_norm + b_norm - 2 * torch.mm(cart_coords, pts.t())
+        squared_dist, neighbors_idx = torch.topk(
+            all_squared_dist, k=self.k + 1, dim=1, largest=False, sorted=False
+        )  # as k is small 'sorted=False' should be equivalent to 'sorted=True' for performance
+        return squared_dist, neighbors_idx
 
     @profile
     @staticmethod
