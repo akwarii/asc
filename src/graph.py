@@ -19,9 +19,10 @@ from src.typing import FileFormats
 
 CENTRAL_CELL = 13
 
+
 def _get_graph_method(n_atoms: int) -> tuple[str, torch.device]:
-    knn_method = "torch"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    knn_method = "torch"
 
     if faiss is not None:
         is_faiss_gpu = hasattr(faiss, "StandardGpuResources")
@@ -40,6 +41,7 @@ def _get_graph_method(n_atoms: int) -> tuple[str, torch.device]:
 
     return knn_method, device
 
+
 class KNNGraph:
     """Helper class for creating a k-nearest neighbors graph from periodic structures.
 
@@ -54,20 +56,14 @@ class KNNGraph:
         k: Number of neighbors.
     """
 
-    def __init__(
-        self,
-        k: int = 20,
-        **kwargs,
-    ) -> None:
+    def __init__(self, k: int = 20, **kwargs) -> None:
         if k < 1:
             raise ValueError("The number of neighbors must be greater than 0.")
 
         self.k = k
 
     @profile
-    def _get_graph_data(
-        self, struct: Atoms
-    ) -> tuple[Tensor, Tensor, Tensor]:
+    def _get_graph_data(self, struct: Atoms) -> tuple[Tensor, Tensor, Tensor]:
         n_atoms = len(struct)
 
         knn_method, knn_device = _get_graph_method(n_atoms)
@@ -86,9 +82,11 @@ class KNNGraph:
         imgs_cart = cart_coords.unsqueeze(0) + shifts_cart.unsqueeze(1)
         pts = imgs_cart.reshape(-1, 3).contiguous()
 
-        knn_map = {"faiss_cpu": partial(self._faiss_knn, use_faiss_gpu=False),
-                   "faiss_gpu": partial(self._faiss_knn, use_faiss_gpu=True),
-                   "torch": self._torch_knn}
+        knn_map = {
+            "faiss_cpu": partial(self._faiss_knn, use_faiss_gpu=False),
+            "faiss_gpu": partial(self._faiss_knn, use_faiss_gpu=True),
+            "torch": self._torch_knn,
+        }
 
         squared_dist, neighbors_idx = knn_map[knn_method](cart_coords, pts)
 
@@ -99,7 +97,8 @@ class KNNGraph:
 
         # Drop self (central atom in central image) ---
         mask = ~(
-            (img_id == CENTRAL_CELL) & (atom_id == torch.arange(n_atoms, device=knn_device)[:, None])
+            (img_id == CENTRAL_CELL)
+            & (atom_id == torch.arange(n_atoms, device=knn_device)[:, None])
         )
         distances = distances[mask].reshape(n_atoms, -1)[:, : self.k]
         atom_id = atom_id[mask].reshape(n_atoms, -1)[:, : self.k]
@@ -117,8 +116,8 @@ class KNNGraph:
         # Distance components for line graph angles
         neighbor_indices = neighbors_idx.view(n_atoms, self.k)
 
-        j_indices, k_indices = torch.triu_indices(self.k, self.k, offset=1)
-        i_indices = torch.arange(n_atoms).repeat_interleave(len(j_indices))
+        j_indices, k_indices = torch.triu_indices(self.k, self.k, offset=1, device=knn_device)
+        i_indices = torch.arange(n_atoms, device=knn_device).repeat_interleave(len(j_indices))
 
         j_neighbors = neighbor_indices[:, j_indices].reshape(-1)
         k_neighbors = neighbor_indices[:, k_indices].reshape(-1)
@@ -142,24 +141,29 @@ class KNNGraph:
 
         return x, edge_index, distances.unsqueeze(1)
 
-    def _faiss_knn(self, cart_coords: Tensor, pts: Tensor, *, use_faiss_gpu: bool = False) -> tuple[Tensor, Tensor]:
+    def _faiss_knn(
+        self, cart_coords: Tensor, pts: Tensor, *, use_faiss_gpu: bool = False
+    ) -> tuple[Tensor, Tensor]:
         cart_coords = cart_coords.contiguous()
 
         if use_faiss_gpu:
-            res = faiss.StandardGpuResources() # type: ignore
+            res = faiss.StandardGpuResources()  # type: ignore
             squared_dist, neighbors_idx = faiss.knn_gpu(res, cart_coords, pts, self.k + 1)  # type: ignore
         else:
             squared_dist, neighbors_idx = faiss.knn(cart_coords, pts, self.k + 1)  # type: ignore
 
-        return squared_dist, neighbors_idx # type: ignore
+        return squared_dist, neighbors_idx  # type: ignore
 
     def _torch_knn(self, cart_coords: Tensor, pts: Tensor) -> tuple[Tensor, Tensor]:
         a_norm = torch.sum(cart_coords**2, dim=1, keepdim=True)
         b_norm = torch.sum(pts**2, dim=1).view(1, -1)
+
         all_squared_dist = a_norm + b_norm - 2 * torch.mm(cart_coords, pts.t())
+
         squared_dist, neighbors_idx = torch.topk(
             all_squared_dist, k=self.k + 1, dim=1, largest=False, sorted=False
         )  # as k is small 'sorted=False' should be equivalent to 'sorted=True' for performance
+
         return squared_dist, neighbors_idx
 
     @profile
