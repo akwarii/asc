@@ -29,7 +29,7 @@ class AngleConvLayer(nn.Module):
             nn.LeakyReLU(negative_slope=0.01),
         )
 
-        self.norm = nn.LayerNorm(self.bond_fea_len)
+        self.norm = nn.LayerNorm(self.angle_fea_len)
         self.act = nn.Softplus()
 
     def forward(
