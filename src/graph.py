@@ -11,7 +11,6 @@ except ImportError:
 import torch
 from ase import Atoms
 from ase.io import read
-from line_profiler import profile
 from torch import Tensor
 from torch_geometric.data import Data
 
@@ -63,7 +62,6 @@ class KNNGraph:
 
         self.k = k
 
-    @profile
     def _get_graph_data(self, struct: Atoms) -> tuple[Tensor, Tensor, Tensor]:
         n_atoms = len(struct)
 
@@ -167,7 +165,6 @@ class KNNGraph:
 
         return squared_dist, neighbors_idx
 
-    @profile
     @staticmethod
     def to_ase_atoms(atoms_repr: str | Path | Atoms, fmt: str | None = None) -> Atoms:
         """Load an ASE Atoms object from either.
@@ -209,7 +206,6 @@ class KNNGraph:
 
         return atoms  # type: ignore
 
-    @profile
     def convert(self, atoms_repr: Atoms | str | Path, fmt: str | None = None) -> Data:
         """Convert a single atomic structure to a PyG Data object.
 
