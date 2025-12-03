@@ -38,8 +38,8 @@ class Module(LightningModule):
         self,
         model_name: str,
         num_classes: int,
-        metrics: MetricCollection,
         *,
+        metrics: MetricCollection | None = None,
         compile: bool = True,
         lr: float = 1e-3,
         warmup: int = 100,
@@ -52,9 +52,11 @@ class Module(LightningModule):
         self._create_model()
 
         self.criterion = nn.CrossEntropyLoss()
-        self.train_metrics = metrics.clone(prefix="train/")
-        self.val_metrics = metrics.clone(prefix="val/")
-        self.test_metrics = metrics.clone(prefix="test/")
+
+        if metrics is not None:
+            self.train_metrics = metrics.clone(prefix="train/")
+            self.val_metrics = metrics.clone(prefix="val/")
+            self.test_metrics = metrics.clone(prefix="test/")
 
     def _create_model(self) -> None:
         model_name = self.hparams["model_name"].lower()
@@ -87,14 +89,15 @@ class Module(LightningModule):
         preds: torch.Tensor = self(data)
         loss = self.criterion(preds, torch.as_tensor(data.y))
 
-        batch_value = self.train_metrics(preds.softmax(dim=-1), data.y)
-        self.log_dict(
-            batch_value,
-            on_step=True,
-            on_epoch=True,
-            prog_bar=True,
-            batch_size=data.num_nodes,
-        )
+        if hasattr(self, "train_metrics"):
+            batch_value = self.train_metrics(preds.softmax(dim=-1), data.y)
+            self.log_dict(
+                batch_value,
+                on_step=True,
+                on_epoch=True,
+                prog_bar=True,
+                batch_size=data.num_nodes,
+            )
         self.log(
             "train/loss",
             loss,
@@ -114,26 +117,31 @@ class Module(LightningModule):
             print(f"Epoch {self.trainer.current_epoch} started")
 
     def on_train_epoch_end(self) -> None:
-        self.train_metrics.reset()
+        if hasattr(self, "train_metrics"):
+            self.train_metrics.reset()
 
     def validation_step(self, data: Data) -> None:
         preds: torch.Tensor = self(data)
         loss = self.criterion(preds, torch.as_tensor(data.y))
 
-        self.val_metrics.update(preds.softmax(dim=-1), data.y)
+        if hasattr(self, "val_metrics"):
+            self.val_metrics.update(preds.softmax(dim=-1), data.y)
         self.log("val/loss", loss, on_epoch=True, batch_size=data.num_nodes)
 
     def on_validation_epoch_end(self) -> None:
-        self.log_dict(self.val_metrics.compute())
-        self.val_metrics.reset()
+        if hasattr(self, "val_metrics"):
+            self.log_dict(self.val_metrics.compute())
+            self.val_metrics.reset()
 
     def test_step(self, data: Data) -> None:
         preds: torch.Tensor = self(data)
-        self.test_metrics.update(preds.softmax(dim=-1), data.y)
+        if hasattr(self, "test_metrics"):
+            self.test_metrics.update(preds.softmax(dim=-1), data.y)
 
     def on_test_epoch_end(self) -> None:
-        self.log_dict(self.test_metrics.compute())
-        self.test_metrics.reset()
+        if hasattr(self, "test_metrics"):
+            self.log_dict(self.test_metrics.compute())
+            self.test_metrics.reset()
 
     def predict_step(self, data: Data) -> torch.Tensor:
         preds: torch.Tensor = self(data)
