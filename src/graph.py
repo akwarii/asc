@@ -22,24 +22,25 @@ CENTRAL_CELL = 13
 
 def _get_graph_method(n_atoms: int) -> tuple[str, torch.device]:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    knn_method = "torch"
+    method = "torch"
 
     if faiss is not None:
         is_faiss_gpu = hasattr(faiss, "StandardGpuResources")
 
         if is_faiss_gpu:
             if device.type == "cpu":
-                knn_method = "faiss_cpu"
+                method = "faiss_cpu"
             else:
-                knn_method = "faiss_gpu"
+                method = "faiss_gpu"
         else:
-            knn_method = "faiss_cpu"
+            method = "faiss_cpu"
+            device = torch.device("cpu")
 
     # TODO add dry run to benchmark and user argument in parser
-    if "faiss" in knn_method and n_atoms < 2_000:
-        knn_method = "torch"
+    if "faiss" in method and n_atoms < 2_000:
+        method = "torch"
 
-    return knn_method, device
+    return method, device
 
 
 class KNNGraph:
@@ -187,14 +188,15 @@ class KNNGraph:
         elif isinstance(atoms_repr, Path):
             if not atoms_repr.exists():
                 raise ValueError(f"The file {atoms_repr} does not exist.")
-            atoms = read(atoms_repr)  # type: ignore
-            # atoms = read(atoms_repr, format=fmt)  #!DB: needed for LMP files
+            atoms = read(atoms_repr, format=fmt)
 
         elif isinstance(atoms_repr, str):
             import os
 
             if os.path.isfile(atoms_repr):
                 atoms = read(atoms_repr)  # type: ignore
+
+            # If we have a string representation of the structure
             else:
                 if fmt is None:
                     fmt = detect_format_from_str(atoms_repr)
