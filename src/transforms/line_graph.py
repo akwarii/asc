@@ -52,27 +52,50 @@ class LineGraph(BaseTransform):
         assert data.edge_index is not None
         assert data.x is not None
 
-        new_edge_attr = compute_bonds_cosines(data.x, data.edge_index.size(1))
-
+        # Original graph data
         edge_index = data.edge_index
         row, col = edge_index
 
-        i = torch.arange(row.size(0), dtype=torch.long, device=row.device)
+        num_atoms = data.num_nodes
+        num_bonds = edge_index.size(1)
+
+        # Compute angle cosines (line graph edge attributes)
+        new_edge_attr = compute_bonds_cosines(data.x, num_bonds)
+
+        # Each bond j has a central atom col[j]
+        bond_source = row.clone()
+        bond_target = col.clone()
+
+        i = torch.arange(num_bonds, dtype=torch.long, device=row.device)
 
         # We want k-1 edges to avoid angles between a bond and itself
         count = (
-            scatter(torch.ones_like(row), row, dim=0, dim_size=data.num_nodes, reduce="sum") - 1
+            scatter(
+                src=torch.ones_like(row),
+                index=row,
+                dim=0,
+                dim_size=num_atoms,
+                reduce="sum",
+            )
+            - 1
         )
         ptr = cumsum(count)
 
         cols = [i[ptr[col[j]] : ptr[col[j] + 1]] for j in range(col.size(0))]
         rows = [row.new_full((c.numel(),), j) for j, c in enumerate(cols)]
 
-        row, col = torch.cat(rows, dim=0), torch.cat(cols, dim=0)
+        lg_row, lg_col = torch.cat(rows, dim=0), torch.cat(cols, dim=0)
+        lg_edge_index = torch.stack([lg_row, lg_col], dim=0)
 
-        data.edge_index = torch.stack([row, col], dim=0)
+        # Update data object (nodes are now bonds, edges are angles)
         data.x = data.edge_attr
-        data.num_nodes = edge_index.size(1)
         data.edge_attr = new_edge_attr
+        data.edge_index = lg_edge_index
+        data.num_nodes = num_bonds
+
+        # Store additional metadata
+        data.bond_source = bond_source
+        data.bond_target = bond_target
+        data.num_atoms = num_atoms
 
         return data
