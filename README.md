@@ -161,13 +161,21 @@ Once you got your credentials, create a `.env` file (using `cp .env.example .env
 
 **Code and Framework:**
 
-- [ ] Inference function
-  - [ ] Neighbor loader if graph larger than GPU memory
-- [ ] Log the loss
+- [ ] Refactor line graph to make it more compliant
+- [ ] Refactor Conv modules to work with more general graphs (e.g., different number of neighbor per node) and make use of PyG MessagePassing class
+- [ ] Refactor CEGANN module in the same way
+- [ ] Try other global pooling such as attention pooling
+- [ ] Allow graph classification
+- [x] Inference function
+- [ ] Neighbor loader if graph larger than GPU memory
+
+Optional:
+- [ ] KNN with a tolerance on max k (if multiple distances are the same)
 
 **Data augmentation/transformations**
 
-- [ ] Node dropout
+- [ ] Node dropout (on the line graph)
+- [ ] Graph coarsening transformation
 
 **Additional Enhancements:**
 
