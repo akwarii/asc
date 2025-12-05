@@ -15,13 +15,12 @@ class CEGANN(nn.Module):
         materials environment, npj Computational Materials (2023) 9:23.
 
     Args:
+        out_channels: Number of output classes.
         n_conv_edge: Number of convolutional layers for edge features.
         rbf: Information about the Gaussian basis function expansion for bond features.
         sbf: Information about the Gaussian basis function expansion for angle features.
         edge_expansion_units: Number of units for expanding edge features.
         angle_expansion_units: Number of units for expanding angle features.
-        out_channels: Number of output classes.
-        embedding: Whether to return embedded features.
     """
 
     def __init__(
@@ -37,7 +36,6 @@ class CEGANN(nn.Module):
         dropout: float = 0.1,
         classification_units: int = 128,
         classification_layers: int = 2,
-        embedding: bool = False,
     ) -> None:
         super().__init__()
 
@@ -52,7 +50,7 @@ class CEGANN(nn.Module):
             self.rbf = GaussianBasis(**rbf)
         else:
             self.rbf = rbf
-        n_bond_features = self.rbf.num_radial
+        n_bond_features: int = self.rbf.num_radial  # type: ignore
 
         if sbf is None:
             assert num_radial is not None
@@ -62,7 +60,7 @@ class CEGANN(nn.Module):
             self.sbf = GaussianBasis(**sbf)
         else:
             self.sbf = sbf
-        n_angle_features = self.sbf.num_radial
+        n_angle_features: int = self.sbf.num_radial  # type: ignore
 
         self.linear_bond = nn.Sequential(
             nn.Dropout(dropout), nn.Linear(n_bond_features, edge_expansion_units)
@@ -91,8 +89,6 @@ class CEGANN(nn.Module):
             dropout=dropout,
             plain_last=True,
         )
-
-        self.embedding = embedding
 
     def _message_passing(
         self,
@@ -161,7 +157,7 @@ class CEGANN(nn.Module):
         x = x_l.view(num_atoms, k, x_l.size(-1))
         edge_attr = edge_attr_l.view(num_atoms, k, k - 1, edge_attr_l.size(-1))
 
-        # Sum over edge features and angle features
+        # Aggregate over neighbors
         x = torch.sum(self.softplus(x), dim=1)
         edge_attr = torch.sum(
             self.softplus(torch.sum(self.softplus(edge_attr), dim=2)),
@@ -169,18 +165,15 @@ class CEGANN(nn.Module):
         )
 
         # Concatenate edge features and angle features
-        crystal_features = torch.cat([x, edge_attr], dim=1)
+        node_repr = torch.cat([x, edge_attr], dim=-1)
 
         # Normalize and apply softplus activation
-        crystal_features = self.softplus(self.layer_norm(crystal_features))
+        #? WHY
+        embedding = self.softplus(self.layer_norm(node_repr))
 
-        if self.embedding:
-            embedded_features = crystal_features
+        #TODO add readout for optional graph-level prediction here
 
         # Apply dropout and linear layer
-        output = self.classification_head(crystal_features)
+        output = self.classification_head(embedding)
 
-        if self.embedding:
-            return output, embedded_features
-        else:
-            return output
+        return output
