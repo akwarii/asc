@@ -4,31 +4,38 @@ from torch_geometric.transforms import BaseTransform
 from torch_geometric.utils import cumsum, scatter
 
 
-def compute_bonds_cosines(x: torch.Tensor, n_bonds: int, eps: float = 1e-8) -> torch.Tensor:
-    """Computes the bond angle cosines from the bond displacement vectors for all triplets
-    in the graph.
+def compute_bonds_angles(x: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
+    """Computes bond angles (in radians) for all *directed* neighbor pairs of bonds.
 
     Args:
-        x (torch.Tensor): A tensor with distances components between central atom i and
-            either neighbor j (x[:,:3]) or k (x[:,3:]) in all 3 spatial dimensions for all
-            neighbor triplets in the graph.
-        n_bonds (int): The number of edges in the graph.
+        x (torch.Tensor): Displacement components between central atom i and neighbors j
+            and k in all 3 spatial dimensions for all unordered neighbor triplets in the graph.
         eps (float): A small value to avoid division by zero.
 
     Returns:
-        torch.Tensor: angle cosines for all neighbor triplets in the graph.
+        torch.Tensor: Angles (in radians) for all *directed* neighbor pairs of bonds
+            (i → j, i → k) and (i → k, i → j), shape (2 * num_triplets, 1).
     """
-    k = (2 * x.size(0)) // n_bonds  #  this is actually "k - 1" with k nearest neighbors
-    v1 = torch.cat((x[:, :3], x[:, 3:])).reshape(n_bonds, k, 3)  # (i -> j, i -> k)
-    v2 = torch.cat((x[:, 3:], x[:, :3])).reshape(n_bonds, k, 3)  # (i -> k, i -> j)
-    angle_cos = (v1 * v2).sum(dim=2) / (v1.norm(dim=2) * v2.norm(dim=2) + eps)
-    return angle_cos.flatten().unsqueeze(1)
+    # For each unordered pair (j, k), we build two directed pairs:
+    #   (i -> j, i -> k) and (i -> k, i -> j)
+    v1 = torch.cat((x[:, :3], x[:, 3:]), dim=0)  # first bond in the pair
+    v2 = torch.cat((x[:, 3:], x[:, :3]), dim=0)  # second bond in the pair
+
+    # Cosine of the angle between v1 and v2
+    denom = v1.norm(dim=1) * v2.norm(dim=1) + eps
+    cos_theta = (v1 * v2).sum(dim=1) / denom
+    cos_theta = cos_theta.clamp(-1.0, 1.0)
+
+    angles = torch.acos(cos_theta)
+
+    return angles.unsqueeze(1)
+
 
 
 class LineGraph(BaseTransform):
     """Converts a graph to its directed line-graph version.
 
-    The implementation is bases on `torch_geometric.transforms.LineGraph` with three key
+    The implementation is based on `torch_geometric.transforms.LineGraph` with three key
     differences:
 
     1. We assume the graph is directed, meaning the resulting line-graph will be directed.
@@ -60,7 +67,7 @@ class LineGraph(BaseTransform):
         num_bonds = edge_index.size(1)
 
         # Compute angle cosines (line graph edge attributes)
-        new_edge_attr = compute_bonds_cosines(data.x, num_bonds)
+        new_edge_attr = compute_bonds_angles(data.x)
 
         # Each bond j has a central atom col[j]
         bond_source = row.clone()
