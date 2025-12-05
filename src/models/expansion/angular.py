@@ -1,7 +1,9 @@
+import math
 from typing import Any
 
 import torch
 from scipy.special import sph_harm
+from torch import nn
 
 from .radial import GaussianBasis, RadialBasisExpansion
 
@@ -34,9 +36,50 @@ class RealSphHarmBasis(torch.nn.Module):
         return sph_harm_values.T
 
 
+class SineBasis(nn.Module):
+    r"""Angular basis using simple sinusoidal functions on [r_min, r_max].
+
+    - Typically used for angles in radians:
+        r_min = 0.0, r_max = pi
+
+    - Input:  theta [..., 1] or [...], assumed in [r_min, r_max]
+    - Output: [..., num_basis]
+
+    We re-scale to [0, pi] internally:
+        theta' = (theta - r_min) / (r_max - r_min) * pi
+        phi_m(theta) = sin(m * theta')
+    """
+
+    def __init__(
+        self,
+        num_basis: int,
+    ) -> None:
+        super().__init__()
+
+        self.num_basis = int(num_basis)
+        self.r_min = 0.0
+        self.r_max = math.pi
+
+        freqs = torch.arange(1.0, self.num_basis + 1.0).float()
+        self.register_buffer("freqs", freqs)
+
+    def forward(self, theta: torch.Tensor) -> torch.Tensor:
+        """Evaluate the sine basis for angles theta.
+
+        Args:
+            theta: Input tensor in radian.
+
+        Returns:
+            torch.Tensor: Sine basis.
+        """
+        z = theta.unsqueeze(-1) * self.freqs.view(1, -1) # type: ignore
+        return torch.sin(z)
+
+
 ANGULAR_FUNCTIONS = {
     "sph_harm": RealSphHarmBasis,
     "gaussian": GaussianBasis,
+    "sine": SineBasis,
 }
 
 

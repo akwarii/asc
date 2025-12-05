@@ -18,9 +18,9 @@ class GaussianBasis(torch.nn.Module):
 
     def __init__(
         self,
+        num_radial: int = 64,
         start: float = 0.0,
-        stop: float = 5.0,
-        num_radial: int = 50,
+        stop: float = 6.0,
     ) -> None:
         super().__init__()
 
@@ -29,56 +29,60 @@ class GaussianBasis(torch.nn.Module):
         self.coeff = -0.5 / (offset[1] - offset[0]).item() ** 2
         self.register_buffer("offset", offset)
 
-    def forward(self, dist_scaled: torch.Tensor) -> torch.Tensor:
+    def forward(self, dist: torch.Tensor) -> torch.Tensor:
         """Forward pass of the Gaussian smearing module.
 
         Args:
-            dist_scaled: The input scaled distance tensor.
+            dist: The input scaled distance tensor.
 
         Returns:
             torch.Tensor: The smearing output tensor.
         """
-        dist_scaled = dist_scaled.view(-1, 1) - self.offset.view(1, -1)
-        return torch.exp(self.coeff * dist_scaled**2)
+        dist = dist.view(-1, 1) - self.offset.view(1, -1) # type: ignore
+        return torch.exp(self.coeff * torch.pow(dist, 2))
 
 
 class RadialBesselBasis(torch.nn.Module):
-    """Radial Bessel basis, as proposed in Gasteiger et al (2022). Directional Message Passing for
+    r"""Radial Bessel basis, as proposed in Gasteiger et al (2022). Directional Message Passing for
     Molecular Graphs (arXiv:2003.03123).
 
     Args:
         num_radial: The number of radial basis functions.
         stop: The cutoff value for scaling the distance.
+        trainable: Whether to train the frequencies :math:`n \pi`.
     """
 
     def __init__(
         self,
-        num_radial: int = 16,
-        stop: float = 5.0,
+        num_radial: int = 8,
+        stop: float = 6.0,
+        *,
+        trainable: bool = True,
     ) -> None:
         super().__init__()
 
         self.num_radial = num_radial
+        self.trainable = trainable
+        self.r_max = stop
 
-        # divide by stop ** 2 to counteract the scaling of the distances
-        self.norm_factor = math.sqrt(2 / stop**3)
+        weights = torch.linspace(1.0, num_radial, num_radial) * math.pi
+        if trainable:
+            self.bessel_weights = torch.nn.Parameter(weights, requires_grad=True)
+        else:
+            self.register_buffer("bessel_weights", weights)
 
-        self.freq = torch.nn.Parameter(
-            data=torch.Tensor(math.pi * torch.arange(1, num_radial + 1) / stop),
-            requires_grad=True,
-        )
-
-    def forward(self, dist_scaled: torch.Tensor) -> torch.Tensor:
-        """Forward pass of the radial Bessel basis.
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Evaluate Bessel Basis for input x.
 
         Args:
-            dist_scaled: The input scaled distance tensor.
+            x: Input tensor.
 
         Returns:
-            torch.Tensor: The radial Bessel basis output tensor.
+            torch.Tensor: Radial Bessel basis.
         """
-        dist_scaled = dist_scaled.view(-1, 1)
-        return self.norm_factor * torch.sin(self.freq * dist_scaled) / dist_scaled
+        prefactor = 2.0 / self.r_max
+        numerator = torch.sin(self.bessel_weights * x.unsqueeze(-1) / self.r_max)
+        return prefactor * numerator / x.unsqueeze(-1)
 
 
 RADIAL_FUNCTIONS = {
