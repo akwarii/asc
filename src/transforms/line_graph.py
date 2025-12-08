@@ -1,10 +1,12 @@
 import torch
+from line_profiler import profile
+from torch import Tensor
 from torch_geometric.data import Data
 from torch_geometric.transforms import BaseTransform
-from torch_geometric.utils import cumsum, scatter
+from torch_geometric.utils import scatter
 
 
-def compute_bonds_angles(x: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
+def compute_bonds_angles(x: Tensor, eps: float = 1e-8) -> torch.Tensor:
     """Computes bond angles (in radians) for all *directed* neighbor pairs of bonds.
 
     Args:
@@ -31,7 +33,6 @@ def compute_bonds_angles(x: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
     return angles.unsqueeze(1)
 
 
-
 class LineGraph(BaseTransform):
     """Converts a graph to its directed line-graph version.
 
@@ -46,6 +47,41 @@ class LineGraph(BaseTransform):
     3. We avoid coalescing the graph to ensure periodicity invariance.
     """
 
+    # TODO try to optimize
+    @profile
+    def _get_new_adj(
+        self, old_row: Tensor, old_col: Tensor, num_atoms: int, num_bonds: int
+    ) -> tuple[list[Tensor], list[Tensor]]:
+        device = old_row.device
+
+        i = torch.arange(num_bonds, dtype=torch.long, device=device)
+
+        # We want k-1 edges to avoid angles between a bond and itself
+        count = (
+            scatter(
+                src=torch.ones_like(old_row),
+                index=old_row,
+                dim=0,
+                dim_size=num_atoms,
+                reduce="sum",
+            )
+            - 1
+        )
+
+        # build ptr as CSR-style pointer: size = num_atoms + 1
+        ptr = torch.empty(num_atoms + 1, dtype=torch.long, device=device)
+        ptr[0] = 0
+        ptr[1:] = count.cumsum(dim=0)
+
+        # Precompute the slice for each atom
+        atom_cols: list[Tensor] = [i[ptr[a] : ptr[a + 1]] for a in range(num_atoms)]
+
+        cols: list[Tensor] = [atom_cols[v.item()] for v in old_col]  # type: ignore
+        rows: list[Tensor] = [old_row.new_full((c.numel(),), j) for j, c in enumerate(cols)]
+
+        return rows, cols
+
+    @profile
     def forward(self, data: Data) -> Data:
         """Modified Linegraph forward but also adds cosine angles as LineGraph edge_attr. The
         resulting graph will be directed.
@@ -73,23 +109,8 @@ class LineGraph(BaseTransform):
         bond_source = row.clone()
         bond_target = col.clone()
 
-        i = torch.arange(num_bonds, dtype=torch.long, device=row.device)
-
-        # We want k-1 edges to avoid angles between a bond and itself
-        count = (
-            scatter(
-                src=torch.ones_like(row),
-                index=row,
-                dim=0,
-                dim_size=num_atoms,
-                reduce="sum",
-            )
-            - 1
-        )
-        ptr = cumsum(count)
-
-        cols = [i[ptr[col[j]] : ptr[col[j] + 1]] for j in range(col.size(0))]
-        rows = [row.new_full((c.numel(),), j) for j, c in enumerate(cols)]
+        # New adjacency for the line graph
+        rows, cols = self._get_new_adj(row, col, num_atoms, num_bonds)
 
         lg_row, lg_col = torch.cat(rows, dim=0), torch.cat(cols, dim=0)
         lg_edge_index = torch.stack([lg_row, lg_col], dim=0)
