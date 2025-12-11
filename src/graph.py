@@ -1,4 +1,5 @@
 import io
+from collections.abc import Callable
 from functools import partial
 from pathlib import Path
 
@@ -81,7 +82,7 @@ class KNNGraph:
         imgs_cart = cart_coords.unsqueeze(0) + shifts_cart.unsqueeze(1)
         pts = imgs_cart.reshape(-1, 3).contiguous()
 
-        knn_map = {
+        knn_map: dict[str, Callable] = {
             "faiss_cpu": partial(self._faiss_knn, use_faiss_gpu=False),
             "faiss_gpu": partial(self._faiss_knn, use_faiss_gpu=True),
             "torch": self._torch_knn,
@@ -243,25 +244,22 @@ def detect_format_from_str(atoms_str: str) -> FileFormats:
     first_line = text.splitlines()[0].strip()
 
     if "_cell_length_a" in text and "_atom_site" in text:
-        fmt = "cif"
+        return "cif"
     elif first_line.startswith("POSCAR") or first_line.startswith("CONTCAR"):
-        fmt = "vasp"
+        return "vasp"
     elif first_line.isdigit():
-        fmt = "xyz"
+        return "xyz"
     elif first_line.startswith("ITEM:"):
-        fmt = "lammps-dump-text"
+        return "lammps-dump-text"
     elif "Masses" in text and "Atoms" in text:
-        fmt = "lammps-data"
+        return "lammps-data"
     else:
         lines = text.splitlines()
         try:
             float(lines[1].split()[0])  # scaling factor
             if all(len(line.split()) == 3 for line in lines[2:5]):  # lattice
-                fmt = "vasp"
+                return "vasp"
         except ValueError:
             pass
 
-    if fmt is None:
-        raise ValueError("Cannot guess structure format from string content")
-
-    return fmt  # type: ignore
+    raise ValueError("Cannot guess structure format from string content")
