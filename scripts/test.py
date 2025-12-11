@@ -21,7 +21,7 @@ def main() -> None:
         num_workers=4,
         batch_size=BATCH_SIZE,
         pre_transforms=LineGraph(),
-        force_reload=True
+        force_reload=True,
     )
 
     metrics = torchmetrics.MetricCollection(
@@ -46,7 +46,7 @@ def main() -> None:
     with trainer.init_module():
         model = Module.load_from_checkpoint(checkpoint_path=CKPT, metrics=metrics)
 
-    predictions = trainer.test(model=model, datamodule=datamodule)
+    _ = trainer.test(model=model, datamodule=datamodule)
 
 
 if __name__ == "__main__":

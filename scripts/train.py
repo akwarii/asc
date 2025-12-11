@@ -5,7 +5,6 @@ import torch
 import torchmetrics
 from lightning import Trainer, seed_everything
 from lightning.pytorch.callbacks import (
-    EarlyStopping,
     LearningRateFinder,
     ModelCheckpoint,
 )

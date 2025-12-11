@@ -35,9 +35,9 @@ class TestGraph:
         for struct in tqdm(self.structures[:1_000]):
             g = self.knn.convert(struct, fmt="vasp")
 
-            old_row, old_col = g.edge_index # type: ignore
+            old_row, old_col = g.edge_index  # type: ignore
             num_atoms = g.num_nodes
-            num_bonds = g.edge_index.size(1) # type: ignore
+            num_bonds = g.edge_index.size(1)  # type: ignore
 
             # Reference (slow) result
             ref_rows, ref_cols = self.lg_transform._get_new_adj(

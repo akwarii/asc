@@ -168,10 +168,10 @@ class CEGANN(nn.Module):
         node_repr = torch.cat([x, edge_attr], dim=-1)
 
         # Normalize and apply softplus activation
-        #? WHY
+        # ? WHY
         embedding = self.softplus(self.layer_norm(node_repr))
 
-        #TODO add readout for optional graph-level prediction here
+        # TODO add readout for optional graph-level prediction here
 
         # Apply dropout and linear layer
         output = self.classification_head(embedding)

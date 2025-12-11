@@ -171,6 +171,7 @@ Once you got your credentials, create a `.env` file (using `cp .env.example .env
 - [ ] Neighbor loader if graph larger than GPU memory
 
 Optional:
+
 - [ ] KNN with a tolerance on max k (if multiple distances are the same)
 
 **Data augmentation/transformations**
