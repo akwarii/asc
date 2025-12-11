@@ -1,4 +1,5 @@
 import math
+from collections.abc import Callable
 from typing import Any
 
 import torch
@@ -38,7 +39,7 @@ class GaussianBasis(torch.nn.Module):
         Returns:
             torch.Tensor: The smearing output tensor.
         """
-        dist = dist.view(-1, 1) - self.offset.view(1, -1) # type: ignore
+        dist = dist.view(-1, 1) - self.offset.view(1, -1)  # type: ignore
         return torch.exp(self.coeff * torch.pow(dist, 2))
 
 
@@ -85,11 +86,11 @@ class RadialBesselBasis(torch.nn.Module):
         return prefactor * numerator / x.unsqueeze(-1)
 
 
-RADIAL_FUNCTIONS = {
+RADIAL_FUNCTIONS: dict[str, Callable] = {
     "gaussian": GaussianBasis,
     "bessel": RadialBesselBasis,
 }
-ENVELOPE_FUNCTIONS = {
+ENVELOPE_FUNCTIONS: dict[str, Callable] = {
     "exponential": ExponentialEnvelope,
     "polynomial": PolynomialEnvelope,
 }
@@ -101,7 +102,7 @@ class RadialBasisExpansion(torch.nn.Module):
 
     Args:
         num_radial: The number of radial basis functions.
-        cutoff: The cutoff value for scaling the distance.
+        stop: The cutoff value for scaling the distance.
         expansion: The type of expansion function to use. Defaults to "gaussian".
         envelope: The type of envelope function to use. Defaults to None.
         expansion_kwargs: Additional keyword arguments for the expansion function.
@@ -111,7 +112,7 @@ class RadialBasisExpansion(torch.nn.Module):
     def __init__(
         self,
         num_radial: int = 50,
-        cutoff: float = 5.0,
+        stop: float = 5.0,
         expansion: str = "gaussian",
         envelope: str | None = None,
         expansion_kwargs: dict[str, Any] | None = None,
@@ -121,7 +122,7 @@ class RadialBasisExpansion(torch.nn.Module):
 
         self.num_radial = num_radial
 
-        self.icutoff = 1 / cutoff
+        self.icutoff = 1 / stop
 
         if envelope_kwargs is None:
             envelope_kwargs = {}
@@ -150,7 +151,7 @@ class RadialBasisExpansion(torch.nn.Module):
         )
 
         if hasattr(self.expansion, "cutoff"):
-            self.expansion.cutoff = cutoff
+            self.expansion.cutoff = stop
 
     def forward(self, dist: torch.Tensor) -> torch.Tensor:
         """Forward pass of the radial basis expansion module.

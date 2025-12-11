@@ -52,11 +52,11 @@ class SineBasis(nn.Module):
 
     def __init__(
         self,
-        num_basis: int,
+        num_basis: int = 32,
     ) -> None:
         super().__init__()
 
-        self.num_basis = int(num_basis)
+        self.num_basis = num_basis
         self.r_min = 0.0
         self.r_max = math.pi
 
@@ -72,7 +72,7 @@ class SineBasis(nn.Module):
         Returns:
             torch.Tensor: Sine basis.
         """
-        z = theta.unsqueeze(-1) * self.freqs.view(1, -1) # type: ignore
+        z = theta.unsqueeze(-1) * self.freqs.view(1, -1)  # type: ignore
         return torch.sin(z)
 
 
