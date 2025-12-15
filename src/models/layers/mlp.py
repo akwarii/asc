@@ -31,8 +31,7 @@ class MLP(torch.nn.Module):
 
        .. code-block:: python
 
-          mlp = MLP(in_channels=16, hidden_channels=32,
-                    out_channels=128, num_layers=3)
+          mlp = MLP(in_channels=16, hidden_channels=32, out_channels=128, num_layers=3)
 
        creates a three-layer MLP with **equally** sized hidden layers.
 
@@ -65,6 +64,8 @@ class MLP(torch.nn.Module):
         plain_last (bool, optional): If set to :obj:`False`, will apply
             non-linearity, batch normalization and dropout to the last layer as
             well. (default: :obj:`True`)
+        bias (bool, optional): If set to :obj:`False`, the layers will not
+            learn an additive bias. (default: :obj:`True`)
     """
 
     supports_norm_batch: Final[bool]
@@ -84,6 +85,7 @@ class MLP(torch.nn.Module):
         norm: str | Callable | None = "batch_norm",
         norm_kwargs: dict[str, Any] | None = None,
         plain_last: bool = True,
+        bias: bool = True,
     ) -> None:
         super().__init__()
 
@@ -95,7 +97,7 @@ class MLP(torch.nn.Module):
                 raise ValueError("Argument `num_layers` must be given")
             if num_layers > 1 and hidden_channels is None:
                 raise ValueError(
-                    f"Argument `hidden_channels` must be given " f"for `num_layers={num_layers}`"
+                    f"Argument `hidden_channels` must be given for `num_layers={num_layers}`"
                 )
             if out_channels is None:
                 raise ValueError("Argument `out_channels` must be given")
@@ -115,7 +117,7 @@ class MLP(torch.nn.Module):
 
         self.lins = ModuleList()
         for in_channels, out_channels in zip(channel_list[:-1], channel_list[1:]):
-            self.lins.append(Linear(in_channels, out_channels))
+            self.lins.append(Linear(in_channels, out_channels, bias=bias))
 
         self.norms = ModuleList()
         iterator = channel_list[1:-1] if plain_last else channel_list[1:]
