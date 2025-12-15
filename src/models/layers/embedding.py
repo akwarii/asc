@@ -19,10 +19,12 @@ class GeoEmbedding(nn.Module):
         self,
         num_radial: int,
         num_angular: int,
-        hidden_channels: int,
+        hidden_channels: int | None,
         out_channels: int,
-        num_layers: int = 2,
-        act: str = "silu",
+        *,
+        num_layers: int = 1,
+        act: str | None = None,
+        bias: bool = True,
     ) -> None:
         super().__init__()
 
@@ -35,6 +37,7 @@ class GeoEmbedding(nn.Module):
             num_layers=num_layers,
             out_channels=out_channels,
             act=act,
+            bias=bias,
         )
         self.edge_embedding = MLP(
             in_channels=num_radial,
@@ -42,6 +45,7 @@ class GeoEmbedding(nn.Module):
             num_layers=num_layers,
             out_channels=out_channels,
             act=act,
+            bias=bias,
         )
 
     def forward(
