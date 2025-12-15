@@ -162,16 +162,16 @@ Once you got your credentials, create a `.env` file (using `cp .env.example .env
 **Code and Framework:**
 
 - [x] Refactor line graph to make it more compliant
-- [ ] Improve line graph construction performances
+- [x] Improve line graph construction performances
 - [ ] Refactor Conv modules to work with more general graphs (e.g., different number of neighbor per node) and make use of PyG MessagePassing class
-- [ ] Refactor CEGANN module in the same way
-- [ ] Try other global pooling such as attention pooling
-- [ ] Allow graph classification
+- [x] Refactor CEGANN module in the same way
 - [x] Inference function
 - [ ] Neighbor loader if graph larger than GPU memory
 
 Optional:
 
+- [ ] Try other global pooling such as attention pooling
+- [ ] Allow graph classification
 - [ ] KNN with a tolerance on max k (if multiple distances are the same)
 
 **Data augmentation/transformations**
