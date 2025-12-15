@@ -1,3 +1,3 @@
 from .cegann import CEGANN
 from .gat import GATClassifier
-from .mlp import MLP
+from .mlp import MLPClassifier

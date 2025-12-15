@@ -11,7 +11,7 @@ from src.optim import get_cosine_schedule_with_warmup
 
 MODEL_FACTORY = {
     "cegann": models.CEGANN,
-    "mlp": models.MLP,
+    "mlp": models.MLPClassifier,
     "gat": models.GATClassifier,
 }
 
