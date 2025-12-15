@@ -1,18 +1,19 @@
 import torch
 from torch_geometric.data import Data
-from torch_geometric.nn import MLP as PyGMLP  # noqa
+from torch_geometric.nn import MLP
 
 from src.models.expansion import GaussianBasis
 
 
-class MLP(PyGMLP):  # noqa
+class MLPClassifier(MLP):  # noqa
     def __init__(self, num_radial: int, *args, **kwargs) -> None:  # noqa
         super().__init__(*args, **kwargs)
 
         self.rbf = GaussianBasis(num_radial=num_radial)
         self.sbf = GaussianBasis(num_radial=num_radial)
 
-    def forward(self, data: Data) -> torch.Tensor:  # noqa
+    def forward(self, data: Data) -> torch.Tensor:  # type: ignore
+        """Forward pass of the model."""
         assert data.x is not None
         assert data.edge_attr is not None
         assert data.edge_index is not None
