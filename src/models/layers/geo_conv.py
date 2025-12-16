@@ -254,22 +254,3 @@ class EdgeGatedGATv2Conv(MessagePassing):
             f"{self.__class__.__name__}(x_dim={self.x_dim}, "
             f"e_dim={self.e_dim}, hidden={self.hidden_channels}, heads={self.heads})"
         )
-
-
-if __name__ == "__main__":
-    x = torch.randn(4, 3)
-    edge_index = torch.tensor([[0, 1, 2, 3, 3], [1, 0, 1, 1, 2]])
-    edge_attr = torch.randn(edge_index.size(1), 7)
-
-    conv = EdgeGatedGATv2Conv(
-        in_node_channels=x.size(-1),
-        in_edge_channels=edge_attr.size(-1),
-        hidden_channels=16,
-        out_node_channels=32,
-        out_edge_channels=8,
-        heads=2,
-        dropout=0.1,
-        norm="layernorm",
-        concat=True,
-    )
-    out = conv(x, edge_index, edge_attr)
