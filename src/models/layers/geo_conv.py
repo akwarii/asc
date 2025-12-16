@@ -159,6 +159,8 @@ class EdgeGatedGATv2Conv(MessagePassing):
         # Fused projection for attention coefficients
         lr: Tensor = self.lin_lr(x_norm)
         x_l, x_r = lr.chunk(2, dim=-1)
+        x_l = x_l.view(-1, heads, channels)
+        x_r = x_r.view(-1, heads, channels)
 
         # Start by updating the edges
         # edge_updater_type: (uv: PairTensor, x: PairTensor, edge_attr: Tensor,
@@ -174,13 +176,15 @@ class EdgeGatedGATv2Conv(MessagePassing):
         # Node attention using updated edges
         # propagate_type: (x: PairTensor, alpha: Tensor)
         out_x = self.propagate(edge_index, x=(x_l, x_r), alpha=alpha)
+        print(out_x.shape)
 
         # Combine attention heads
         if self.concat:
-            # FIXME: not working with single head, it transforms (N, V, C) -> (N, V*C)
-            out_x = out_x.view(-1, self.heads * self.out_node_channels)
+            out_x = out_x.view(-1, self.heads * self.hidden_channels)
         else:
             out_x = out_x.mean(dim=1)
+
+        print(out_x.shape)
 
         # Project heads output
         out_x = self.lin_out(out_x)
@@ -229,7 +233,6 @@ class EdgeGatedGATv2Conv(MessagePassing):
         edge_attr_norm = edge_attr_norm.view(-1, self.heads, self.hidden_channels)
 
         # This is equivalent (but more efficient) to W(x_i || x_j || e_ij)
-        # FIXME: not working with multi-heads
         x = x_i + x_j + edge_attr_norm
 
         # Contrary to GAT(v2), we allow for an activation different than LeakyReLU
@@ -267,6 +270,6 @@ if __name__ == "__main__":
         heads=2,
         dropout=0.1,
         norm="layernorm",
-        concat=False,
+        concat=True,
     )
     out = conv(x, edge_index, edge_attr)
