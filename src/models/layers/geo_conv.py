@@ -1,7 +1,5 @@
-import inspect
 from collections.abc import Callable
-from copy import deepcopy
-from typing import Any
+from typing import Any, Optional
 
 import torch
 import torch.nn.functional as F
@@ -10,9 +8,11 @@ from torch.nn import Parameter
 from torch_geometric.nn.conv import MessagePassing
 from torch_geometric.nn.dense.linear import Linear
 from torch_geometric.nn.inits import glorot
-from torch_geometric.nn.resolver import activation_resolver, normalization_resolver
+from torch_geometric.nn.resolver import activation_resolver
 from torch_geometric.typing import OptTensor
 from torch_geometric.utils import softmax
+
+from src.utils.builder import normalization_builder
 
 
 class EdgeGatedGATv2Conv(MessagePassing):
@@ -61,8 +61,8 @@ class EdgeGatedGATv2Conv(MessagePassing):
     ) -> None:
         super().__init__(aggr="sum", node_dim=0, **kwargs)
 
-        self.x_dim = in_node_channels
-        self.e_dim = in_edge_channels
+        self.in_node_channels = in_node_channels
+        self.in_edge_channels = in_edge_channels
         self.hidden_channels = hidden_channels
         self.out_node_channels = out_node_channels
         self.out_edge_channels = out_edge_channels
@@ -75,13 +75,9 @@ class EdgeGatedGATv2Conv(MessagePassing):
         self.act = activation_resolver(act, **(act_kwargs or {}))
 
         # Normalizations
-        norm_layer = normalization_resolver(norm, **(norm_kwargs or {}))
-        if norm_layer is None:
-            norm_layer = torch.nn.Identity()
-
-        self.norm_x = deepcopy(norm_layer)
-        self.norm_e_edge = deepcopy(norm_layer)
-        self.norm_e_node = deepcopy(norm_layer)
+        self.norm_x = normalization_builder(norm, in_node_channels, norm_kwargs)
+        self.norm_e_edge = normalization_builder(norm, in_edge_channels, norm_kwargs)
+        self.norm_e_node = normalization_builder(norm, out_edge_channels, norm_kwargs)
 
         # Edge update
         # Only one bias term is needed for uv_ since we sum the outputs
@@ -107,7 +103,7 @@ class EdgeGatedGATv2Conv(MessagePassing):
         if residual:
             self.res_x = Linear(
                 in_node_channels,
-                total_node_out_channels,
+                out_node_channels,
                 bias=False,
                 weight_initializer="glorot",
             )
@@ -161,13 +157,13 @@ class EdgeGatedGATv2Conv(MessagePassing):
         uv_r = self.lin_uv_r(x_norm)
 
         # Fused projection for attention coefficients
-        lr = self.lin_lr(x_norm)
-        x_l, x_r = lr.split(channels, dim=-1)
+        lr: Tensor = self.lin_lr(x_norm)
+        x_l, x_r = lr.chunk(2, dim=-1)
 
         # Start by updating the edges
         # edge_updater_type: (uv: PairTensor, x: PairTensor, edge_attr: Tensor,
         #   res_edge_attr: OptTensor)
-        edge_attr_out, alpha = self.edge_updater(
+        out_edge_attr, alpha = self.edge_updater(
             edge_index,
             uv=(uv_l, uv_r),
             x=(x_l, x_r),
@@ -177,22 +173,23 @@ class EdgeGatedGATv2Conv(MessagePassing):
 
         # Node attention using updated edges
         # propagate_type: (x: PairTensor, alpha: Tensor)
-        x_out = self.propagate(edge_index, x=(x_l, x_r), alpha=alpha)  # [N,H,C]
+        out_x = self.propagate(edge_index, x=(x_l, x_r), alpha=alpha)
 
         # Combine attention heads
         if self.concat:
-            x_out = x_out.reshape(-1, heads * channels)
+            # FIXME: not working with single head, it transforms (N, V, C) -> (N, V*C)
+            out_x = out_x.view(-1, self.heads * self.out_node_channels)
         else:
-            x_out = x_out.mean(dim=1)
+            out_x = out_x.mean(dim=1)
 
-        # Project heads output.
-        x_out = self.lin_out(x_out)
+        # Project heads output
+        out_x = self.lin_out(out_x)
 
-        # Residual connection.
+        # Residual connection
         if res_x is not None:
-            x_out = x_out + res_x
+            out_x = out_x + res_x
 
-        return x_out, edge_attr_out
+        return out_x, out_edge_attr
 
     def edge_update(  # type: ignore
         self,
@@ -204,7 +201,7 @@ class EdgeGatedGATv2Conv(MessagePassing):
         res_edge_attr: OptTensor,
         index: Tensor,
         ptr: OptTensor,
-        dim_size: int | None,
+        dim_size: Optional[int],  # PyG doesn't handle python 3.10+ union types signatures yet
     ) -> tuple[Tensor, Tensor]:
         """Edge update with GLU-like gating mechanism."""
         # Fused projection to compute the gate inputs
@@ -223,7 +220,7 @@ class EdgeGatedGATv2Conv(MessagePassing):
             edge_attr_out = edge_attr_out + res_edge_attr
 
         # PreNorm for attention computation
-        edge_attr_norm = self.norm_e_edge(edge_attr_out)
+        edge_attr_norm = self.norm_e_node(edge_attr_out)
 
         # Initial transform of updated edge features
         if edge_attr_norm.dim() == 1:
@@ -232,6 +229,7 @@ class EdgeGatedGATv2Conv(MessagePassing):
         edge_attr_norm = edge_attr_norm.view(-1, self.heads, self.hidden_channels)
 
         # This is equivalent (but more efficient) to W(x_i || x_j || e_ij)
+        # FIXME: not working with multi-heads
         x = x_i + x_j + edge_attr_norm
 
         # Contrary to GAT(v2), we allow for an activation different than LeakyReLU
@@ -253,3 +251,22 @@ class EdgeGatedGATv2Conv(MessagePassing):
             f"{self.__class__.__name__}(x_dim={self.x_dim}, "
             f"e_dim={self.e_dim}, hidden={self.hidden_channels}, heads={self.heads})"
         )
+
+
+if __name__ == "__main__":
+    x = torch.randn(4, 3)
+    edge_index = torch.tensor([[0, 1, 2, 3, 3], [1, 0, 1, 1, 2]])
+    edge_attr = torch.randn(edge_index.size(1), 7)
+
+    conv = EdgeGatedGATv2Conv(
+        in_node_channels=x.size(-1),
+        in_edge_channels=edge_attr.size(-1),
+        hidden_channels=16,
+        out_node_channels=32,
+        out_edge_channels=8,
+        heads=2,
+        dropout=0.1,
+        norm="layernorm",
+        concat=False,
+    )
+    out = conv(x, edge_index, edge_attr)
