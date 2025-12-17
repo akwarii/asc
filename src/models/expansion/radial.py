@@ -66,11 +66,15 @@ class RadialBesselBasis(torch.nn.Module):
         self.trainable = trainable
         self.r_max = stop
 
-        weights = torch.linspace(1.0, num_radial, num_radial) * math.pi
-        if trainable:
-            self.bessel_weights = torch.nn.Parameter(weights, requires_grad=True)
-        else:
-            self.register_buffer("bessel_weights", weights)
+        self.freq = torch.nn.Parameter(torch.empty(num_radial))
+
+        self.reset_parameters()
+
+    def reset_parameters(self) -> None:
+        """Reinitialize learnable parameters."""
+        if self.trainable:
+            torch.arange(1, self.freq.numel() + 1, out=self.freq).mul_(math.pi)
+        self.freq.requires_grad_()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Evaluate Bessel Basis for input x.
@@ -82,7 +86,7 @@ class RadialBesselBasis(torch.nn.Module):
             torch.Tensor: Radial Bessel basis.
         """
         prefactor = 2.0 / self.r_max
-        numerator = torch.sin(self.bessel_weights * x.unsqueeze(-1) / self.r_max)
+        numerator = torch.sin(self.freq * x.unsqueeze(-1) / self.r_max)
         return prefactor * numerator / x.unsqueeze(-1)
 
 
