@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 import torch
-from src.models.layers.geo_conv import EdgeGatedGATv2Conv
+from src.models.layers.geo_conv import GeometricConv, GeometricConvConfig
 from torch import Tensor
 from torch_geometric.data import Data
 
@@ -127,17 +127,19 @@ def test_edge_gated_gatv2_conv() -> None:
     assert edge_index is not None
     assert edge_attr is not None
 
-    conv = EdgeGatedGATv2Conv(
-        in_node_channels=x.size(-1),
-        in_edge_channels=edge_attr.size(-1),
+    config = GeometricConvConfig(
+        node_in_channels=x.size(-1),
+        edge_in_channels=edge_attr.size(-1),
         hidden_channels=16,
-        out_node_channels=32,
-        out_edge_channels=8,
+        node_out_channels=32,
+        edge_out_channels=8,
         heads=2,
         dropout=0.1,
         norm="layernorm",
         concat=True,
     )
+
+    conv = GeometricConv(config)
     conv = conv.to(specs.device)
     conv = torch.compile(conv, fullgraph=True)
 
