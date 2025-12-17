@@ -10,8 +10,8 @@ class BondToAtomReadout(nn.Module):
     """Aggregate bond (original-edge) embeddings -> atom (original-node) embeddings.
 
     Args:
-        reduce: Reduction method to use ('sum', 'mean', 'max').
-        incidence: Type of incidence to consider ('in', 'out', 'both').
+        reduce: Reduction method to use (`sum`, `mean`, `max`).
+        incidence: Type of incidence to consider (`in`, `out`, `both`).
             `in`: aggregate messages from incoming bonds,
             `out`: aggregate messages from outgoing bonds,
             `both`: aggregate messages from both incoming and outgoing bonds.
@@ -20,7 +20,7 @@ class BondToAtomReadout(nn.Module):
     def __init__(
         self,
         reduce: Literal["sum", "mean", "max"] = "mean",
-        incidence: Literal["in", "out", "both"] = "both",
+        incidence: Literal["in", "out", "both"] = "out",
     ) -> None:
         super().__init__()
         self.reduce = reduce
