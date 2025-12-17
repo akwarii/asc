@@ -5,7 +5,7 @@ from src.models.expansion import RadialBesselBasis, SineBasis
 from src.models.layers import MLP
 
 
-class GeoEmbedding(nn.Module):
+class GeometricEmbedding(nn.Module):
     """Geometric feature embedding module for bond and angle features.
 
     Args:
