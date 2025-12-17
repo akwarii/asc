@@ -27,16 +27,25 @@ class BondToAtomReadout(nn.Module):
         self.incidence = incidence
 
     def forward(
-        self, bond_x: Tensor, bond_source: Tensor, bond_target: Tensor, num_atoms: int
+        self,
+        bond_x: Tensor,
+        num_atoms: int,
+        bond_source: Tensor | None = None,
+        bond_target: Tensor | None = None,
     ) -> Tensor:
         """Forward pass of the readout layer."""
         if self.incidence == "out":
+            assert bond_source is not None, "bond_source is required for 'out' incidence."
             return scatter(bond_x, bond_source, dim=0, dim_size=num_atoms, reduce=self.reduce)
 
         if self.incidence == "in":
+            assert bond_target is not None, "bond_target is required for 'in' incidence."
             return scatter(bond_x, bond_target, dim=0, dim_size=num_atoms, reduce=self.reduce)
 
         if self.incidence == "both":
+            assert (
+                bond_source is not None and bond_target is not None
+            ), "bond_source and bond_target are required for 'both' incidence."
             bond_idx = torch.cat([bond_source, bond_target], dim=0)
             bond_x = torch.cat([bond_x, bond_x], dim=0)
             return scatter(bond_x, bond_idx, dim=0, dim_size=num_atoms, reduce=self.reduce)
