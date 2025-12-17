@@ -176,15 +176,12 @@ class EdgeGatedGATv2Conv(MessagePassing):
         # Node attention using updated edges
         # propagate_type: (x: PairTensor, alpha: Tensor)
         out_x = self.propagate(edge_index, x=(x_l, x_r), alpha=alpha)
-        print(out_x.shape)
 
         # Combine attention heads
         if self.concat:
             out_x = out_x.view(-1, self.heads * self.hidden_channels)
         else:
             out_x = out_x.mean(dim=1)
-
-        print(out_x.shape)
 
         # Project heads output
         out_x = self.lin_out(out_x)
