@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any, Optional
 
 import torch
@@ -15,9 +16,9 @@ from torch_geometric.utils import softmax
 from src.utils.builder import normalization_builder
 
 
-class EdgeGatedGATv2Conv(MessagePassing):
-    """Edge update (GLU gate) -> Node update (GATv2-like attention conditioned on updated edges).
-    Returns updated (x, edge_attr) so BOTH evolve across layers.
+@dataclass
+class GeometricConvConfig:
+    """Configuration for the GeometricConv module.
 
     Args:
         in_node_channels (int): Number of input node channels.
@@ -25,91 +26,100 @@ class EdgeGatedGATv2Conv(MessagePassing):
         hidden_channels (int): Hidden dimension size.
         out_node_channels (int): Number of output node channels.
         out_edge_channels (int): Number of output edge channels.
-        heads (int, optional): Number of attention heads. (default: :obj:`1`)
-        dropout (float, optional): Dropout probability. (default: :obj:`0.0`)
+        heads (int, optional): Number of attention heads. Default is 1.
+        dropout (float, optional): Dropout probability. Default is 0.0.
         concat (bool, optional): Whether to concatenate multi-head outputs
-            (True) or average them (False). (default: :obj:`True`)
-        residual (bool, optional): Whether to use residual connections.
-            (default: :obj:`True`)
-        norm (str or Callable, optional): Normalization layer to use.
-            (default: :obj:`"layernorm"`)
+            (True) or average them (False). Default is True.
+        residual (bool, optional): Whether to use residual connections. Default is True.
+        norm (str or Callable, optional): Normalization layer to use. Default is "layernorm".
         norm_kwargs (dict, optional): Additional arguments for the normalization
-            layer. (default: :obj:`None`)
-        act (str or Callable, optional): Activation function to use.
-            (default: :obj:`"silu"`)
+            layer. Default is None.
+        act (str or Callable, optional): Activation function to use. Default is "silu".
         act_kwargs (dict, optional): Additional arguments for the activation
-            function. (default: :obj:`None`)
+            function. Default is None.
     """
 
-    def __init__(
-        self,
-        in_node_channels: int,
-        in_edge_channels: int,
-        hidden_channels: int,
-        out_node_channels: int,
-        out_edge_channels: int,
-        *,
-        heads: int = 1,
-        dropout: float = 0.0,
-        concat: bool = True,
-        residual: bool = True,
-        norm: str | Callable | None = "layernorm",
-        norm_kwargs: dict[str, Any] | None = None,
-        act: str | Callable | None = "silu",
-        act_kwargs: dict[str, Any] | None = None,
-        **kwargs,
-    ) -> None:
+    node_in_channels: int
+    edge_in_channels: int
+    hidden_channels: int
+    node_out_channels: int
+    edge_out_channels: int
+    heads: int = 1
+    dropout: float = 0.0
+    concat: bool = True
+    residual: bool = True
+    norm: str | Callable | None = "layernorm"
+    norm_kwargs: dict[str, Any] | None = None
+    act: str | Callable | None = "silu"
+    act_kwargs: dict[str, Any] | None = None
+
+
+class GeometricConv(MessagePassing):
+    """Edge update (GLU gate) -> Node update (GATv2-like attention conditioned on updated edges).
+    Returns updated (x, edge_attr) so BOTH evolve across layers.
+
+    Args:
+        config (GeometricConvConfig): Configuration for the convolution module.
+    """
+
+    def __init__(self, config: GeometricConvConfig, **kwargs) -> None:
         super().__init__(aggr="sum", node_dim=0, **kwargs)
 
-        self.in_node_channels = in_node_channels
-        self.in_edge_channels = in_edge_channels
-        self.hidden_channels = hidden_channels
-        self.out_node_channels = out_node_channels
-        self.out_edge_channels = out_edge_channels
-        self.heads = heads
-        self.dropout = dropout
-        self.concat = concat
-        self.residual = residual
+        self.node_in_channels = config.node_in_channels
+        self.edge_in_channels = config.edge_in_channels
+        self.hidden_channels = config.hidden_channels
+        self.node_out_channels = config.node_out_channels
+        self.edge_out_channels = config.edge_out_channels
+        self.heads = config.heads
+        self.dropout = config.dropout
+        self.concat = config.concat
+        self.residual = config.residual
 
         # Activations
-        self.act = activation_resolver(act, **(act_kwargs or {}))
+        self.act = activation_resolver(config.act, **(config.act_kwargs or {}))
 
         # Normalizations
-        self.norm_x = normalization_builder(norm, in_node_channels, norm_kwargs)
-        self.norm_e_edge = normalization_builder(norm, in_edge_channels, norm_kwargs)
-        self.norm_e_node = normalization_builder(norm, out_edge_channels, norm_kwargs)
+        self.norm_x = normalization_builder(
+            config.norm, config.node_in_channels, config.norm_kwargs
+        )
+        self.norm_e_edge = normalization_builder(
+            config.norm, config.edge_in_channels, config.norm_kwargs
+        )
+        self.norm_e_node = normalization_builder(
+            config.norm, config.edge_out_channels, config.norm_kwargs
+        )
 
-        # Edge update
+        # Edge update (1 headed)
         # Only one bias term is needed for uv_ since we sum the outputs
         # The layers are fused for efficiency
-        self.lin_uv_l = Linear(in_node_channels, 2 * hidden_channels, bias=False)
-        self.lin_uv_r = Linear(in_node_channels, 2 * hidden_channels, bias=False)
-        self.lin_uv_e = Linear(in_edge_channels, 2 * hidden_channels, bias=True)
+        fused_channels = 2 * self.hidden_channels
+        self.lin_uv_l = Linear(self.node_in_channels, fused_channels, bias=False)
+        self.lin_uv_r = Linear(self.node_in_channels, fused_channels, bias=False)
+        self.lin_uv_e = Linear(self.edge_in_channels, fused_channels, bias=True)
 
         # Edge output projection
-        self.edge_out = Linear(hidden_channels, out_edge_channels, bias=True)
+        self.edge_out = Linear(self.hidden_channels, self.edge_out_channels, bias=True)
 
-        # Node attention (GATv2-like)
-        self.lin_lr = Linear(in_node_channels, 2 * heads * hidden_channels, bias=False)
-        self.lin_e = Linear(out_edge_channels, heads * hidden_channels, bias=False)
-
-        self.att = Parameter(torch.empty(1, heads, hidden_channels))
+        # Node attention (GATv2-like, multi-headed)
+        self.lin_lr = Linear(self.node_in_channels, self.heads * fused_channels, bias=False)
+        self.lin_e = Linear(self.edge_out_channels, self.heads * self.hidden_channels, bias=False)
+        self.att = Parameter(torch.empty(1, self.heads, self.hidden_channels))
 
         # Output projection depends on head combining
-        total_node_out_channels = heads * hidden_channels if concat else hidden_channels
-        self.lin_out = Linear(total_node_out_channels, out_node_channels, bias=True)
+        total_node_out_channels = self.heads * (self.hidden_channels if self.concat else 1)
+        self.lin_out = Linear(total_node_out_channels, self.node_out_channels, bias=True)
 
         # Residuals projections
-        if residual:
+        if self.residual:
             self.res_x = Linear(
-                in_node_channels,
-                out_node_channels,
+                self.node_in_channels,
+                self.node_out_channels,
                 bias=False,
                 weight_initializer="glorot",
             )
             self.res_e = Linear(
-                in_edge_channels,
-                out_edge_channels,
+                self.edge_in_channels,
+                self.edge_out_channels,
                 bias=False,
                 weight_initializer="glorot",
             )
@@ -247,7 +257,10 @@ class EdgeGatedGATv2Conv(MessagePassing):
         return x_j * alpha.unsqueeze(-1)
 
     def __repr__(self) -> str:
-        return (
-            f"{self.__class__.__name__}(x_dim={self.x_dim}, "
-            f"e_dim={self.e_dim}, hidden={self.hidden_channels}, heads={self.heads})"
-        )
+        return f"{self.__class__.__name__}(" \
+            f"in_node_channels={self.node_in_channels}, " \
+            f"in_edge_channels={self.edge_in_channels}, " \
+            f"hidden_channels={self.hidden_channels}, " \
+            f"out_node_channels={self.node_out_channels}, " \
+            f"out_edge_channels={self.edge_out_channels}, " \
+            f"heads={self.heads})"
