@@ -1,88 +1,119 @@
+from collections.abc import Callable
+
 import torch
-import torch.nn as nn
+from torch.nn import Module, ModuleList
 from torch_geometric.data import Data
-from torch_geometric.utils import scatter
+from torch_geometric.nn import Linear
+from torch_geometric.utils import trim_to_layer
 
-from src.models.layers.embedding import GeoEmbedding
-from src.models.layers.geo_conv import GeoConvBlock
+from src.models.layers.embedding import GeometricEmbedding
+from src.models.layers.geo_conv import GeometricConv
+from src.models.layers.readout import BondToAtomReadout
 
 
-class CEGANNv2(nn.Module):
+# TODO we can probably trim down some arguments
+# such as hidden channels in conv and embedding output channels
+class CEGANNv2(Module):
     """CEGANNv2 model for node classification on crystal graphs.
 
-    Model architecture:
-    - GeoEmbedding layer to encode distances and angles.
-    - Multiple GeoConvBlocks to perform message passing on the line graph.
-    - Pooling from bond embeddings to atom embeddings.
-    - Optional normalization layer on atom features.
-    - Final MLP for node classification.
-
     Args:
-        hidden_channels (int): Number of hidden channels.
-        num_classes (int): Number of output classes.
-        num_layers (int, optional): Number of GeoConvBlocks. Default is 3.
-        heads (int, optional): Number of attention heads in GeoConvBlocks. Default is 4.
-        dropout (float, optional): Dropout rate. Default is 0.1.
-        concat_heads (bool, optional): Whether to concatenate heads in GeoConvBlocks.
-            Default is True.
-        atom_norm (str | Callable | None, optional): Normalization method for atom features.
-            Default is None.
-        atom_norm_kwargs (dict | None, optional): Additional arguments for atom normalization.
-            Default is None.
-        n_rbf_bond (int, optional): Number of radial basis functions for bond distances.
-            Default is 8.
-        n_rbf_angle (int, optional): Number of radial basis functions for angles. Default is 32.
+        num_classes: Number of target classes.
+        emb_num_radial: Number of radial basis functions for distance encoding.
+        emb_num_angular: Number of angular basis functions for angle encoding.
+        emb_node_out_channels: Output channels for node embeddings.
+        emb_edge_out_channels: Output channels for edge embeddings.
+        emb_num_layers: Number of layers in the embedding module.
+        emb_hidden_channels: Hidden channels in the embedding module.
+        conv_hidden_channels: Hidden channels in the convolutional layers.
+        conv_node_out_channels: Output channels for node features in the convolutional layers.
+        conv_edge_out_channels: Output channels for edge features in the convolutional layers.
+        conv_num_layers: Number of convolutional layers.
+        conv_heads: Number of attention heads in the convolutional layers.
+        conv_norm: Normalization method in the convolutional layers.
+        dropout: Dropout rate.
+        act: Activation function.
     """
+
     def __init__(
         self,
         num_classes: int,
-        *,
-        # Embedding parameters
-        n_rbf_bond: int = 8,
-        n_rbf_angle: int = 32,
-        emb_dim: int = 64,
-        emb_layers: int = 1,
-        emb_act: str | None = None,
-        emb_hidden: int | None = None,
-        emb_bias: bool = True,
-
-        # GNN block parameters
-        hidden_channels: int = 128,
-        num_layers: int = 3,
-        heads: int = 4,
+        emb_num_radial: int,
+        emb_num_angular: int,
+        emb_node_out_channels: int,
+        emb_edge_out_channels: int,
+        emb_num_layers: int = 1,
+        emb_hidden_channels: int | None = None,
+        conv_hidden_channels: int = 128,
+        conv_node_out_channels: int = 128,
+        conv_edge_out_channels: int = 128,
+        conv_num_layers: int = 2,
+        conv_heads: int = 1,
+        conv_norm: str | Callable | None = "layernorm",
         dropout: float = 0.1,
-        concat_heads: bool = True,
+        act: str | Callable | None = "silu",
+        **kwargs,
     ) -> None:
         super().__init__()
 
-        self.num_layers = num_layers
-        self.concat_heads = concat_heads
-
-        self.embedding = GeoEmbedding(
-            num_radial=n_rbf_bond,
-            num_angular=n_rbf_angle,
-            hidden_channels=emb_hidden,
-            out_channels=emb_dim,
-            num_layers=emb_layers,
-            act=emb_act,
-            bias=emb_bias,
+        self.embedding = GeometricEmbedding(
+            num_radial=emb_num_radial,
+            num_angular=emb_num_angular,
+            node_out_channels=emb_node_out_channels,
+            edge_out_channels=emb_edge_out_channels,
+            num_layers=emb_num_layers,
+            hidden_channels=emb_hidden_channels,
+            act=act,
         )
 
-        _in_channels = emb_dim
-        self.blocks = nn.ModuleList()
-        for _ in range(num_layers):
-            block = GeoConvBlock(
-                in_channels=_in_channels,
-                out_channels=hidden_channels,
-                edge_attr_dim=n_rbf_angle,
-                heads=heads,
-                dropout=dropout,
-                concat_heads=concat_heads,
-            )
-            self.blocks.append(block)
-            _in_channels = block.out_channels
+        node_channels = emb_node_out_channels
+        edge_channels = emb_edge_out_channels
 
-        self.out_head = nn.Linear(_in_channels, num_classes, bias=False)
+        self.convs = ModuleList()
+        for _ in range(conv_num_layers - 2):
+            self.convs.append(
+                GeometricConv(
+                    node_in_channels=node_channels,
+                    edge_in_channels=edge_channels,
+                    hidden_channels=conv_hidden_channels,
+                    node_out_channels=conv_hidden_channels,
+                    edge_out_channels=conv_hidden_channels,
+                    heads=conv_heads,
+                    dropout=dropout,
+                    norm=conv_norm,
+                    act=act,
+                    **kwargs,
+                )
+            )
+            node_channels = conv_hidden_channels
+            edge_channels = conv_hidden_channels
+
+        self.convs.append(
+            GeometricConv(
+                node_in_channels=node_channels,
+                edge_in_channels=edge_channels,
+                hidden_channels=conv_hidden_channels,
+                node_out_channels=conv_node_out_channels,
+                edge_out_channels=conv_edge_out_channels,
+                heads=conv_heads,
+                dropout=dropout,
+                norm=conv_norm,
+                act=act,
+                **kwargs,
+            )
+        )
+
+        self.block_dropout = torch.nn.Dropout(p=dropout)
+        self.readout = BondToAtomReadout(reduce="mean", incidence="out")
+        self.out_head = Linear(-1, num_classes, bias=False)
+
+        self.reset_parameters()
+
+    def reset_parameters(self) -> None:
+        """Reset model parameters."""
+        self.embedding.reset_parameters()
+        for conv in self.convs:
+            conv.reset_parameters()
+        self.out_head.reset_parameters()
 
     def forward(self, data: Data) -> torch.Tensor:
         """Forward pass of the model."""
@@ -99,18 +130,32 @@ class CEGANNv2(nn.Module):
         h_bond, h_angle = self.embedding(x, edge_attr)
 
         # Convolution blocks on the line graph
-        for block in self.blocks:
-            h_bond, h_angle = block(h_bond, edge_index, edge_attr=h_angle)
+        for i, conv in enumerate(self.convs):
+            # Trim to sampled nodes/edges if neighbor sampling is used
+            if hasattr(data, "num_sampled_nodes_per_hop"):
+                num_sampled_nodes_per_hop: list[int] = data.num_sampled_nodes_per_hop
+                num_sampled_edges_per_hop: list[int] = data.num_sampled_edges_per_hop
+                x, edge_index, edge_attr = trim_to_layer(
+                    i,
+                    num_sampled_nodes_per_hop,
+                    num_sampled_edges_per_hop,
+                    x,
+                    edge_index,
+                    edge_attr,
+                )
+
+            x, edge_attr = conv(x=x, edge_index=edge_index, edge_attr=edge_attr)
+            edge_attr = self.block_dropout(edge_attr)
+            x = self.block_dropout(x)
 
         # Pooling from bonds to atoms
-        bond_source = data.bond_source
-        bond_target = data.bond_target
-        num_atoms = data.num_atoms
-
-        atom_index = torch.cat([bond_source, bond_target], dim=0)
-        bond_embeddings = torch.cat([h_bond, h_bond], dim=0)
-
-        h_atom = scatter(bond_embeddings, atom_index, dim=0, dim_size=num_atoms, reduce="mean")
+        bond_source = data.bond_source if hasattr(data, "bond_source") else None
+        num_atoms = data.num_atoms if hasattr(data, "num_atoms") else None
+        h_atom = self.readout(
+            h_bond,
+            num_atoms,
+            bond_source=bond_source,
+        )
 
         # Final MLP for node classification
         out = self.out_head(h_atom)
