@@ -1,5 +1,4 @@
 from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Any
 
 import torch
@@ -9,9 +8,8 @@ from src.models.expansion import RadialBesselBasis, SineBasis
 from src.models.layers import MLP
 
 
-@dataclass
-class EmbeddingConfig:
-    """Configuration for the GeometricEmbedding module.
+class GeometricEmbedding(nn.Module):
+    """Geometric feature embedding module for bond and angle features.
 
     Args:
         num_radial (int): Number of radial basis functions for bond features.
@@ -27,43 +25,35 @@ class EmbeddingConfig:
             Default is None.
     """
 
-    num_radial: int
-    num_angular: int
-    node_out_channels: int
-    edge_out_channels: int
-    num_layers: int = 1
-    hidden_channels: int | None = None
-    act: str | Callable | None = "silu"
-    act_kwargs: dict[str, Any] | None = None
-
-
-class GeometricEmbedding(nn.Module):
-    """Geometric feature embedding module for bond and angle features.
-
-    Args:
-        config (EmbeddingConfig): Configuration for the embedding module.
-    """
-
-    def __init__(self, config: EmbeddingConfig) -> None:
+    def __init__(self,
+        num_radial: int,
+        num_angular: int,
+        node_out_channels: int,
+        edge_out_channels: int,
+        num_layers: int = 1,
+        hidden_channels: int | None = None,
+        act: str | Callable | None = "silu",
+        act_kwargs: dict[str, Any] | None = None,
+    ) -> None:
         super().__init__()
 
-        self.rbf = RadialBesselBasis(num_radial=config.num_radial)
-        self.sbf = SineBasis(num_basis=config.num_angular)
+        self.rbf = RadialBesselBasis(num_radial=num_radial)
+        self.sbf = SineBasis(num_basis=num_angular)
         self.node_embedding = MLP(
-            in_channels=config.num_radial,
-            hidden_channels=config.hidden_channels,
-            num_layers=config.num_layers,
-            out_channels=config.node_out_channels,
-            act=config.act,
-            act_kwargs=config.act_kwargs,
+            in_channels=num_radial,
+            hidden_channels=hidden_channels,
+            num_layers=num_layers,
+            out_channels=node_out_channels,
+            act=act,
+            act_kwargs=act_kwargs,
         )
         self.edge_embedding = MLP(
-            in_channels=config.num_angular,
-            hidden_channels=config.hidden_channels,
-            num_layers=config.num_layers,
-            out_channels=config.edge_out_channels,
-            act=config.act,
-            act_kwargs=config.act_kwargs,
+            in_channels=num_angular,
+            hidden_channels=hidden_channels,
+            num_layers=num_layers,
+            out_channels=edge_out_channels,
+            act=act,
+            act_kwargs=act_kwargs,
         )
 
         self.reset_parameters()
