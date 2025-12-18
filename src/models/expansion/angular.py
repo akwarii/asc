@@ -31,6 +31,8 @@ class RealSphHarmBasis(torch.nn.Module):
             torch.Tensor: The spherical harmonics basis expansion.
                 The output tensor is of shape `(len(phi), num_spherical)`.
         """
+        # ? [DB] @Gael : using scipy means it is a CPU operation. Would it be better to have a
+        # ?              PyTorch implementation of spherical harmonics to be able to run on GPU?
         l_values = torch.arange(self.num_spherical)
         sph_harm_values = sph_harm(0, l_values[:, None], 0, phi).real
         return sph_harm_values.T
@@ -72,6 +74,9 @@ class SineBasis(nn.Module):
         Returns:
             torch.Tensor: Sine basis.
         """
+        # In principle, theta should already be in [0, pi] (see line_graph.py)
+        # ? [DB] @Gael : do we need to rescale here as mentioned in the docstring?
+
         z = theta.unsqueeze(-1) * self.freqs.view(1, -1)  # type: ignore
         return torch.sin(z)
 
@@ -126,6 +131,12 @@ class AngularBasisExpansion(torch.nn.Module):
             The output tensor after applying the angular basis expansion. its shape is
             `(len(dist), num_spherical, num_radial)`.
         """
+        # ? [DB] @Gael : I added a minor check here
+        if dist.shape[0] != phi.shape[0]:
+            raise ValueError(
+                f"dist and phi must have the same length. Got {dist.shape[0]} and {phi.shape[0]}."
+            )
+
         rbf = self.radial_basis(dist)  # (num_edges, num_radial)
         abf = self.angular_basis(phi)  # (num_triplets, num_spherical)
 
