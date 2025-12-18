@@ -90,7 +90,13 @@ class CEGANNv2(Module):
             node_in, edge_in = node_out, edge_out
 
         self.readout = BondToAtomReadout(reduce="mean", incidence="out")
-        self.out_head = Linear(-1, num_classes, bias=False)
+        # ! [DB] @Gael : I think (?) scatter with any reduce from readout
+        # !              will not change the channel dimension. If so, it
+        # !              means the output feature size should be the same
+        # !              as the one coming out of the last GeometricConv.
+        # !              So it should be `node_in` here ?
+        self.out_head = Linear(node_in, num_classes, bias=False)
+        # self.out_head = Linear(-1, num_classes, bias=False)  # Or LazyLinear?
 
         self.reset_parameters()
 
@@ -129,11 +135,28 @@ class CEGANNv2(Module):
                     edge_index,
                     edge_attr,
                 )
+                # ? [DB] @Gael : it could happen that after trimming, no nodes or edges remain
+                # ?              to process. In such cases I just added the following to avoid
+                # ?              silent failures.
+                if x.size(0) == 0:
+                    raise ValueError(f"No nodes left after trimming for layer {i}.")
+                if edge_index.size(1) == 0:
+                    if i != len(self.convs) - 1:
+                        # Nothing to pass to subsequent layers
+                        raise RuntimeError(
+                            f"No edges left after trimming for layer {i}."
+                        )
+                    else:
+                        # Allow last layer to have no edges (e.g., for isolated nodes)
+                        break
 
             x, edge_attr = conv(x=x, edge_index=edge_index, edge_attr=edge_attr)
 
+        # ? [DB] @Gael : maybe we could add checks to see if we have a line-graph
+        # ?              or not, and change the readout accordingly.
+
         # Pooling from bonds to atoms
-        #FIXME will break when using neighbor sampling on the line graph because
+        # FIXME will break when using neighbor sampling on the line graph because
         # we can't ensure we have the full bond-to-atom incidence info
         bond_source = data.bond_source if hasattr(data, "bond_source") else None
         num_atoms = data.num_atoms if hasattr(data, "num_atoms") else None
