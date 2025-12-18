@@ -65,18 +65,21 @@ class CEGANNv2(Module):
             act=act,
         )
 
-        node_channels = emb_node_out_channels
-        edge_channels = emb_edge_out_channels
+        node_in, edge_in = emb_node_out_channels, emb_edge_out_channels
 
         self.convs = ModuleList()
-        for _ in range(conv_num_layers - 2):
+        for layer in range(conv_num_layers):
+            is_last = (layer == conv_num_layers - 1)
+            node_out = conv_node_out_channels if is_last else conv_hidden_channels
+            edge_out = conv_edge_out_channels if is_last else conv_hidden_channels
+
             self.convs.append(
                 GeometricConv(
-                    node_in_channels=node_channels,
-                    edge_in_channels=edge_channels,
+                    node_in_channels=node_in,
+                    edge_in_channels=edge_in,
                     hidden_channels=conv_hidden_channels,
-                    node_out_channels=conv_hidden_channels,
-                    edge_out_channels=conv_hidden_channels,
+                    node_out_channels=node_out,
+                    edge_out_channels=edge_out,
                     heads=conv_heads,
                     dropout=dropout,
                     norm=conv_norm,
@@ -84,25 +87,8 @@ class CEGANNv2(Module):
                     **kwargs,
                 )
             )
-            node_channels = conv_hidden_channels
-            edge_channels = conv_hidden_channels
+            node_in, edge_in = node_out, edge_out
 
-        self.convs.append(
-            GeometricConv(
-                node_in_channels=node_channels,
-                edge_in_channels=edge_channels,
-                hidden_channels=conv_hidden_channels,
-                node_out_channels=conv_node_out_channels,
-                edge_out_channels=conv_edge_out_channels,
-                heads=conv_heads,
-                dropout=dropout,
-                norm=conv_norm,
-                act=act,
-                **kwargs,
-            )
-        )
-
-        self.block_dropout = torch.nn.Dropout(p=dropout)
         self.readout = BondToAtomReadout(reduce="mean", incidence="out")
         self.out_head = Linear(-1, num_classes, bias=False)
 
@@ -127,7 +113,7 @@ class CEGANNv2(Module):
         edge_attr = data.edge_attr
 
         # Encode distances and angles
-        h_bond, h_angle = self.embedding(x, edge_attr)
+        x, edge_attr = self.embedding(x, edge_attr)
 
         # Convolution blocks on the line graph
         for i, conv in enumerate(self.convs):
@@ -145,17 +131,13 @@ class CEGANNv2(Module):
                 )
 
             x, edge_attr = conv(x=x, edge_index=edge_index, edge_attr=edge_attr)
-            edge_attr = self.block_dropout(edge_attr)
-            x = self.block_dropout(x)
 
         # Pooling from bonds to atoms
+        #FIXME will break when using neighbor sampling on the line graph because
+        # we can't ensure we have the full bond-to-atom incidence info
         bond_source = data.bond_source if hasattr(data, "bond_source") else None
         num_atoms = data.num_atoms if hasattr(data, "num_atoms") else None
-        h_atom = self.readout(
-            h_bond,
-            num_atoms,
-            bond_source=bond_source,
-        )
+        h_atom = self.readout(x, num_atoms, bond_source=bond_source)
 
         # Final MLP for node classification
         out = self.out_head(h_atom)
