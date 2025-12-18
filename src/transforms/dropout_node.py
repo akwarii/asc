@@ -22,7 +22,7 @@ class DropoutNode(BaseTransform):
         if not (0.0 <= rate < 1.0):
             raise ValueError("rate must be in [0., 1.[")
         if not (0.0 <= p <= 1.0):
-            raise ValueError("p must be in [0., 1.[")
+            raise ValueError("p must be in [0., 1.]")
 
         super().__init__()
 

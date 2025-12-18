@@ -176,7 +176,7 @@ Optional:
 
 **Data augmentation/transformations**
 
-- [ ] Node dropout (on the line graph)
+- [x] Node dropout (on the line graph)
 - [ ] Graph coarsening transformation
 
 **Additional Enhancements:**
