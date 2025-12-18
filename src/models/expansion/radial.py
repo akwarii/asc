@@ -39,6 +39,8 @@ class GaussianBasis(torch.nn.Module):
         Returns:
             torch.Tensor: The smearing output tensor.
         """
+        # ? [DB] @Gael : if dist is batched (shape (B, N)), this returns shape (B*N, num_radial)
+        # ?              but I'm not sure it would ever matter ?
         dist = dist.view(-1, 1) - self.offset.view(1, -1)  # type: ignore
         return torch.exp(self.coeff * torch.pow(dist, 2))
 
@@ -72,9 +74,13 @@ class RadialBesselBasis(torch.nn.Module):
 
     def reset_parameters(self) -> None:
         """Reinitialize learnable parameters."""
-        if self.trainable:
-            torch.arange(1, self.freq.numel() + 1, out=self.freq).mul_(math.pi)
-        self.freq.requires_grad_()
+        # if self.trainable:
+        #     torch.arange(1, self.freq.numel() + 1, out=self.freq).mul_(math.pi)
+        # self.freq.requires_grad_()
+        # ? [DB] @Gael : I think (?) we should always initialize the frequencies to n * pi,
+        # ? [DB]         but only set requires_grad=True if trainable=True
+        torch.arange(1, self.freq.numel() + 1, out=self.freq).mul_(math.pi)
+        self.freq.requires_grad_(self.trainable)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Evaluate Bessel Basis for input x.

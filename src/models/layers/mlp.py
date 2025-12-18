@@ -134,6 +134,8 @@ class MLP(torch.nn.Module):
 
         self.supports_norm_batch = False
         if len(self.norms) > 0 and hasattr(self.norms[0], "forward"):
+            # ? [DB] @Gael : if the first norm is Identity, the forward method doesn't have 'batch'
+            # ?              so we assume none of the latter norms do either. Correct?
             norm_params = inspect.signature(self.norms[0].forward).parameters
             self.supports_norm_batch = "batch" in norm_params
 
@@ -187,6 +189,9 @@ class MLP(torch.nn.Module):
                 additionally return the embeddings before execution of the
                 final output layer. (default: :obj:`False`)
         """
+        # ? [DB] @Gael : return_emb is in the docstring but not in the signature / implementation.
+        # ?           Should we add it properly or remove it from the docstring?
+
         # If `plain_last=True`, then `len(norms) = len(lins) -1, thus skipping
         # the execution of the last layer inside the for-loop.
         for lin, norm in zip(self.lins, self.norms):
