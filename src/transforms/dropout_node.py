@@ -1,72 +1,85 @@
 import torch
 from torch_geometric.data import Data
 from torch_geometric.transforms import BaseTransform
+from torch_geometric.utils import dropout_node
 
 
-# FIXME: this class is not used in the current implementation
-# as it will make the code crash. We need to move to the usual PyG
-# Data storage of the targets and use the PyG collate function.
 class DropoutNode(BaseTransform):
-    """Class to apply random node dropout to boxes.
+    """Randomly drops nodes from a graph.
 
-    Randomly drops every node of a graph with probability p.
-    This mimics crystalline defects in units cells (without
-    relaxation).
+    Uses `torch_geometric.utils.dropout_node` to drop each node with
+    probability `rate`. The transform itself is applied with probability `p`.
 
     Args:
-        rate (float): dropout probability in [0.,1.] (default=0.05).
-        seed (int): Random seed (default=42).
-        p (float): probability to apply the transform (default=0.1).
+        rate (float): Per-node drop probability in [0., 1.[.
+        seed (int): Random seed used to decide whether to apply the transform.
+        p (float): Probability to apply the transform on a given sample.
     """
 
-    def __init__(self, rate: float = 0.05, seed: int = 42, p: float = 0.1) -> None:
-        if rate == 1.0:
-            raise ValueError("The dropout rate must be strictly less than 1.0.")
-
-        if p < 0.0 or p > 1.0:
-            raise ValueError("The dropout probability must be in [0.,1.].")
+    def __init__(
+        self, rate: float = 0.05, seed: int = 42, p: float = 0.1,
+    ) -> None:
+        if not (0.0 <= rate < 1.0):
+            raise ValueError("rate must be in [0., 1.[")
+        if not (0.0 <= p <= 1.0):
+            raise ValueError("p must be in [0., 1.[")
 
         super().__init__()
 
+        # ? Note : I think it is better to have two distinct probabilities
+        # ?        one for applying the transform and one for dropping nodes.
+        # ?        I dont know how suitable the default values are though.
         self.rate = rate
         self.p = p
         self.rng = torch.Generator(device="cpu").manual_seed(seed)
 
-    def forward(self, x: Data) -> Data:
-        """Applies random node dropout to a batch of graphs."""
-        # TODO we may switch to modify the Data object every time but with a given probability
+    # ? Note : if we want to use it as data augmentation, it means we directly modify
+    # ?        the input data.
+    # ? Also, as augmentation is applied during training only, we hard-set `training=True`
+    # ? when calling pyg dropout_node.
+    def forward(self, data: Data) -> Data:
+        """Applies random nodes dropout to a graph.
+
+        Args:
+            data (Data): The input graph data.
+
+        Returns:
+            Data: The graph data with nodes dropped.
+        """
+        # Apply transform/augmentations with probability p
         if torch.rand(1, generator=self.rng).item() > self.p:
-            return x
+            return data
 
-        if x.num_nodes is None:
-            raise ValueError("The number of nodes must be provided.")
-
-        num_nodes_kept = 0
-        while num_nodes_kept == 0:
-            node_mask = torch.rand(x.num_nodes, generator=self.rng) > self.rate
-            num_nodes_kept = torch.sum(node_mask).item()
-
-        # Updated nodes/positions
-        if x.pos is not None:
-            pos = x.pos[node_mask]
-
-        # Need to remove edges involving the dropped nodes
-        if x.edge_index is not None:
-            edge_mask = node_mask[x.edge_index[0]]
-            edge_index = x.edge_index[:, edge_mask]
-
-        edge_dist = x.edge_dist[edge_mask] if edge_mask is not None else None
-        angle_cos = x.angle_cos[edge_mask] if edge_mask is not None else None
-
-        augmented_graph = Data(
-            num_nodes=num_nodes_kept,
-            pos=pos,
-            edge_index=edge_index,
-            edge_dist=edge_dist,
-            angle_cos=angle_cos,
+        # Use PyG's dropout_node to compute new edges and mask
+        edge_index, edge_mask, node_mask = dropout_node(
+            data.edge_index,
+            p=self.rate,
+            num_nodes=data.num_nodes,
+            training=True,
         )
 
-        return augmented_graph
+        # If all nodes were dropped, keep original to avoid empty graphs
+        num_nodes = node_mask.sum().item()
+        if num_nodes == 0:
+            return data
+        data.num_nodes = num_nodes
 
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(rate={self.rate}, p={self.p})"
+        data.x = data.x[node_mask]
+        data.edge_index = edge_index
+
+        # Propagate mask to standard and custom edge attributes if present
+        if data.edge_attr is not None:
+            data.edge_attr = data.edge_attr[edge_mask]
+
+        # As this transform is meant to be used on line-graphs, the mask should also
+        # be applied to other features.
+        # ! @Gael, can you check that I forgot nothing among the attributes you use?
+        if hasattr(data, "num_atoms"):  # we have a line-graph (attribute added in line_graph.py)
+            keys_to_check = ["bond_source", "bond_target"]
+        else:
+            keys_to_check = []  # no extra attributes to consider for standard graphs
+        for key in keys_to_check:
+            if hasattr(data, key) and data[key] is not None:
+                data[key] = data[key][node_mask]
+
+        return data

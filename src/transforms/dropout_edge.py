@@ -19,7 +19,7 @@ class DropoutEdge(BaseTransform):
     """
 
     def __init__(
-        self, rate: float = 0.05, seed: int = 42, p: float = 0.1, *, force_undirected: bool = False
+        self, rate: float = 0.05, seed: int = 42, p: float = 0.1, *, force_undirected: bool = True
     ) -> None:
         if not (0.0 <= rate < 1.0):
             raise ValueError("rate must be in [0., 1.[")
@@ -76,15 +76,7 @@ class DropoutEdge(BaseTransform):
         if data.edge_attr is not None:
             data.edge_attr = data.edge_attr[edge_mask]
 
-        # As this transform is meant to be used on line-graphs, the mask should also
-        # be applied to other features.
-        # ! @Gael, can you check that I forgot nothing among the attributes you use?
-        if hasattr(data, "num_nodes"):  # we have a line-graph
-            keys_to_check = ["bond_source", "bond_target"]
-        else:
-            keys_to_check = []  # no extra attributes to consider for standard graphs
-        for key in keys_to_check:
-            if hasattr(data, key) and data[key] is not None:
-                data[key] = data[key][edge_mask]
+        # I don't think for edge dropout we need to modify any graph
+        # (or line-graph) specific attributes beyond edge_attr.
 
         return data
