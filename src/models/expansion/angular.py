@@ -31,25 +31,17 @@ class RealSphHarmBasis(torch.nn.Module):
             torch.Tensor: The spherical harmonics basis expansion.
                 The output tensor is of shape `(len(phi), num_spherical)`.
         """
-        # ? [DB] @Gael : using scipy means it is a CPU operation. Would it be better to have a
-        # ?              PyTorch implementation of spherical harmonics to be able to run on GPU?
+        #TODO retrieve PyG implementation of Dimenet embedding for faster computation
         l_values = torch.arange(self.num_spherical)
         sph_harm_values = sph_harm(0, l_values[:, None], 0, phi).real
         return sph_harm_values.T
 
 
 class SineBasis(nn.Module):
-    r"""Angular basis using simple sinusoidal functions on [r_min, r_max].
+    """Angular basis using simple sinusoidal functions.
 
-    - Typically used for angles in radians:
-        r_min = 0.0, r_max = pi
-
-    - Input:  theta [..., 1] or [...], assumed in [r_min, r_max]
-    - Output: [..., num_basis]
-
-    We re-scale to [0, pi] internally:
-        theta' = (theta - r_min) / (r_max - r_min) * pi
-        phi_m(theta) = sin(m * theta')
+    Args:
+        num_basis: The number of sine basis functions to use.
     """
 
     def __init__(
@@ -74,9 +66,6 @@ class SineBasis(nn.Module):
         Returns:
             torch.Tensor: Sine basis.
         """
-        # In principle, theta should already be in [0, pi] (see line_graph.py)
-        # ? [DB] @Gael : do we need to rescale here as mentioned in the docstring?
-
         z = theta.unsqueeze(-1) * self.freqs.view(1, -1)  # type: ignore
         return torch.sin(z)
 
@@ -88,7 +77,6 @@ ANGULAR_FUNCTIONS = {
 }
 
 
-# TODO docstring
 class AngularBasisExpansion(torch.nn.Module):
     """Expansion module that combines a radial basis expansion with an angular basis expansion.
 
