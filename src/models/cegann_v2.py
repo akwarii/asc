@@ -1,10 +1,13 @@
 from collections.abc import Callable
 
 import torch
+from torch import Tensor
 from torch.nn import Module, ModuleList
 from torch_geometric.data import Data
+from torch_geometric.loader import CachedLoader, NeighborLoader
 from torch_geometric.nn import Linear
 from torch_geometric.utils import trim_to_layer
+from tqdm import tqdm
 
 from src.models.layers.embedding import GeometricEmbedding
 from src.models.layers.geo_conv import GeometricConv
@@ -69,7 +72,7 @@ class CEGANNv2(Module):
 
         self.convs = ModuleList()
         for layer in range(conv_num_layers):
-            is_last = (layer == conv_num_layers - 1)
+            is_last = layer == conv_num_layers - 1
             node_out = conv_node_out_channels if is_last else conv_hidden_channels
             edge_out = conv_edge_out_channels if is_last else conv_hidden_channels
 
@@ -101,7 +104,17 @@ class CEGANNv2(Module):
             conv.reset_parameters()
         self.out_head.reset_parameters()
 
-    def forward(self, data: Data) -> torch.Tensor:
+    @property
+    def num_layers(self) -> int:
+        """Number of convolutional layers."""
+        return len(self.convs)
+
+    @property
+    def device(self) -> torch.device:
+        """Device on which the model is located."""
+        return next(self.parameters()).device
+
+    def forward(self, data: Data) -> Tensor:
         """Forward pass of the model."""
         assert data.x is not None, "Node features are required."
         assert data.edge_attr is not None, "Edge attributes are required."
@@ -133,7 +146,7 @@ class CEGANNv2(Module):
             x, edge_attr = conv(x=x, edge_index=edge_index, edge_attr=edge_attr)
 
         # Pooling from bonds to atoms
-        #FIXME will break when using neighbor sampling on the line graph because
+        # FIXME will break when using neighbor sampling on the line graph because
         # we can't ensure we have the full bond-to-atom incidence info
         bond_source = data.bond_source if hasattr(data, "bond_source") else None
         num_atoms = data.num_atoms if hasattr(data, "num_atoms") else None
@@ -143,3 +156,111 @@ class CEGANNv2(Module):
         out = self.out_head(h_atom)
 
         return out
+
+    @torch.no_grad()
+    def inference_per_layer(
+        self,
+        layer: int,
+        x: Tensor,
+        edge_index: Tensor,
+        edge_attr: Tensor,
+        batch_size: int,
+    ) -> Tensor:
+        """Performs inference for a single layer."""
+        # TODO update signature of conv layers
+        x = self.convs[layer](x, edge_index, edge_attr)[:batch_size]
+        if layer == self.num_layers - 1:
+            return x
+
+        return x
+
+    @torch.no_grad()
+    def inference(
+        self,
+        loader: NeighborLoader,
+        embedding_device: str | torch.device | None = "cpu",
+        *,
+        cache: bool = False,
+        progress_bar: bool = True,
+    ) -> Tensor:
+        r"""Performs layer-wise inference on large-graphs using a
+        :class:`~torch_geometric.loader.NeighborLoader`, where
+        :class:`~torch_geometric.loader.NeighborLoader` should sample the
+        full neighborhood for only one layer.
+        This method, described in e.g., `DGI: An Easy and Efficient Framework
+        for GNN Model Evaluation`, P. Yin et al., (2023), is an efficient way
+        to compute the output embeddings for all nodes in the graph.
+
+        Args:
+            loader (torch_geometric.loader.NeighborLoader): A neighbor loader
+                object that generates full 1-hop subgraphs, *i.e.*,
+                :obj:`loader.num_neighbors = [-1]`.
+            embedding_device (torch.device, optional): The device to store
+                intermediate embeddings on. If intermediate embeddings fit on
+                GPU, this option helps to avoid unnecessary device transfers.
+                (default: :obj:`"cpu"`)
+            cache (bool, optional): If set to :obj:`True`, caches intermediate
+                sampler outputs for usage in later epochs.
+                This will avoid repeated sampling to accelerate inference.
+                (default: :obj:`False`)
+            progress_bar (bool, optional): If set to :obj:`True`, displays a
+                progress bar during inference. (default: :obj:`True`)
+        """
+        assert isinstance(loader, NeighborLoader)
+        assert len(loader.dataset) == loader.data.num_nodes
+        assert len(loader.node_sampler.num_neighbors) == 1
+        assert not self.training
+
+        if progress_bar:
+            pbar = tqdm(total=len(loader.dataset) * len(self.convs))
+            pbar.set_description("Evaluating")
+
+        x_all = loader.dataset.x.to(self.device)
+        if cache:
+
+            def transform(data: Data) -> Data:
+                kwargs = dict(n_id=data.n_id, batch_size=data.batch_size)
+                if hasattr(data, "adj_t"):
+                    kwargs["adj_t"] = data.adj_t
+                else:
+                    kwargs["edge_index"] = data.edge_index
+                return Data.from_dict(kwargs).to(self.device)
+
+            loader = CachedLoader(loader, device=self.device, transform=transform)  # type: ignore[assignment]
+
+        for i in range(self.num_layers):
+            xs = torch.empty(
+                x_all.size(0),
+                self.convs[i].out_channels,  # type: ignore[attr-defined]
+                device=embedding_device,
+                pin_memory=(embedding_device == "cpu"),
+            )
+
+            for j, batch in enumerate(loader):
+                if i == 0 and j == 0:
+                    print(batch)
+                batch_size = batch.batch_size
+
+                n_id = batch.n_id.to(self.device)
+                edge_index = batch.edge_index.to(self.device)
+                edge_attr = batch.edge_attr.to(self.device)
+
+                x = x_all[n_id]
+                x = self.inference_per_layer(i, x, edge_index, edge_attr, batch_size)
+
+                global_id = batch.n_id.narrow(0, 0, batch_size)
+                xs[global_id] = x.to(embedding_device, non_blocking=True)
+
+                if progress_bar:
+                    pbar.update(batch_size) # type: ignore[call-arg]
+
+            if embedding_device == "cpu":
+                torch.cuda.synchronize()
+            x_all = xs.to(self.device)
+
+        x_all = self.out_head(x_all)
+
+        if progress_bar:
+            pbar.close() # type: ignore[call-arg]
+
+        return x_all
