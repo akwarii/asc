@@ -106,9 +106,7 @@ class SAGE(torch.nn.Module):
                 pin_memory=(embedding_device == "cpu"),
             )
 
-            for j, batch in enumerate(loader):
-                if i == 0 and j == 0:
-                    print(batch)
+            for batch in loader:
                 batch_size = batch.batch_size
 
                 n_id = batch.n_id.to(self.device)
@@ -326,6 +324,7 @@ def main() -> None:
     num_epochs = 3
     retrain = False
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(device)
 
     dataset, train_loader, subgraph_loader = prepare_datasets(device)
 
