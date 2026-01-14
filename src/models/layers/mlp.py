@@ -102,9 +102,12 @@ class MLP(torch.nn.Module):
             if out_channels is None:
                 raise ValueError("Argument `out_channels` must be given")
 
-            assert hidden_channels is not None
-            channel_list = [hidden_channels] * (num_layers - 1)
-            channel_list = [in_channels] + channel_list + [out_channels]
+            if num_layers == 1:
+                channel_list = [in_channels, out_channels]
+            else:
+                assert hidden_channels is not None
+                channel_list = [hidden_channels] * (num_layers - 1)
+                channel_list = [in_channels] + channel_list + [out_channels]
 
         assert isinstance(channel_list, list)
         assert len(channel_list) >= 2
