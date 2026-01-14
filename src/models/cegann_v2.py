@@ -40,10 +40,10 @@ class CEGANNv2(Module):
     def __init__(
         self,
         num_classes: int,
-        emb_num_radial: int,
-        emb_num_angular: int,
-        emb_node_out_channels: int,
-        emb_edge_out_channels: int,
+        emb_num_radial: int = 16,
+        emb_num_angular: int = 16,
+        emb_node_out_channels: int = 128,
+        emb_edge_out_channels: int = 128,
         emb_num_layers: int = 1,
         emb_hidden_channels: int | None = None,
         conv_hidden_channels: int = 128,
@@ -51,6 +51,7 @@ class CEGANNv2(Module):
         conv_edge_out_channels: int = 128,
         conv_num_layers: int = 2,
         conv_heads: int = 1,
+        conv_concat: bool = True,
         conv_norm: str | Callable | None = "layernorm",
         dropout: float = 0.1,
         act: str | Callable | None = "silu",
@@ -84,6 +85,7 @@ class CEGANNv2(Module):
                     node_out_channels=node_out,
                     edge_out_channels=edge_out,
                     heads=conv_heads,
+                    concat=conv_concat,
                     dropout=dropout,
                     norm=conv_norm,
                     act=act,
@@ -133,6 +135,7 @@ class CEGANNv2(Module):
 
         # Encode distances and angles
         x, edge_attr = self.embedding(x, edge_attr)
+        print(f"After embedding, x.shape: {x.shape}, edge_attr.shape: {edge_attr.shape}")
 
         # Convolution blocks on the line graph
         for i, conv in enumerate(self.convs):
@@ -164,6 +167,7 @@ class CEGANNv2(Module):
                         break
 
             x, edge_attr = conv(x=x, edge_index=edge_index, edge_attr=edge_attr)
+            print(f"After conv layer {i}, x.shape: {x.shape}, edge_attr.shape: {edge_attr.shape}")
 
         # ? [DB] @Gael : maybe we could add checks to see if we have a line-graph
         # ?              or not, and change the readout accordingly.
@@ -259,9 +263,7 @@ class CEGANNv2(Module):
                 pin_memory=(embedding_device == "cpu"),
             )
 
-            for j, batch in enumerate(loader):
-                if i == 0 and j == 0:
-                    print(batch)
+            for batch in loader:
                 batch_size = batch.batch_size
 
                 n_id = batch.n_id.to(self.device)
@@ -269,6 +271,7 @@ class CEGANNv2(Module):
                 edge_attr = batch.edge_attr.to(self.device)
 
                 x = x_all[n_id]
+                # TODO consider that both node and edge features can be updated
                 x = self.inference_per_layer(i, x, edge_index, edge_attr, batch_size)
 
                 global_id = batch.n_id.narrow(0, 0, batch_size)

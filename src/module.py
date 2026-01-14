@@ -13,6 +13,7 @@ MODEL_FACTORY = {
     "cegann": models.CEGANN,
     "mlp": models.MLPClassifier,
     "gat": models.GATClassifier,
+    "cegannv2": models.CEGANNv2,
 }
 
 

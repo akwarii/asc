@@ -28,7 +28,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model",
         type=str,
-        choices=("cegann", "mlp", "gat"),
+        choices=("cegann", "cegannv2", "mlp", "gat"),
         required=True,
         help="Model to optimize the hyperparameters for.",
     )
@@ -154,7 +154,7 @@ def main() -> None:
         dataset_name=args.dataset,
         lengths=(0.7, 0.2, 0.1),
         use_imbalance_sampler=True,
-        pre_transforms=LineGraph(),
+        # pre_transforms=LineGraph(),
         transforms=RandomPerturbation(std=0.1),
         num_workers=8,
         batch_size=args.batch_size,
