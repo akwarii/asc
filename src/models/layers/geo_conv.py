@@ -93,7 +93,7 @@ class GeometricConv(MessagePassing):
         self.att = Parameter(torch.empty(1, heads, hidden_channels))
 
         # Output projection depends on head combining
-        total_node_out_channels = heads * (hidden_channels if concat else 1)
+        total_node_out_channels = hidden_channels * (heads if concat else 1)
         self.lin_out = Linear(total_node_out_channels, node_out_channels, bias=True)
 
         # Residuals projections
