@@ -20,7 +20,7 @@ class CEGANNv2(Module):
     """CEGANNv2 model for node classification on crystal graphs.
 
     Args:
-        num_classes: Number of target classes.
+        out_channels: Number of target classes.
         emb_num_radial: Number of radial basis functions for distance encoding.
         emb_num_angular: Number of angular basis functions for angle encoding.
         emb_node_out_channels: Output channels for node embeddings.
@@ -39,7 +39,7 @@ class CEGANNv2(Module):
 
     def __init__(
         self,
-        num_classes: int,
+        out_channels: int,
         emb_num_radial: int = 16,
         emb_num_angular: int = 16,
         emb_node_out_channels: int = 128,
@@ -100,8 +100,8 @@ class CEGANNv2(Module):
         # !              means the output feature size should be the same
         # !              as the one coming out of the last GeometricConv.
         # !              So it should be `node_in` here ?
-        self.out_head = Linear(node_in, num_classes, bias=False)
-        # self.out_head = Linear(-1, num_classes, bias=False)  # Or LazyLinear?
+        self.out_head = Linear(node_in, out_channels, bias=False)
+        self.out_channels = out_channels  #remove later
 
         self.reset_parameters()
 
@@ -135,7 +135,6 @@ class CEGANNv2(Module):
 
         # Encode distances and angles
         x, edge_attr = self.embedding(x, edge_attr)
-        print(f"After embedding, x.shape: {x.shape}, edge_attr.shape: {edge_attr.shape}")
 
         # Convolution blocks on the line graph
         for i, conv in enumerate(self.convs):
@@ -167,7 +166,6 @@ class CEGANNv2(Module):
                         break
 
             x, edge_attr = conv(x=x, edge_index=edge_index, edge_attr=edge_attr)
-            print(f"After conv layer {i}, x.shape: {x.shape}, edge_attr.shape: {edge_attr.shape}")
 
         # ? [DB] @Gael : maybe we could add checks to see if we have a line-graph
         # ?              or not, and change the readout accordingly.
@@ -175,14 +173,17 @@ class CEGANNv2(Module):
         # Pooling from bonds to atoms
         # FIXME will break when using neighbor sampling on the line graph because
         # we can't ensure we have the full bond-to-atom incidence info
+        # FIXME may also flat out break
         bond_source = data.bond_source if hasattr(data, "bond_source") else None
         num_atoms = data.num_atoms if hasattr(data, "num_atoms") else None
-        h_atom = self.readout(x, num_atoms, bond_source=bond_source)
+        # h_atom = self.readout.forward(x, num_atoms, bond_source=bond_source)
 
         # Final MLP for node classification
-        out = self.out_head(h_atom)
+        # out = self.out_head(h_atom)
 
-        return out
+        # return out
+
+        return torch.ones([self.out_channels, num_atoms]) #  FIXME Placeholder return for debugging
 
     @torch.no_grad()
     def inference_per_layer(
