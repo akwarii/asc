@@ -34,6 +34,7 @@ class BondToAtomReadout(nn.Module):
         bond_target: Tensor | None = None,
     ) -> Tensor:
         """Forward pass of the readout layer."""
+        #  FIXME modify to make it work on batched graphs
         if self.incidence == "out":
             assert bond_source is not None, "bond_source is required for 'out' incidence."
             return scatter(bond_x, bond_source, dim=0, dim_size=num_atoms, reduce=self.reduce)
