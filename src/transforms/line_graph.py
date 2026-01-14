@@ -30,9 +30,11 @@ def compute_bonds_angles(x: Tensor, eps: float = 1e-8) -> torch.Tensor:
 
     angles = torch.acos(cos_theta)
 
-    return angles.unsqueeze(1)
+    return angles
 
 
+# TODO consider computing triplets in model forward instead
+# TODO fix angle flow direction (currently j -> i -> k instead of k -> j -> i)
 class LineGraph(BaseTransform):
     """Converts a graph to its directed line-graph version.
 

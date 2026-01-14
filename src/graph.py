@@ -139,7 +139,7 @@ class KNNGraph:
             edge_index = edge_index.to(device)
             distances = distances.to(device)
 
-        return x, edge_index, distances.unsqueeze(1)
+        return x, edge_index, distances
 
     def _faiss_knn(
         self, cart_coords: Tensor, pts: Tensor, *, use_faiss_gpu: bool = False
