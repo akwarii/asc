@@ -19,12 +19,10 @@ class RandomPerturbation(BaseTransform):
     def forward(self, data: Data) -> Data:
         """Runs the transform."""
         if data.x is not None:
-            data.x = data.x + torch.normal(mean=0.0, std=self.std, size=data.x.size())
+            data.x += torch.randn_like(data.x) * self.std
 
         if data.edge_attr is not None:
-            data.edge_attr = data.edge_attr + torch.normal(
-                mean=0.0, std=self.std, size=data.edge_attr.size()
-            )
+            data.edge_attr += torch.randn_like(data.edge_attr) * self.std
 
         return data
 
