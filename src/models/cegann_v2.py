@@ -167,23 +167,22 @@ class CEGANNv2(Module):
 
             x, edge_attr = conv(x=x, edge_index=edge_index, edge_attr=edge_attr)
 
-        # ? [DB] @Gael : maybe we could add checks to see if we have a line-graph
-        # ?              or not, and change the readout accordingly.
-
         # Pooling from bonds to atoms
         # FIXME will break when using neighbor sampling on the line graph because
         # we can't ensure we have the full bond-to-atom incidence info
-        # FIXME may also flat out break
         bond_source = data.bond_source if hasattr(data, "bond_source") else None
         num_atoms = data.num_atoms if hasattr(data, "num_atoms") else None
-        # h_atom = self.readout.forward(x, num_atoms, bond_source=bond_source)
+
+        # During batching, num_atoms can be a tensor
+        if isinstance(num_atoms, Tensor):
+             num_atoms = int(num_atoms.sum().item())
+
+        h_atom = self.readout(x, num_atoms, bond_source=bond_source)
 
         # Final MLP for node classification
-        # out = self.out_head(h_atom)
+        out = self.out_head(h_atom)
 
-        # return out
-
-        return torch.ones([self.out_channels, num_atoms]) #  FIXME Placeholder return for debugging
+        return out
 
     @torch.no_grad()
     def inference_per_layer(
