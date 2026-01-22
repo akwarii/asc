@@ -38,7 +38,12 @@ class LineGraphData(Data):
 
     def __inc__(self, key: str, value: torch.Tensor, *args, **kwargs) -> int:
         if key in ["bond_source", "bond_target"]:
-            return self.num_atoms
+            if hasattr(self, "num_atoms"):
+                return self.num_atoms
+            else:
+                raise AttributeError(
+                    "LineGraphData object is missing 'num_atoms' attribute required for batching."
+                )
         return super().__inc__(key, value, *args, **kwargs)
 
 
