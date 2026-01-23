@@ -4,15 +4,15 @@ from pathlib import Path
 import torch
 import torchmetrics
 from lightning import Trainer, seed_everything
-from lightning.pytorch.callbacks import (
-    LearningRateFinder,
-    ModelCheckpoint,
-)
+from lightning.pytorch.callbacks import ModelCheckpoint
 from src import LightningDataset, Module
 from src.callbacks import HalfBatchSizeFinder
 from src.constants import DEFAULT_SEED
 from src.transforms import LineGraph, RandomPerturbation
+from src.transforms.line_graph import LineGraphData
 from src.utils.cli import KeyValueParserAction
+
+torch.serialization.add_safe_globals([LineGraphData])
 
 
 def validate_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
@@ -112,6 +112,7 @@ def get_best_model_params(storage, study) -> dict:
 
 
 def main() -> None:
+    torch.set_float32_matmul_precision("high")
     seed_everything(DEFAULT_SEED)
 
     args = parse_args()
@@ -135,7 +136,7 @@ def main() -> None:
         )
 
     callbacks = [
-        LearningRateFinder(min_lr=1e-5, max_lr=0.1),
+        # LearningRateFinder(min_lr=1e-5, max_lr=0.1),
         # EarlyStopping(monitor="val/loss", patience=10, check_on_train_epoch_end=False),
         ModelCheckpoint(monitor="val/loss", save_on_train_epoch_end=False),
     ]
@@ -144,7 +145,7 @@ def main() -> None:
 
     trainer = Trainer(
         max_epochs=args.epochs,
-        precision="16-mixed" if torch.cuda.is_available() else 32,
+        precision="bf16-mixed" if torch.cuda.is_available() else 32,
         callbacks=callbacks,
         deterministic=False,
         enable_progress_bar=True,
@@ -154,7 +155,7 @@ def main() -> None:
         dataset_name=args.dataset,
         lengths=(0.7, 0.2, 0.1),
         use_imbalance_sampler=True,
-        # pre_transforms=LineGraph(),
+        pre_transforms=LineGraph(),
         transforms=RandomPerturbation(std=0.1),
         num_workers=8,
         batch_size=args.batch_size,
