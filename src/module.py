@@ -3,6 +3,8 @@ from typing import Any
 import torch
 import torch.nn as nn
 from lightning import LightningModule
+from torch.optim import Optimizer
+from torch.optim.lr_scheduler import LambdaLR
 from torch_geometric.data import Data
 from torchmetrics import MetricCollection
 
@@ -42,12 +44,15 @@ class Module(LightningModule):
         *,
         metrics: MetricCollection | None = None,
         compile: bool = True,
-        lr: float = 1e-3,
+        lr_adam: float = 3e-4,
+        lr_muon: float = 0.02,
         warmup: int = 100,
         max_iters: int = 1_000,
         model_kwargs: dict[str, Any] | None = None,
     ) -> None:
         super().__init__()
+
+        self.automatic_optimization = False
 
         self.save_hyperparameters(logger=False, ignore=["metrics"])
         self._create_model()
@@ -87,23 +92,33 @@ class Module(LightningModule):
         return self.model(data)
 
     def training_step(self, data: Data) -> torch.Tensor:
+        opt_muon, opt_adamw = self.optimizers()
+        sch_muon, sch_adamw = self.lr_schedulers()
+
         preds: torch.Tensor = self(data)
         loss = self.criterion(preds, torch.as_tensor(data.y))
+
+        opt_muon.zero_grad()
+        opt_adamw.zero_grad()
+
+        self.manual_backward(loss)
+
+        opt_muon.step()
+        opt_adamw.step()
+
+        sch_muon.step()
+        sch_adamw.step()
 
         if hasattr(self, "train_metrics"):
             batch_value = self.train_metrics(preds.softmax(dim=-1), data.y)
             self.log_dict(
                 batch_value,
-                on_step=True,
-                on_epoch=True,
                 prog_bar=True,
                 batch_size=data.num_nodes,
             )
         self.log(
             "train/loss",
             loss,
-            on_step=True,
-            on_epoch=True,
             prog_bar=True,
             batch_size=data.num_nodes,
         )
@@ -148,25 +163,34 @@ class Module(LightningModule):
         preds: torch.Tensor = self(data)
         return torch.argmax(preds, dim=-1)
 
-    def configure_optimizers(self) -> dict[str, Any]:
-        optimizer = torch.optim.AdamW(self.parameters(), lr=self.hparams["lr"])
+    def configure_optimizers(self) -> tuple[list[Optimizer], list[LambdaLR]]:
+        muon_params = []
+        adamw_params = []
 
-        lr_scheduler = get_cosine_schedule_with_warmup(
-            optimizer=optimizer,
+        for name, p in self.model.named_parameters():
+            if p.requires_grad:
+                # Muon: 2D+ weights (Linear, Conv)
+                # AdamW: 1D params (Biases, LayerNorm, Embeddings)
+                if p.ndim >= 2 and "weight" in name and "norm" not in name:
+                    muon_params.append(p)
+                else:
+                    adamw_params.append(p)
+
+        # Initialize Optimizers
+        # Note: Muon typically uses a much higher LR (e.g., 0.02) than AdamW
+        opt_muon = torch.optim.Muon(muon_params, lr=self.hparams["lr_muon"])
+        opt_adamw = torch.optim.AdamW(adamw_params, lr=self.hparams["lr_adam"])
+
+        # Initialize Schedulers
+        sched_muon = get_cosine_schedule_with_warmup(
+            optimizer=opt_muon,
             num_warmup_steps=self.hparams["warmup"],
             num_training_steps=self.hparams["max_iters"],
         )
-        # lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-        #     optimizer=optimizer,
-        #     T_max=self.hparams["max_iters"],
-        # )
+        sched_adamw = get_cosine_schedule_with_warmup(
+            optimizer=opt_adamw,
+            num_warmup_steps=self.hparams["warmup"],
+            num_training_steps=self.hparams["max_iters"],
+        )
 
-        return {
-            "optimizer": optimizer,
-            "lr_scheduler": {
-                "scheduler": lr_scheduler,
-                "interval": "step",
-                "monitor": "val/loss",
-                "frequency": 1,
-            },
-        }
+        return [opt_muon, opt_adamw], [sched_muon, sched_adamw]
