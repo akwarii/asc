@@ -101,7 +101,7 @@ class CEGANNv2(Module):
         # !              as the one coming out of the last GeometricConv.
         # !              So it should be `node_in` here ?
         self.out_head = Linear(node_in, out_channels, bias=False)
-        self.out_channels = out_channels  #remove later
+        self.out_channels = out_channels  # remove later
 
         self.reset_parameters()
 
@@ -158,9 +158,7 @@ class CEGANNv2(Module):
                 if edge_index.size(1) == 0:
                     if i != len(self.convs) - 1:
                         # Nothing to pass to subsequent layers
-                        raise RuntimeError(
-                            f"No edges left after trimming for layer {i}."
-                        )
+                        raise RuntimeError(f"No edges left after trimming for layer {i}.")
                     else:
                         # Allow last layer to have no edges (e.g., for isolated nodes)
                         break
@@ -176,7 +174,7 @@ class CEGANNv2(Module):
         # During batching, num_atoms can be a tensor
         # Keep as tensor to avoid graph breaks in torch.compile
         if isinstance(num_atoms, Tensor):
-             num_atoms = num_atoms.sum()
+            num_atoms = num_atoms.sum()
 
         h_atom = self.readout(x, num_atoms, bond_source=bond_source)
 
@@ -288,7 +286,7 @@ class CEGANNv2(Module):
                 xs[global_id] = x.to(embedding_device, non_blocking=True)
 
                 if progress_bar:
-                    pbar.update(batch_size) # type: ignore[call-arg]
+                    pbar.update(batch_size)  # type: ignore[call-arg]
 
             if embedding_device == "cpu":
                 torch.cuda.synchronize()
@@ -303,12 +301,12 @@ class CEGANNv2(Module):
             num_atoms = loader.data.num_atoms
             x_all = self.readout.forward(x_all, num_atoms, bond_source=bond_source)
         else:
-             # Fallback or error if bond_source is missing, strictly needed for CEGANN
-             raise RuntimeError("bond_source missing in loader.data during inference")
+            # Fallback or error if bond_source is missing, strictly needed for CEGANN
+            raise RuntimeError("bond_source missing in loader.data during inference")
 
         x_all = self.out_head(x_all)
 
         if progress_bar:
-            pbar.close() # type: ignore[call-arg]
+            pbar.close()  # type: ignore[call-arg]
 
         return x_all
