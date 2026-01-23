@@ -29,11 +29,18 @@ class BondToAtomReadout(nn.Module):
     def forward(
         self,
         bond_x: Tensor,
-        num_atoms: int,
+        num_atoms: int | Tensor,
         bond_source: Tensor | None = None,
         bond_target: Tensor | None = None,
     ) -> Tensor:
-        """Forward pass of the readout layer."""
+        """Forward pass of the readout layer.
+        
+        Args:
+            bond_x: Bond embeddings tensor.
+            num_atoms: Total number of atoms (can be int or 0-d Tensor to avoid graph breaks).
+            bond_source: Source atom indices for each bond.
+            bond_target: Target atom indices for each bond.
+        """
         if self.incidence == "out":
             assert bond_source is not None, "bond_source is required for 'out' incidence."
             return scatter(bond_x, bond_source, dim=0, dim_size=num_atoms, reduce=self.reduce)
