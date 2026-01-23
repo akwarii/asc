@@ -174,8 +174,9 @@ class CEGANNv2(Module):
         num_atoms = data.num_atoms if hasattr(data, "num_atoms") else None
 
         # During batching, num_atoms can be a tensor
+        # Keep as tensor to avoid graph breaks in torch.compile
         if isinstance(num_atoms, Tensor):
-             num_atoms = int(num_atoms.sum().item())
+             num_atoms = num_atoms.sum()
 
         h_atom = self.readout(x, num_atoms, bond_source=bond_source)
 
