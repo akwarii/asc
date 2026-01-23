@@ -167,23 +167,22 @@ class CEGANNv2(Module):
 
             x, edge_attr = conv(x=x, edge_index=edge_index, edge_attr=edge_attr)
 
-        # ? [DB] @Gael : maybe we could add checks to see if we have a line-graph
-        # ?              or not, and change the readout accordingly.
-
         # Pooling from bonds to atoms
         # FIXME will break when using neighbor sampling on the line graph because
         # we can't ensure we have the full bond-to-atom incidence info
-        # FIXME may also flat out break
         bond_source = data.bond_source if hasattr(data, "bond_source") else None
         num_atoms = data.num_atoms if hasattr(data, "num_atoms") else None
-        # h_atom = self.readout.forward(x, num_atoms, bond_source=bond_source)
+
+        # During batching, num_atoms can be a tensor
+        if isinstance(num_atoms, Tensor):
+             num_atoms = int(num_atoms.sum().item())
+
+        h_atom = self.readout(x, num_atoms, bond_source=bond_source)
 
         # Final MLP for node classification
-        # out = self.out_head(h_atom)
+        out = self.out_head(h_atom)
 
-        # return out
-
-        return torch.ones([self.out_channels, num_atoms]) #  FIXME Placeholder return for debugging
+        return out
 
     @torch.no_grad()
     def inference_per_layer(
@@ -195,8 +194,17 @@ class CEGANNv2(Module):
         batch_size: int,
     ) -> Tensor:
         """Performs inference for a single layer."""
+        if layer == 0:
+            x, edge_attr = self.embedding(x, edge_attr)
+        else:
+            # Re-embed edges as we don't propagate edge updates in inference
+            edge_attr_sbf = self.embedding.sbf(edge_attr)
+            edge_attr = self.embedding.edge_embedding(edge_attr_sbf)
+
         # TODO update signature of conv layers
-        x = self.convs[layer](x, edge_index, edge_attr)[:batch_size]
+        x, _ = self.convs[layer](x, edge_index, edge_attr)
+        x = x[:batch_size]
+
         if layer == self.num_layers - 1:
             return x
 
@@ -243,7 +251,7 @@ class CEGANNv2(Module):
             pbar = tqdm(total=len(loader.dataset) * len(self.convs))
             pbar.set_description("Evaluating")
 
-        x_all = loader.dataset.x.to(self.device)
+        x_all = loader.data.x.to(self.device)
         if cache:
 
             def transform(data: Data) -> Data:
@@ -259,7 +267,7 @@ class CEGANNv2(Module):
         for i in range(self.num_layers):
             xs = torch.empty(
                 x_all.size(0),
-                self.convs[i].out_channels,  # type: ignore[attr-defined]
+                self.convs[i].node_out_channels,  # type: ignore[attr-defined]
                 device=embedding_device,
                 pin_memory=(embedding_device == "cpu"),
             )
@@ -284,6 +292,18 @@ class CEGANNv2(Module):
             if embedding_device == "cpu":
                 torch.cuda.synchronize()
             x_all = xs.to(self.device)
+
+        # Readout from bonds to atoms
+        # We assume the loader.dataset or the full graph has the necessary info
+        # to map the final bond embeddings x_all back to atoms.
+        # This requires bond_source corresponding to x_all.
+        if hasattr(loader.data, "bond_source"):
+            bond_source = loader.data.bond_source.to(self.device)
+            num_atoms = loader.data.num_atoms
+            x_all = self.readout.forward(x_all, num_atoms, bond_source=bond_source)
+        else:
+             # Fallback or error if bond_source is missing, strictly needed for CEGANN
+             raise RuntimeError("bond_source missing in loader.data during inference")
 
         x_all = self.out_head(x_all)
 
