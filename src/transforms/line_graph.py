@@ -33,6 +33,20 @@ def compute_bonds_angles(x: Tensor, eps: float = 1e-8) -> torch.Tensor:
     return angles
 
 
+class LineGraphData(Data):
+    """Custom Data class for LineGraph to handle batching of bond-to-atom indices."""
+
+    def __inc__(self, key: str, value: torch.Tensor, *args, **kwargs) -> int:
+        if key in ["bond_source", "bond_target"]:
+            if hasattr(self, "num_atoms"):
+                return self.num_atoms
+            else:
+                raise AttributeError(
+                    "LineGraphData object is missing 'num_atoms' attribute required for batching."
+                )
+        return super().__inc__(key, value, *args, **kwargs)
+
+
 # TODO consider computing triplets in model forward instead
 # TODO fix angle flow direction (currently j -> i -> k instead of k -> j -> i)
 class LineGraph(BaseTransform):
@@ -128,4 +142,4 @@ class LineGraph(BaseTransform):
         data.bond_target = bond_target
         data.num_atoms = num_atoms
 
-        return data
+        return LineGraphData(**data.to_dict())
