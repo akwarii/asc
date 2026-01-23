@@ -21,7 +21,8 @@ CENTRAL_CELL = 13
 
 
 def _get_graph_method(n_atoms: int) -> tuple[str, torch.device]:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
     method = "torch"
 
     if faiss is not None:
@@ -133,7 +134,8 @@ class KNNGraph:
         x = torch.cat((j_coords - central_coords, k_coords - central_coords), dim=1)
 
         # Move to the appropriate device
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = torch.device("cpu")
         if knn_device != device:
             x = x.to(device)
             edge_index = edge_index.to(device)
