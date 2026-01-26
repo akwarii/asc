@@ -59,6 +59,17 @@ class Module(LightningModule):
 
         self.criterion = nn.CrossEntropyLoss()
 
+        # FIXME if we want to use Learning Rate Finder, the Module object
+        # needs to either have "learning_rate" or "lr" attributes
+        # As we want to have different LRs for AdamW and Muon, I propose
+        # we set one with self.lr and precompute the other one accordingly
+        # with a ratio.
+        # According to ChatGPT, common ratios are:
+        #     Muon : AdamW = 3 : 1 (conservative)
+        #     Muon : AdamW = 5 : 1 (very common)
+        #     Muon : AdamW = 10 : 1 (aggressive but often stable)
+        # ? @Gael, let's discuss that at some point (before HPO?)
+
         if metrics is not None:
             self.train_metrics = metrics.clone(prefix="train/")
             self.val_metrics = metrics.clone(prefix="val/")
