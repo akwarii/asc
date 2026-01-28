@@ -3,10 +3,9 @@ import torchmetrics
 from lightning import Trainer, seed_everything
 from src import LightningDataset, Module
 from src.constants import DEFAULT_SEED
-from src.datasets import CustomDataset
 from src.transforms import LineGraph
 
-CKPT = "lightning_logs/version_45927073/checkpoints/epoch=101-step=131378.ckpt"
+CKPT = "best_model.ckpt"
 BATCH_SIZE = 1
 
 
@@ -17,11 +16,12 @@ def main() -> None:
     ckpt_params = ckpt["hyper_parameters"] | ckpt["datamodule_hyper_parameters"]
 
     datamodule = LightningDataset(
-        pred_dataset=CustomDataset(root="data/custom", k=ckpt_params["k"]),
+        dataset_name=ckpt_params["dataset_name"],
+        lengths=ckpt_params["lengths"],
+        k=ckpt_params["k"],
         num_workers=4,
         batch_size=BATCH_SIZE,
         pre_transforms=LineGraph(),
-        force_reload=True,
     )
 
     metrics = torchmetrics.MetricCollection(

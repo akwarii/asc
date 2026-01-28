@@ -24,13 +24,10 @@ def compute_bonds_angles(x: Tensor, eps: float = 1e-8) -> torch.Tensor:
     v2 = torch.cat((x[:, 3:], x[:, :3]), dim=0)  # second bond in the pair
 
     # Cosine of the angle between v1 and v2
-    denom = v1.norm(dim=1) * v2.norm(dim=1) + eps
-    cos_theta = (v1 * v2).sum(dim=1) / denom
-    cos_theta = cos_theta.clamp(-1.0, 1.0)
+    denom = (v1.norm(dim=1) * v2.norm(dim=1)).add_(eps)
+    cos_theta = ((v1 * v2).sum(dim=1)).div_(denom).clamp_(-1.0, 1.0)
 
-    angles = torch.acos(cos_theta)
-
-    return angles
+    return cos_theta.acos_()
 
 
 class LineGraphData(Data):
