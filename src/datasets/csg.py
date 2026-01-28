@@ -69,7 +69,7 @@ class CSG(InMemoryDataset):
     @property
     def raw_file_names(self) -> list[str]:
         """Return the name of the downloaded files."""
-        return ["CSG_micro.csv"]
+        return ["CSG_nano.csv"]
 
     @property
     def processed_file_names(self) -> list[str]:
