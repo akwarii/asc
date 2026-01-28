@@ -44,8 +44,8 @@ class Module(LightningModule):
         *,
         metrics: MetricCollection | None = None,
         compile: bool = True,
-        lr_adam: float = 3e-4,
-        lr_muon: float = 0.02,
+        lr_adam: float = 3e-3,
+        lr_muon: float = 0.01,
         warmup: int = 100,
         max_iters: int = 1_000,
         model_kwargs: dict[str, Any] | None = None,
@@ -59,8 +59,6 @@ class Module(LightningModule):
 
         self.criterion = nn.CrossEntropyLoss()
 
-        # FIXME if we want to use Learning Rate Finder, the Module object
-        # needs to either have "learning_rate" or "lr" attributes
         # As we want to have different LRs for AdamW and Muon, I propose
         # we set one with self.lr and precompute the other one accordingly
         # with a ratio.
