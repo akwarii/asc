@@ -23,8 +23,7 @@ class CEGANNv2(Module):
         out_channels: Number of target classes.
         emb_num_radial: Number of radial basis functions for distance encoding.
         emb_num_angular: Number of angular basis functions for angle encoding.
-        emb_node_out_channels: Output channels for node embeddings.
-        emb_edge_out_channels: Output channels for edge embeddings.
+        emb_num_channels: Output channels for node embeddings.
         emb_num_layers: Number of layers in the embedding module.
         emb_hidden_channels: Hidden channels in the embedding module.
         conv_hidden_channels: Hidden channels in the convolutional layers.
@@ -42,16 +41,15 @@ class CEGANNv2(Module):
         out_channels: int,
         emb_num_radial: int = 16,
         emb_num_angular: int = 16,
-        emb_node_out_channels: int = 128,
-        emb_edge_out_channels: int = 128,
-        emb_num_layers: int = 1,
-        emb_hidden_channels: int | None = None,
+        emb_num_channels: int = 128,
+        emb_num_layers: int = 2,
         conv_hidden_channels: int = 128,
         conv_node_out_channels: int = 128,
         conv_edge_out_channels: int = 128,
         conv_num_layers: int = 2,
         conv_heads: int = 1,
         conv_concat: bool = True,
+        conv_residual: bool = True,
         conv_norm: str | Callable | None = "layernorm",
         dropout: float = 0.1,
         act: str | Callable | None = "silu",
@@ -62,14 +60,12 @@ class CEGANNv2(Module):
         self.embedding = GeometricEmbedding(
             num_radial=emb_num_radial,
             num_angular=emb_num_angular,
-            node_out_channels=emb_node_out_channels,
-            edge_out_channels=emb_edge_out_channels,
+            num_channels=emb_num_channels,
             num_layers=emb_num_layers,
-            hidden_channels=emb_hidden_channels,
             act=act,
         )
 
-        node_in, edge_in = emb_node_out_channels, emb_edge_out_channels
+        node_in , edge_in = emb_num_channels, emb_num_channels
 
         self.convs = ModuleList()
         for layer in range(conv_num_layers):
@@ -85,9 +81,10 @@ class CEGANNv2(Module):
                     node_out_channels=node_out,
                     edge_out_channels=edge_out,
                     heads=conv_heads,
-                    concat=conv_concat,
+                    concat=conv_concat if not is_last else False,
                     dropout=dropout,
                     norm=conv_norm,
+                    residual=conv_residual,
                     act=act,
                     **kwargs,
                 )

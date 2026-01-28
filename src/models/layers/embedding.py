@@ -14,11 +14,8 @@ class GeometricEmbedding(nn.Module):
     Args:
         num_radial (int): Number of radial basis functions for bond features.
         num_angular (int): Number of angular basis functions for angle features.
-        node_out_channels (int): Output channel size for the embedded node features.
-        edge_out_channels (int): Output channel size for the embedded edge features.
+        num_channels (int): Channel size for the embedded node, edges and hidden features.
         num_layers (int, optional): Number of layers in the embedding MLPs. Default is 1.
-        hidden_channels (int | None, optional): Hidden channel size for the embedding MLPs.
-            Default is None.
         act (str | Callable | None, optional): Activation function for the embedding MLPs.
             Default is "silu".
         act_kwargs (dict | None, optional): Additional arguments for the activation function.
@@ -28,10 +25,8 @@ class GeometricEmbedding(nn.Module):
     def __init__(self,
         num_radial: int,
         num_angular: int,
-        node_out_channels: int,
-        edge_out_channels: int,
+        num_channels: int,
         num_layers: int = 1,
-        hidden_channels: int | None = None,
         act: str | Callable | None = "silu",
         act_kwargs: dict[str, Any] | None = None,
     ) -> None:
@@ -41,17 +36,17 @@ class GeometricEmbedding(nn.Module):
         self.sbf = SineBasis(num_basis=num_angular)
         self.node_embedding = MLP(
             in_channels=num_radial,
-            hidden_channels=hidden_channels,
+            hidden_channels=num_channels,
             num_layers=num_layers,
-            out_channels=node_out_channels,
+            out_channels=num_channels,
             act=act,
             act_kwargs=act_kwargs,
         )
         self.edge_embedding = MLP(
             in_channels=num_angular,
-            hidden_channels=hidden_channels,
+            hidden_channels=num_channels,
             num_layers=num_layers,
-            out_channels=edge_out_channels,
+            out_channels=num_channels,
             act=act,
             act_kwargs=act_kwargs,
         )
