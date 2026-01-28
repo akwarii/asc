@@ -5,14 +5,17 @@ import optuna
 import torch
 import torchmetrics
 from lightning import Trainer, seed_everything
-from lightning.pytorch.callbacks import LearningRateFinder
+from lightning.pytorch.callbacks import DeviceStatsMonitor
 from optuna.trial import TrialState
 from optuna_integration import PyTorchLightningPruningCallback
 from src import LightningDataset, Module
 from src.constants import DEFAULT_SEED
 from src.transforms import LineGraph, RandomPerturbation
+from src.transforms.line_graph import LineGraphData
 
 warnings.filterwarnings("ignore", category=optuna.exceptions.ExperimentalWarning)
+torch.serialization.add_safe_globals([LineGraphData, LineGraph, RandomPerturbation])
+torch.set_float32_matmul_precision("high")
 
 
 def parse_args() -> argparse.Namespace:
@@ -21,25 +24,25 @@ def parse_args() -> argparse.Namespace:
         "--model",
         type=str,
         choices=("cegann", "mlp", "gat", "cegannv2"),
-        default="cegann",
+        default="cegannv2",
         help="Model to optimize the hyperparameters for.",
     )
     parser.add_argument(
         "--budget",
         type=int,
-        default=100,
+        default=250,
         help="Number of trials to run for the optimization.",
     )
     parser.add_argument(
         "--batch_size",
         type=int,
-        default=128,
+        default=512,
         help="Batch size to use for the training.",
     )
     parser.add_argument(
         "--epochs",
         type=int,
-        default=30,
+        default=50,
         help="Number of epochs to train the model for.",
     )
     parser.add_argument(
@@ -52,7 +55,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--storage",
         type=str,
-        default="sqlite:///hpo.db",
+        default="sqlite:///logs/hpo.db",
         help="URL to the database to store the optimization results.",
     )
     parser.add_argument(
@@ -169,15 +172,15 @@ def objective(trial: optuna.Trial) -> float:
 
     # Configure the Lightning Trainer
     trainer = Trainer(
-        precision="16-mixed",
+        precision="bf16-mixed",
         enable_progress_bar=False,
         logger=True,
         enable_checkpointing=False,
         max_epochs=EPOCHS,
         log_every_n_steps=50,
         callbacks=[
-            LearningRateFinder(min_lr=1e-5, max_lr=0.1),
             PyTorchLightningPruningCallback(trial, monitor="val/f1"),
+            DeviceStatsMonitor(),
         ],
         deterministic=True,  # FIXME GAT compilation fails if set to False
     )
@@ -186,7 +189,7 @@ def objective(trial: optuna.Trial) -> float:
     datamodule = LightningDataset(
         dataset_name=DATASET,
         lengths=(0.8, 0.2),
-        use_imbalance_sampler=True,
+        use_imbalance_sampler=False,
         pre_transforms=LineGraph(),
         transforms=[
             RandomPerturbation(std=0.1),
