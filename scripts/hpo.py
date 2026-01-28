@@ -20,7 +20,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model",
         type=str,
-        choices=("cegann", "mlp", "gat"),
+        choices=("cegann", "mlp", "gat", "cegannv2"),
         default="cegann",
         help="Model to optimize the hyperparameters for.",
     )
@@ -104,6 +104,23 @@ def sample_hyperparameters(trial: optuna.Trial) -> dict:
         _ = trial.suggest_float("dropout", 0.1, 0.6, step=0.1)
         _ = trial.suggest_categorical("classification_units", [64, 128, 256, 512])
         _ = trial.suggest_int("classification_layers", 1, 4)
+
+    elif MODEL_NAME == "cegannv2":
+        # TODO: refine hyperparameters for CEGANN v2 based on previous CEGANN HPO
+        _ = trial.suggest_categorical("emb_num_radial", [64, 128, 256, 512])
+        _ = trial.suggest_categorical("emb_num_angular", [32, 64, 128, 256, 512])
+        _ = trial.suggest_categorical("emb_node_out_channels", [64, 128, 256, 512])
+        _ = trial.suggest_categorical("emb_edge_out_channels", [32, 64, 128, 256, 512])
+        _ = trial.suggest_int("emb_num_layers", 2, 6)
+        _ = trial.suggest_categorical("emb_hidden_channels", [64, 128, 256, 512])
+        _ = trial.suggest_categorical("conv_hidden_channels", [64, 128, 256, 512])
+        _ = trial.suggest_categorical("conv_node_out_channels", [64, 128, 256, 512])
+        _ = trial.suggest_categorical("conv_edge_out_channels", [32, 64, 128, 256, 512])
+        _ = trial.suggest_int("conv_num_layers", 1, 5)
+        _ = trial.suggest_int("conv_heads", 1, 8)
+        _ = trial.suggest_categorical("conv_concat", [True, False])
+        _ = trial.suggest_float("dropout", 0.1, 0.6, step=0.1)
+        _ = trial.suggest_categorical("act", ["ReLU", "LeakyReLU", "SiLU", "ELU"])
 
     elif MODEL_NAME == "mlp":
         _ = trial.suggest_int("num_layers", 3, 8)
