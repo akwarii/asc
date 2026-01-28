@@ -44,8 +44,7 @@ class Module(LightningModule):
         *,
         metrics: MetricCollection | None = None,
         compile: bool = True,
-        lr_adam: float = 3e-3,
-        lr_muon: float = 0.01,
+        lr: float = 1e-3,
         warmup: int = 100,
         max_iters: int = 1_000,
         model_kwargs: dict[str, Any] | None = None,
@@ -58,15 +57,6 @@ class Module(LightningModule):
         self._create_model()
 
         self.criterion = nn.CrossEntropyLoss()
-
-        # As we want to have different LRs for AdamW and Muon, I propose
-        # we set one with self.lr and precompute the other one accordingly
-        # with a ratio.
-        # According to ChatGPT, common ratios are:
-        #     Muon : AdamW = 3 : 1 (conservative)
-        #     Muon : AdamW = 5 : 1 (very common)
-        #     Muon : AdamW = 10 : 1 (aggressive but often stable)
-        # ? @Gael, let's discuss that at some point (before HPO?)
 
         if metrics is not None:
             self.train_metrics = metrics.clone(prefix="train/")
@@ -186,9 +176,10 @@ class Module(LightningModule):
                     adamw_params.append(p)
 
         # Initialize Optimizers
-        # Note: Muon typically uses a much higher LR (e.g., 0.02) than AdamW
-        opt_muon = torch.optim.Muon(muon_params, lr=self.hparams["lr_muon"])
-        opt_adamw = torch.optim.AdamW(adamw_params, lr=self.hparams["lr_adam"])
+        opt_muon = torch.optim.Muon(
+            muon_params, lr=self.hparams["lr"], adjust_lr_fn="match_rms_adamw"
+        )
+        opt_adamw = torch.optim.AdamW(adamw_params, lr=self.hparams["lr"])
 
         # Initialize Schedulers
         sched_muon = get_cosine_schedule_with_warmup(
