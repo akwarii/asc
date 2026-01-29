@@ -168,7 +168,7 @@ def objective(trial: optuna.Trial) -> float:
     for t in reversed(trial.study.get_trials(deepcopy=False)):
         if trial.params == t.params and trial.number != t.number:
             if t.value is not None:
-                return t.value
+                raise optuna.exceptions.TrialPruned("Duplicated hyperparameters.")
 
     # Configure the Lightning Trainer
     trainer = Trainer(
