@@ -21,6 +21,7 @@ torch.set_float32_matmul_precision("high")
 
 module = optunahub.load_module(package="samplers/auto_sampler")
 
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Models hyperparameter optimization.")
     parser.add_argument(
@@ -129,7 +130,7 @@ def sample_hyperparameters(trial: optuna.Trial) -> dict:
 
         _ = trial.suggest_categorical("conv_heads", [4, 8])
         _ = trial.suggest_categorical("conv_concat", [True, False])
-        _ = trial.suggest_float("lr", 5.e-5, 1e-2)
+        _ = trial.suggest_float("lr", 5.0e-5, 1e-2)
 
         trial.set_user_attr("emb_num_radial", 4)
         trial.set_user_attr("emb_num_angular", 64)
@@ -142,7 +143,6 @@ def sample_hyperparameters(trial: optuna.Trial) -> dict:
         trial.set_user_attr("conv_residual", True)
         trial.set_user_attr("dropout", 0.3)
         trial.set_user_attr("k", 16)
-
 
     elif MODEL_NAME == "mlp":
         _ = trial.suggest_int("num_layers", 3, 8)
