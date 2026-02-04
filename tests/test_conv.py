@@ -5,8 +5,8 @@ from tests.utils import MockGraphSpec, make_mock_pyg_graph
 
 def test_edge_gated_gatv2_conv() -> None:
     specs = MockGraphSpec(
-        num_nodes=500*14,
-        num_edges=500*14*13,
+        num_nodes=500 * 14,
+        num_edges=500 * 14 * 13,
         node_feat_dim=16,
         edge_feat_dim=8,
         directed=False,

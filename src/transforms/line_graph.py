@@ -30,7 +30,7 @@ def compute_bonds_angles(x: Tensor, eps: float = 1e-8) -> torch.Tensor:
     return cos_theta.acos_()
 
 
-#TODO check if we can "easily" ensure that num_atoms stays an int after batching
+# TODO check if we can "easily" ensure that num_atoms stays an int after batching
 class LineGraphData(Data):
     """Custom Data class for LineGraph to handle batching of bond-to-atom indices."""
 

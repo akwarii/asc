@@ -89,7 +89,7 @@ def test_batching_indices():
     expected_min = 10  # num_atoms of g1
     expected_max = 10 + 20 - 1
 
-    print(f"Batching Check:")
+    print("Batching Check:")
     print(f"  G1 atoms: {g1.num_nodes}, G2 atoms: {g2.num_nodes}")
     print(
         f"  Batch bond_source min/max (2nd graph): {offset_bond_source.min().item()}/{offset_bond_source.max().item()}"
@@ -154,9 +154,9 @@ def test_readout_on_batch():
     # If bond_source was [0..4, 0..4], then indices 5..9 in 'out' would be 0.
     second_half_norm = out[5:].norm()
     print(f"  Readout second half norm: {second_half_norm.item()}")
-    assert (
-        second_half_norm > 0.001
-    ), "Readout output for second graph is zero! Indices likely overlapped."
+    assert second_half_norm > 0.001, (
+        "Readout output for second graph is zero! Indices likely overlapped."
+    )
 
 
 def benchmark_transformation():
@@ -175,7 +175,7 @@ def benchmark_transformation():
     end = time.time()
 
     avg_time = (end - start) / n_loops
-    print(f"\nBenchmark LineGraph (atoms={num_atoms}, k={k}): {avg_time*1000:.4f} ms/iter")
+    print(f"\nBenchmark LineGraph (atoms={num_atoms}, k={k}): {avg_time * 1000:.4f} ms/iter")
 
 
 if __name__ == "__main__":

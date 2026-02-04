@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from typing import Any, Optional
+from typing import Any
 
 import torch
 import torch.nn.functional as F
@@ -199,7 +199,7 @@ class GeometricConv(MessagePassing):
         res_edge_attr: OptTensor,
         index: Tensor,
         ptr: OptTensor,
-        dim_size: Optional[int],  # PyG doesn't handle python 3.10+ union types signatures yet
+        dim_size: int | None,  # PyG doesn't handle python 3.10+ union types signatures yet
     ) -> tuple[Tensor, Tensor]:
         """Edge update with GLU-like gating mechanism."""
         # Fused projection to compute the gate inputs

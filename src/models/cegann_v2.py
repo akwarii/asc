@@ -65,7 +65,7 @@ class CEGANNv2(Module):
             act=act,
         )
 
-        node_in , edge_in = emb_num_channels, emb_num_channels
+        node_in, edge_in = emb_num_channels, emb_num_channels
 
         self.convs = ModuleList()
         for layer in range(conv_num_layers):

@@ -31,7 +31,7 @@ class RealSphHarmBasis(torch.nn.Module):
             torch.Tensor: The spherical harmonics basis expansion.
                 The output tensor is of shape `(len(phi), num_spherical)`.
         """
-        #TODO retrieve PyG implementation of Dimenet embedding for faster computation
+        # TODO retrieve PyG implementation of Dimenet embedding for faster computation
         l_values = torch.arange(self.num_spherical)
         sph_harm_values = sph_harm(0, l_values[:, None], 0, phi).real
         return sph_harm_values.T

@@ -87,10 +87,10 @@ class SAGE(torch.nn.Module):
 
         def transform(data: Data) -> Data:
             kwargs = dict(n_id=data.n_id, batch_size=data.batch_size)
-            if hasattr(data, 'adj_t'):
-                kwargs['adj_t'] = data.adj_t
+            if hasattr(data, "adj_t"):
+                kwargs["adj_t"] = data.adj_t
             else:
-                kwargs['edge_index'] = data.edge_index
+                kwargs["edge_index"] = data.edge_index
             return Data.from_dict(kwargs).to(self.device)
 
         if cache:
@@ -251,8 +251,7 @@ def training_loop(model, train_loader, subgraph_loader, optimizer, device, num_e
 
         train_acc, val_acc, test_acc = test_step(model, subgraph_loader)  # type: ignore
         print(
-            f"Epoch: {epoch:02d}, Train: {train_acc:.4f}, Val: {val_acc:.4f}, "
-            f"Test: {test_acc:.4f}"
+            f"Epoch: {epoch:02d}, Train: {train_acc:.4f}, Val: {val_acc:.4f}, Test: {test_acc:.4f}"
         )
         times.append(time.perf_counter() - start)
     print(f"Median time per epoch: {torch.tensor(times).median():.4f}s")
@@ -314,7 +313,7 @@ def benchmark_model_inference(
         f"Time: {t_mean:.4f} ± {t_std:.4f} s\n"
         f"VRAM: {v_mean:.2f} ± {v_std:.2f} MB\n"
     )
-    print("Detailed results:\n" f"Times: {times}\n" f"VRAM usages: {vram_vals}\n")
+    print(f"Detailed results:\nTimes: {times}\nVRAM usages: {vram_vals}\n")
 
 
 def main() -> None:

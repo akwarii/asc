@@ -22,7 +22,8 @@ class GeometricEmbedding(nn.Module):
             Default is None.
     """
 
-    def __init__(self,
+    def __init__(
+        self,
         num_radial: int,
         num_angular: int,
         num_channels: int,
