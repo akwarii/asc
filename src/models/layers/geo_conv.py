@@ -88,12 +88,12 @@ class GeometricConv(MessagePassing):
         self.edge_out = Linear(hidden_channels, edge_out_channels, bias=True)
 
         # Node attention (GATv2-like, multi-headed)
-        self.lin_lr = Linear(node_in_channels, heads // fused_channels, bias=False)
-        self.lin_e = Linear(edge_out_channels, heads // hidden_channels, bias=False)
+        self.lin_lr = Linear(node_in_channels, heads * fused_channels, bias=False)
+        self.lin_e = Linear(edge_out_channels, heads * hidden_channels, bias=False)
         self.att = Parameter(torch.empty(1, heads, hidden_channels))
 
         # Output projection depends on head combining
-        total_node_out_channels = hidden_channels // (heads if concat else 1)
+        total_node_out_channels = hidden_channels * (heads if concat else 1)
         self.lin_out = Linear(total_node_out_channels, node_out_channels, bias=True)
 
         # Residuals projections
