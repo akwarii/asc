@@ -2,6 +2,7 @@ import argparse
 import warnings
 
 import optuna
+import optunahub
 import torch
 import torchmetrics
 from lightning import Trainer, seed_everything
@@ -17,6 +18,8 @@ warnings.filterwarnings("ignore", category=optuna.exceptions.ExperimentalWarning
 torch.serialization.add_safe_globals([LineGraphData, LineGraph, RandomPerturbation])
 torch.set_float32_matmul_precision("high")
 
+
+module = optunahub.load_module(package="samplers/auto_sampler")
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Models hyperparameter optimization.")
@@ -110,19 +113,36 @@ def sample_hyperparameters(trial: optuna.Trial) -> dict:
 
     elif MODEL_NAME == "cegannv2":
         # TODO: refine hyperparameters for CEGANN v2 based on previous CEGANN HPO
-        _ = trial.suggest_categorical("emb_num_radial", [4, 8, 16])
-        _ = trial.suggest_categorical("emb_num_angular", [16, 32, 64])
-        _ = trial.suggest_categorical("emb_num_channels", [32, 64, 128])
-        # _ = trial.suggest_int("emb_num_layers", 1, 2)
-        _ = trial.suggest_categorical("conv_hidden_channels", [64, 128, 256])
-        _ = trial.suggest_categorical("conv_node_out_channels", [64, 128, 256])
-        _ = trial.suggest_categorical("conv_edge_out_channels", [32, 64, 128])
-        _ = trial.suggest_int("conv_num_layers", 2, 4)
-        _ = trial.suggest_categorical("conv_heads", [1, 2, 4])
+        # _ = trial.suggest_categorical("emb_num_radial", [4, 8, 16])
+        # _ = trial.suggest_categorical("emb_num_angular", [16, 32, 64])
+        # _ = trial.suggest_categorical("emb_num_channels", [32, 64, 128])
+        # # _ = trial.suggest_int("emb_num_layers", 1, 2)
+        # _ = trial.suggest_categorical("conv_hidden_channels", [64, 128, 256])
+        # _ = trial.suggest_categorical("conv_node_out_channels", [64, 128, 256])
+        # _ = trial.suggest_categorical("conv_edge_out_channels", [32, 64, 128])
+        # _ = trial.suggest_int("conv_num_layers", 2, 4)
+        # _ = trial.suggest_categorical("conv_heads", [1, 2, 4])
+        # _ = trial.suggest_categorical("conv_concat", [True, False])
+        # _ = trial.suggest_categorical("conv_residual", [True, False])
+        # _ = trial.suggest_float("dropout", 0.2, 0.5, step=0.1)
+        # _ = trial.suggest_categorical("act", ["LeakyReLU", "SiLU"])
+
+        _ = trial.suggest_categorical("conv_heads", [4, 8])
         _ = trial.suggest_categorical("conv_concat", [True, False])
-        _ = trial.suggest_categorical("conv_residual", [True, False])
-        _ = trial.suggest_float("dropout", 0.2, 0.5, step=0.1)
-        _ = trial.suggest_categorical("act", ["LeakyReLU", "SiLU"])
+        _ = trial.suggest_float("lr", 5.e-5, 1e-2)
+
+        trial.set_user_attr("emb_num_radial", 4)
+        trial.set_user_attr("emb_num_angular", 64)
+        trial.set_user_attr("emb_num_channels", 128)
+        trial.set_user_attr("act", "SiLU")
+        trial.set_user_attr("conv_edge_out_channels", 32)
+        trial.set_user_attr("conv_hidden_channels", 256)
+        trial.set_user_attr("conv_node_out_channels", 256)
+        trial.set_user_attr("conv_num_layers", 4)
+        trial.set_user_attr("conv_residual", True)
+        trial.set_user_attr("dropout", 0.3)
+        trial.set_user_attr("k", 16)
+
 
     elif MODEL_NAME == "mlp":
         _ = trial.suggest_int("num_layers", 3, 8)
@@ -147,9 +167,12 @@ def sample_hyperparameters(trial: optuna.Trial) -> dict:
     else:
         raise NotImplementedError(f"HPO is not implemented for {MODEL_NAME} model.")
 
-    _ = trial.suggest_int("k", 10, 16, step=2)
+    # _ = trial.suggest_int("k", 10, 16, step=2)
 
     hparams = trial.params.copy()
+
+    for key in trial.user_attrs.keys():
+        hparams[key] = trial.user_attrs[key]
 
     return hparams
 
@@ -260,8 +283,10 @@ if __name__ == "__main__":
 
     study = optuna.create_study(
         direction="maximize",
-        sampler=optuna.samplers.TPESampler(constant_liar=True),
-        pruner=optuna.pruners.HyperbandPruner(),
+        # sampler=optuna.samplers.TPESampler(constant_liar=True),
+        sampler=module.AutoSampler(),
+        # pruner=optuna.pruners.HyperbandPruner(),
+        pruner=optuna.pruners.NopPruner(),
         study_name=MODEL_NAME,
         storage=storage,
         load_if_exists=True,
