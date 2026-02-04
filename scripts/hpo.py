@@ -6,7 +6,7 @@ import optunahub
 import torch
 import torchmetrics
 from lightning import Trainer, seed_everything
-from lightning.pytorch.callbacks import DeviceStatsMonitor
+from lightning.pytorch.callbacks import DeviceStatsMonitor, RichModelSummary
 from optuna.trial import TrialState
 from optuna_integration import PyTorchLightningPruningCallback
 from src import LightningDataset, Module
@@ -128,16 +128,17 @@ def sample_hyperparameters(trial: optuna.Trial) -> dict:
         # _ = trial.suggest_float("dropout", 0.2, 0.5, step=0.1)
         # _ = trial.suggest_categorical("act", ["LeakyReLU", "SiLU"])
 
+        _ = trial.suggest_categorical("conv_hidden_channels", [32, 64, 128])
         _ = trial.suggest_categorical("conv_heads", [4, 8])
         _ = trial.suggest_categorical("conv_concat", [True, False])
-        _ = trial.suggest_float("lr", 5.0e-5, 1e-2)
+        _ = trial.suggest_float("lr", 5.0e-5, 5e-3, log=True)
+        _ = trial.suggest_int("warmup", 0, 1000, step=100)
 
         trial.set_user_attr("emb_num_radial", 4)
         trial.set_user_attr("emb_num_angular", 64)
         trial.set_user_attr("emb_num_channels", 128)
         trial.set_user_attr("act", "SiLU")
         trial.set_user_attr("conv_edge_out_channels", 32)
-        trial.set_user_attr("conv_hidden_channels", 256)
         trial.set_user_attr("conv_node_out_channels", 256)
         trial.set_user_attr("conv_num_layers", 4)
         trial.set_user_attr("conv_residual", True)
@@ -196,12 +197,13 @@ def objective(trial: optuna.Trial) -> float:
     # Configure the Lightning Trainer
     trainer = Trainer(
         precision="bf16-mixed",
-        enable_progress_bar=False,
+        enable_progress_bar=True,
         logger=True,
         enable_checkpointing=False,
         max_epochs=EPOCHS,
         log_every_n_steps=50,
         callbacks=[
+            RichModelSummary(max_depth=-1),
             PyTorchLightningPruningCallback(trial, monitor="val/f1"),
             DeviceStatsMonitor(),
         ],
@@ -238,7 +240,8 @@ def objective(trial: optuna.Trial) -> float:
                     ),
                 }
             ),
-            warmup=100,
+            warmup=hparams.pop("warmup", 100),
+            lr=hparams.pop("lr", 1e-3),
             max_iters=trainer.max_epochs * len(datamodule.train_dataloader()),  # type: ignore
             model_kwargs=hparams,
         )
@@ -287,7 +290,7 @@ if __name__ == "__main__":
         sampler=module.AutoSampler(),
         # pruner=optuna.pruners.HyperbandPruner(),
         pruner=optuna.pruners.NopPruner(),
-        study_name=MODEL_NAME,
+        study_name=MODEL_NAME + "-lr",
         storage=storage,
         load_if_exists=True,
     )
