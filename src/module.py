@@ -85,7 +85,7 @@ class Module(LightningModule):
         self.model = model(out_channels=out_channels, **model_kwargs)
 
         if self.hparams["compile"]:
-            self.model = torch.compile(self.model)
+            self.model = torch.compile(self.model, dynamic=True, fullgraph=False)
 
     def forward(self, data: Data) -> torch.Tensor:
         return self.model(data)
