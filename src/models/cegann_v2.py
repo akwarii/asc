@@ -92,13 +92,7 @@ class CEGANNv2(Module):
             node_in, edge_in = node_out, edge_out
 
         self.readout = BondToAtomReadout(reduce="mean", incidence="out")
-        # ! [DB] @Gael : I think (?) scatter with any reduce from readout
-        # !              will not change the channel dimension. If so, it
-        # !              means the output feature size should be the same
-        # !              as the one coming out of the last GeometricConv.
-        # !              So it should be `node_in` here ?
         self.out_head = Linear(node_in, out_channels, bias=False)
-        self.out_channels = out_channels  # remove later
 
         self.reset_parameters()
 
