@@ -113,7 +113,6 @@ def sample_hyperparameters(trial: optuna.Trial) -> dict:
         _ = trial.suggest_int("classification_layers", 1, 4)
 
     elif MODEL_NAME == "cegannv2":
-        # TODO: refine hyperparameters for CEGANN v2 based on previous CEGANN HPO
         # _ = trial.suggest_categorical("emb_num_radial", [4, 8, 16])
         # _ = trial.suggest_categorical("emb_num_angular", [16, 32, 64])
         # _ = trial.suggest_categorical("emb_num_channels", [32, 64, 128])
@@ -128,22 +127,22 @@ def sample_hyperparameters(trial: optuna.Trial) -> dict:
         # _ = trial.suggest_float("dropout", 0.2, 0.5, step=0.1)
         # _ = trial.suggest_categorical("act", ["LeakyReLU", "SiLU"])
 
-        _ = trial.suggest_categorical("conv_hidden_channels", [32, 64, 128])
-        _ = trial.suggest_categorical("conv_heads", [4, 8])
         _ = trial.suggest_categorical("conv_concat", [True, False])
         _ = trial.suggest_float("lr", 5.0e-5, 5e-3, log=True)
         _ = trial.suggest_int("warmup", 0, 1000, step=100)
 
+        trial.set_user_attr("k", 16)
         trial.set_user_attr("emb_num_radial", 4)
         trial.set_user_attr("emb_num_angular", 64)
         trial.set_user_attr("emb_num_channels", 128)
-        trial.set_user_attr("act", "SiLU")
-        trial.set_user_attr("conv_edge_out_channels", 32)
+        trial.set_user_attr("conv_hidden_channels", 256)
         trial.set_user_attr("conv_node_out_channels", 256)
-        trial.set_user_attr("conv_num_layers", 4)
+        trial.set_user_attr("conv_edge_out_channels", 32)
+        trial.set_user_attr("conv_heads", 8)
         trial.set_user_attr("conv_residual", True)
+        trial.set_user_attr("conv_num_layers", 4)
         trial.set_user_attr("dropout", 0.3)
-        trial.set_user_attr("k", 16)
+        trial.set_user_attr("act", "SiLU")
 
     elif MODEL_NAME == "mlp":
         _ = trial.suggest_int("num_layers", 3, 8)
