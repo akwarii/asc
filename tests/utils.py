@@ -4,6 +4,7 @@ import torch
 from torch import Tensor
 from torch_geometric.data import Data
 
+__all__ = ["MockGraphSpec", "make_mock_pyg_graph"]
 
 @dataclass(frozen=True)
 class MockGraphSpec:
