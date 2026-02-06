@@ -113,6 +113,7 @@ def get_best_model_params(storage, study) -> dict:
 
 def main() -> None:
     torch.set_float32_matmul_precision("high")
+    torch.backends.cudnn.benchmark = True
     seed_everything(DEFAULT_SEED)
 
     args = parse_args()
@@ -136,9 +137,7 @@ def main() -> None:
         )
 
     callbacks = [
-        # LearningRateFinder(min_lr=1e-5, max_lr=0.1),
-        # EarlyStopping(monitor="val/loss", patience=10, check_on_train_epoch_end=False),
-        ModelCheckpoint(monitor="val/loss", save_on_train_epoch_end=False),
+        ModelCheckpoint(monitor="val/loss", mode="min", save_top_k=3),
     ]
     if args.batch_size_finder:
         callbacks.insert(0, HalfBatchSizeFinder(steps_per_trial=100, init_val=64, max_trials=6))
@@ -167,6 +166,7 @@ def main() -> None:
         "f1": torchmetrics.F1Score(task="multiclass", num_classes=num_classes),
         "auroc": torchmetrics.AUROC(task="multiclass", num_classes=num_classes),
         "acc": torchmetrics.Accuracy(task="multiclass", num_classes=num_classes),
+        "confmat": torchmetrics.ConfusionMatrix(task="multiclass", num_classes=num_classes),
     }
 
     with trainer.init_module():
@@ -175,8 +175,8 @@ def main() -> None:
             num_classes=num_classes,
             compile=not args.no_compile,
             metrics=torchmetrics.MetricCollection(metrics),
-            warmup=100,
-            # warmup=args.epochs // 100 * len(datamodule.train_dataloader()),
+            warmup=700,
+            lr=6e-3,
             max_iters=args.epochs * len(datamodule.train_dataloader()),
             model_kwargs=args.model_kwargs,
         )
