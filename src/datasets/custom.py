@@ -2,7 +2,45 @@ import os.path as osp
 from collections.abc import Callable
 from pathlib import Path
 
+import pandas as pd
 from torch_geometric.data import InMemoryDataset
+
+
+def _load_from_csv(file: str) -> tuple[list[str], list[int]]:
+    """Load the dataset from a CSV file."""
+    df = pd.read_csv(file)
+
+    unique_labels = sorted(set(df["SpaceGroupNumber"]))
+    label_to_index = {label: idx for idx, label in enumerate(unique_labels)}
+
+    raw_data_list = [row["Structure"] for _, row in df.iterrows()]
+    target_list = df["SpaceGroupNumber"].map(label_to_index).tolist()
+
+    return raw_data_list, target_list
+
+
+def _load_from_dump(file: str) -> tuple[list[str], list[int]]:
+    """Load the dataset from a LAMMPS dump file."""
+    with open(file) as f:
+        lines = f.readlines()
+
+    raw_data_list, target_list = [], []
+    for line in lines:
+        if line[:11] == "ITEM: ATOMS":
+            atom_lines = lines[lines.index(line) + 1 :]
+            break
+
+    for atom_line in atom_lines:
+        raw_data_list.append(atom_line.strip())
+        target_list.append(int(atom_line.strip().split()[-1]))
+
+    return raw_data_list, target_list
+
+
+EXTENSION_TO_PARSER = {
+    ".csv": _load_from_csv,
+    ".dump": _load_from_dump,
+}
 
 
 class CustomDataset(InMemoryDataset):
@@ -77,24 +115,16 @@ class CustomDataset(InMemoryDataset):
 
         raw_data_list, target_list = [], []
         for file in self.raw_paths:
-            with open(file) as f:
-                lines = f.readlines()
-
-            raw_data_list.append("".join(lines))
-
-            if Path(file).suffix.lower() == ".dump":
-                targets = []
-                for line in lines:
-                    if line[:11] == "ITEM: ATOMS":
-                        atom_lines = lines[lines.index(line) + 1 :]
-                        break
-
-                for atom_line in atom_lines:
-                    targets.append(int(atom_line.strip().split()[-1]))
-
-                target_list.append(targets)
-            else:
-                target_list.append(int(lines[0].strip().split()[0][0]))  # type: ignore
+            file_extension = Path(file).suffix.lower()
+            parser = EXTENSION_TO_PARSER.get(file_extension)
+            if parser is None:
+                raise NotImplementedError(
+                    f"Unsupported file format {file_extension}. "
+                    f"Only {', '.join(EXTENSION_TO_PARSER.keys())} files are supported."
+                )
+            data, targets = parser(file)
+            raw_data_list.extend(data)
+            target_list.extend(targets)
 
         knn = KNNGraph(**self.kwargs)
 
@@ -114,6 +144,8 @@ class CustomDataset(InMemoryDataset):
             else:
                 raise ValueError("Something went wrong with the target.")
 
+            assert (data.y >= 0).all(), "The target labels must be non-negative integers."
+
             if self.pre_filter is not None and not self.pre_filter(data):
                 continue
 
@@ -123,3 +155,7 @@ class CustomDataset(InMemoryDataset):
             data_list.append(data)
 
         self.save(data_list, self.processed_paths[0])
+
+
+if __name__ == "__main__":
+    dataset = CustomDataset(root="data/custom", k=10)
