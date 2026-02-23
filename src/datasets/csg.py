@@ -101,13 +101,14 @@ class CSG(InMemoryDataset):
         import torch
         from tqdm.auto import tqdm
 
-        from src.graph import KNNGraph
+        from src.graph import KNNGraph, PeriodicKNN
 
         if self.download_only:
             return
 
         df = pd.read_csv(self.raw_paths[0])
-        knn = KNNGraph(**self.kwargs)
+        # knn = KNNGraph(**self.kwargs)
+        knn = PeriodicKNN(**self.kwargs)
 
         # Convert the target labels to consecutive 0-based indices
         unique_labels = sorted(set(df["SpaceGroupNumber"]))
