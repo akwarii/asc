@@ -83,11 +83,15 @@ class RadialBesselBasis(torch.nn.Module):
             x: Input tensor.
 
         Returns:
-            torch.Tensor: Radial Bessel basis.
+            torch.Tensor: Radial Bessel basis (shape [num_edges, num_radial]).
         """
         prefactor = 2.0 / self.r_max
-        numerator = torch.sin(self.freq * x.unsqueeze(-1) / self.r_max)
-        return prefactor * numerator / x.unsqueeze(-1)
+        x_expanded = x.unsqueeze(-1)
+        numerator = torch.sin(self.freq * x_expanded / self.r_max)
+        return prefactor * numerator / x_expanded
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(num_radial={self.num_radial}, stop={self.r_max})"
 
 
 RADIAL_FUNCTIONS: dict[str, Callable] = {
