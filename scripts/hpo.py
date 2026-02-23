@@ -27,7 +27,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model",
         type=str,
-        choices=("cegann", "mlp", "gat", "cegannv2"),
+        choices=("cegann", "mlp", "gat", "cegannv2", "painn"),
         default="cegannv2",
         help="Model to optimize the hyperparameters for.",
     )
@@ -143,6 +143,17 @@ def sample_hyperparameters(trial: optuna.Trial) -> dict:
         trial.set_user_attr("conv_num_layers", 4)
         trial.set_user_attr("dropout", 0.3)
         trial.set_user_attr("act", "SiLU")
+
+    elif MODEL_NAME == "painn":
+        import math
+        _ = trial.suggest_categorical("num_radial", [4, 8, 16])
+        _ = trial.suggest_categorical("hidden_channels", [64, 128, 256])
+        _ = trial.suggest_int("num_layers", 3, 5)
+        _ = trial.suggest_float("dropout", 0.1, 0.6, step=0.1)
+        _ = trial.suggest_float("lr", 5.0e-5, 5e-3, log=True)
+        _ = trial.suggest_int("warmup", 100, 1000, step=100)
+        _ = trial.suggest_int("k", 10, 16)
+        trial.set_user_attr("scale_factor", 1. / math.sqrt(trial.params["k"]))
 
     elif MODEL_NAME == "mlp":
         _ = trial.suggest_int("num_layers", 3, 8)

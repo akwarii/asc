@@ -3,6 +3,7 @@ from typing import Any
 import torch
 import torch.nn as nn
 from lightning import LightningModule
+from pytorch_lightning.utilities import grad_norm
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 from torch_geometric.data import Data
@@ -16,6 +17,7 @@ MODEL_FACTORY = {
     "mlp": models.MLPClassifier,
     "gat": models.GATClassifier,
     "cegannv2": models.CEGANNv2,
+    "painn": models.PaiNN,
 }
 
 
@@ -194,3 +196,9 @@ class Module(LightningModule):
         )
 
         return [opt_muon, opt_adamw], [sched_muon, sched_adamw]
+
+    def on_before_optimizer_step(self, optimizer) -> None:
+        # Compute the 2-norm for each layer
+        # If using mixed precision, the gradients are already unscaled here
+        norms = grad_norm(self.model, norm_type=2)
+        self.log_dict(norms)
