@@ -9,9 +9,12 @@ try:
 except ImportError:
     faiss = None  # type: ignore
 
+import numpy as np
 import torch
 from ase import Atoms
 from ase.io import read
+from freud.box import Box
+from freud.locality import AABBQuery
 from torch import Tensor
 from torch_geometric.data import Data
 
@@ -64,13 +67,13 @@ class KNNGraph:
 
         self.k = k
 
-    def _get_graph_data(self, struct: Atoms) -> tuple[Tensor, Tensor, Tensor]:
-        n_atoms = len(struct)
+    def _get_graph_data(self, atoms: Atoms) -> tuple[Tensor, Tensor, Tensor]:
+        n_atoms = len(atoms)
 
         knn_method, knn_device = _get_graph_method(n_atoms)
 
-        cart_coords = torch.as_tensor(struct.positions, dtype=torch.float32, device=knn_device)
-        lat = torch.as_tensor(struct.cell.array, dtype=torch.float32, device=knn_device)
+        cart_coords = torch.as_tensor(atoms.positions, dtype=torch.float32, device=knn_device)
+        lat = torch.as_tensor(atoms.cell.array, dtype=torch.float32, device=knn_device)
 
         # TODO handle non periodic directions
         shifts = torch.tensor(
@@ -221,16 +224,51 @@ class KNNGraph:
         """
         atoms = self.to_ase_atoms(atoms_repr, fmt=fmt)
 
-        x, edge_index, edge_distances = self._get_graph_data(atoms)
+        x, edge_index, edge_attr = self._get_graph_data(atoms)
 
         data = Data(
             num_nodes=len(atoms),
             x=x,
             edge_index=edge_index,
-            edge_attr=edge_distances,
+            edge_attr=edge_attr,
         )
 
         return data
+
+
+class PeriodicKNN(KNNGraph):
+    """Test of a periodic knn using Freud."""
+
+    def __init__(self, k: int = 20, **kwargs) -> None:
+        super().__init__(k=k, **kwargs)
+
+    def _get_graph_data(self, atoms: Atoms) -> tuple[Tensor, Tensor, Tensor]:
+        # extract data from ASE Atoms object
+        pos = atoms.get_positions()
+        atomic_numbers = atoms.get_atomic_numbers()
+        cell_matrix = atoms.get_cell().array
+
+        # Create Freud Box for PBC handling
+        box = Box.from_matrix(cell_matrix)
+        box.periodic = atoms.get_pbc().tolist()
+
+        # Perfom knn query
+        aq = AABBQuery(box, pos)
+        query_result = aq.query(pos, dict(num_neighbors=self.k, exclude_ii=True))
+        nlist = query_result.toNeighborList()
+
+        # Build graph data
+        edge_index = torch.from_numpy(
+            np.stack([nlist.query_point_indices, nlist.point_indices])
+        ).long()
+
+        diff = pos[nlist.point_indices] - pos[nlist.query_point_indices]
+        wrapped_diff = box.wrap(diff)
+        edge_attr = torch.from_numpy(wrapped_diff).float()
+
+        x = torch.from_numpy(atomic_numbers).long()
+
+        return x, edge_index, edge_attr
 
 
 def detect_format_from_str(atoms_str: str) -> FileFormats:
