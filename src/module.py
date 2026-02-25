@@ -161,6 +161,9 @@ class Module(LightningModule):
             self.test_metrics.reset()
 
     def predict_step(self, data: Data) -> torch.Tensor:
+        # if hasattr(self.model, "inference"):
+        #     preds: torch.Tensor = self.model.inference(data)[:data.batch_size]
+        # else:
         preds: torch.Tensor = self(data)[:data.batch_size]
         return torch.argmax(preds, dim=-1)
 
