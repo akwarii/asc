@@ -43,6 +43,18 @@ EXTENSION_TO_PARSER = {
 }
 
 
+def get_raw_data_and_targets(file: str) -> tuple[list[str], list[int]]:
+    """Get the raw data and targets from a file."""
+    file_extension = Path(file).suffix.lower()
+    parser = EXTENSION_TO_PARSER.get(file_extension)
+    if parser is None:
+        raise NotImplementedError(
+            f"Unsupported file format {file_extension}. "
+            f"Only {', '.join(EXTENSION_TO_PARSER.keys())} files are supported."
+        )
+    return parser(file)
+
+
 class CustomDataset(InMemoryDataset):
     """A dataset class for any user provided custom dataset.
 
@@ -105,7 +117,7 @@ class CustomDataset(InMemoryDataset):
         from pymatgen.io.vasp.inputs import BadPoscarWarning
         from tqdm.auto import tqdm
 
-        from src.graph import KNNGraph
+        from src.graph import KNNGraph, PeriodicKNN
 
         if self.download_only:
             return
@@ -115,18 +127,11 @@ class CustomDataset(InMemoryDataset):
 
         raw_data_list, target_list = [], []
         for file in self.raw_paths:
-            file_extension = Path(file).suffix.lower()
-            parser = EXTENSION_TO_PARSER.get(file_extension)
-            if parser is None:
-                raise NotImplementedError(
-                    f"Unsupported file format {file_extension}. "
-                    f"Only {', '.join(EXTENSION_TO_PARSER.keys())} files are supported."
-                )
-            data, targets = parser(file)
+            data, targets = get_raw_data_and_targets(file)
             raw_data_list.extend(data)
             target_list.extend(targets)
 
-        knn = KNNGraph(**self.kwargs)
+        knn = PeriodicKNN(**self.kwargs)
 
         data_list = []
         for raw_data, target in tqdm(zip(raw_data_list, target_list), total=len(raw_data_list)):
@@ -155,7 +160,3 @@ class CustomDataset(InMemoryDataset):
             data_list.append(data)
 
         self.save(data_list, self.processed_paths[0])
-
-
-if __name__ == "__main__":
-    dataset = CustomDataset(root="data/custom", k=10)
