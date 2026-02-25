@@ -106,8 +106,8 @@ class PaiNNMessage(nn.Module):
         dv = scatter(gate, i, dim=0, dim_size=v.size(0), reduce="sum")
 
         # Residual
-        s.add_(ds, alpha=self.scale_factor)
-        v.add_(dv, alpha=self.scale_factor)
+        s = s + ds * self.scale_factor
+        v = v + dv * self.scale_factor
 
         return s, v
 
@@ -156,12 +156,12 @@ class PaiNNUpdate(nn.Module):
         dv = a_vv * u
 
         # ds = a_ss + a_sv * torch.sum(u * w, dim=1, keepdim=True)
-        uw_dot = torch.einsum('ndc, ndc -> nc', u, w).unsqueeze(1)
+        uw_dot = torch.einsum("ndc, ndc -> nc", u, w).unsqueeze(1)
         ds = torch.addcmul(a_ss, a_sv, uw_dot)
 
         # Residuals
-        s.add_(ds)
-        v.add_(dv)
+        s = s + ds
+        v = v + dv
 
         return s, v
 
@@ -267,5 +267,61 @@ class PaiNN(nn.Module):
             s, v = update(s, v)
 
         out = self.head(s.squeeze(1))
+
+        return out
+
+    #TODO this is not working
+    def inference(self, data: Data) -> Tensor:
+        assert data.x is not None
+        assert data.edge_index is not None
+        assert data.edge_attr is not None
+
+        z, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
+
+        dist_mag = edge_attr.pow(2).sum(dim=1, keepdim=True).clamp_min(1e-8).sqrt()
+        edge_unit_vec = edge_attr / dist_mag
+
+        s = self.embedding(z).unsqueeze(1)
+        v = torch.zeros(s.size(0), 3, s.size(2), device=s.device)
+
+        rbf_filter_full = self.rbf(dist_mag)
+
+        is_hierarchical = hasattr(data, "num_sampled_nodes") and data.num_sampled_nodes is not None
+        for i in range(self.num_layers):
+            if is_hierarchical:
+                # Get counts for current layer (indexing from furthest to target)
+                node_count = data.num_sampled_nodes[i]
+                edge_count = data.num_sampled_edges[i]
+                print(data.num_nodes, node_count, data.num_edges, edge_count)
+
+                # Slice graph and pre-calculated features
+                l_edge_index = edge_index[:, :edge_count]
+                l_edge_unit_vec = edge_unit_vec[:edge_count]
+                l_rbf_filter = rbf_filter_full[:edge_count]
+
+                # Slice active features
+                s_active = s[:node_count]
+                v_active = v[:node_count]
+            else:
+                l_edge_index = edge_index
+                l_edge_unit_vec = edge_unit_vec
+                l_rbf_filter = rbf_filter_full
+                s_active = s
+                v_active = v
+
+            s_active, v_active = self.message_blocks[i](
+                s_active, v_active, l_edge_index, l_rbf_filter, l_edge_unit_vec
+            )
+
+            s_active, v_active = self.update_blocks[i](s_active, v_active)
+
+            if is_hierarchical:
+                s[:node_count] = s_active
+                v[:node_count] = v_active
+            else:
+                s, v = s_active, v_active
+
+        # Head only cares about the target nodes (the batch)
+        out = self.head(s[: data.batch_size].squeeze(1))
 
         return out
