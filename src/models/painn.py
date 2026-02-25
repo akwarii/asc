@@ -74,10 +74,10 @@ class PaiNNMessage(nn.Module):
         original PaiNN paper.
 
         Args:
-            s: Scalar features (shape [num_nodes, hidden_channels]).
-            v: Vector features (shape [num_nodes, hidden_channels, 3]).
+            s: Scalar features (shape [num_nodes, 1, hidden_channels]).
+            v: Vector features (shape [num_nodes, 3, hidden_channels]).
             edge_index: Edge indices (shape [2, num_edges]).
-            rbf_filter: Radial filter (shape [num_edges, 3 * hidden_channels]).
+            rbf_filter: Radial filter (shape [num_edges, 1, 3 * hidden_channels]).
             edge_vector: Distance unit vectors (shape [num_edges, 3]).
         """
         assert (
@@ -87,21 +87,27 @@ class PaiNNMessage(nn.Module):
         i, j = edge_index
 
         s_norm = self.rms_norm(s)
-        filter = self.phi(s_norm[j]) * rbf_filter
+
+        # since linear and gather are commutative, we can apply the linear layer first
+        phi_s = self.phi(s_norm)
+        filter = phi_s[j] * rbf_filter
 
         # split into scalar, vector, and gate
-        m_s, m_vv, m_vs = torch.split(filter, self.hidden_channels, dim=-1)
+        m_s, m_vv, m_vs = torch.chunk(filter, chunks=3, dim=-1)
 
         # Scalar message
         ds = scatter(m_s, i, dim=0, dim_size=s.size(0), reduce="sum")
 
         # Vector message
-        gate = v[j] * m_vv + m_vs * edge_vector[..., None]
+        # gate = v[j] * m_vv + m_vs * edge_vector[..., None]
+        gate = torch.einsum("edc, ec -> edc", v[j], m_vv.squeeze(1))
+        gate.addcmul_(edge_vector.unsqueeze(-1), m_vs)
+
         dv = scatter(gate, i, dim=0, dim_size=v.size(0), reduce="sum")
 
         # Residual
-        s = s + ds * self.scale_factor
-        v = v + dv * self.scale_factor
+        s.add_(ds, alpha=self.scale_factor)
+        v.add_(dv, alpha=self.scale_factor)
 
         return s, v
 
@@ -133,26 +139,29 @@ class PaiNNUpdate(nn.Module):
         """Forward pass for the update block.
 
         Args:
-            s: Scalar features (shape [num_nodes, hidden_channels]).
-            v: Vector features (shape [num_nodes, hidden_channels, 3]).
+            s: Scalar features (shape [num_nodes, 1, hidden_channels]).
+            v: Vector features (shape [num_nodes, 3, hidden_channels]).
         """
         s_norm = self.rms_norm(s)
 
-        u, w = torch.split(self.v_proj(v), self.hidden_channels, dim=-1)
-        w_norm = torch.linalg.norm(w, dim=-2, keepdim=True)
+        u, w = torch.chunk(self.v_proj(v), chunks=2, dim=-1)
+        w_norm = w.pow(2).sum(dim=1, keepdim=True).clamp_min(1e-8).sqrt()
 
         context = torch.cat([s_norm, w_norm], dim=-1)
         filter = self.update_net(context)
 
-        a_ss, a_vv, a_sv = torch.split(filter, self.hidden_channels, dim=-1)
+        a_ss, a_vv, a_sv = torch.chunk(filter, chunks=3, dim=-1)
 
         # scaling functions are used as nonlinearity
         dv = a_vv * u
-        ds = a_ss + a_sv * torch.sum(u * w, dim=1, keepdim=True)
+
+        # ds = a_ss + a_sv * torch.sum(u * w, dim=1, keepdim=True)
+        uw_dot = torch.einsum('ndc, ndc -> nc', u, w).unsqueeze(1)
+        ds = torch.addcmul(a_ss, a_sv, uw_dot)
 
         # Residuals
-        s = s + ds
-        v = v + dv
+        s.add_(ds)
+        v.add_(dv)
 
         return s, v
 
@@ -239,10 +248,15 @@ class PaiNN(nn.Module):
                 edge_index: Edge indices (shape [2, num_edges]).
                 edge_attr: Distance vector (shape [num_edges, 3]).
         """
+        assert data.x is not None
+        assert data.edge_index is not None
+        assert data.edge_attr is not None
+
         z, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
 
-        dist_mag = torch.linalg.norm(edge_attr, dim=1, keepdim=True)
-        edge_unit_vec = edge_attr / (dist_mag + 1e-8)
+        # dist_mag = torch.linalg.norm(edge_attr, dim=1, keepdim=True)
+        dist_mag = edge_attr.pow(2).sum(dim=1, keepdim=True).clamp_min(1e-8).sqrt()
+        edge_unit_vec = edge_attr / dist_mag
 
         s = self.embedding(z).unsqueeze(1)
         v = torch.zeros(s.size(0), 3, s.size(2), device=s.device)
