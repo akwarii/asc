@@ -87,7 +87,7 @@ class Module(LightningModule):
         self.model = model(out_channels=out_channels, **model_kwargs)
 
         if self.hparams["compile"]:
-            self.model = torch.compile(self.model, dynamic=True, fullgraph=False)
+            self.model = torch.compile(self.model, fullgraph=True)
 
     def forward(self, data: Data) -> torch.Tensor:
         return self.model(data)
@@ -161,7 +161,7 @@ class Module(LightningModule):
             self.test_metrics.reset()
 
     def predict_step(self, data: Data) -> torch.Tensor:
-        preds: torch.Tensor = self(data)
+        preds: torch.Tensor = self(data)[:data.batch_size]
         return torch.argmax(preds, dim=-1)
 
     def configure_optimizers(self) -> tuple[list[Optimizer], list[LambdaLR]]:
