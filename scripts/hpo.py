@@ -6,7 +6,7 @@ import optunahub
 import torch
 import torchmetrics
 from lightning import Trainer, seed_everything
-from lightning.pytorch.callbacks import DeviceStatsMonitor, RichModelSummary
+from lightning.pytorch.callbacks import DeviceStatsMonitor, RichModelSummary, EarlyStopping
 from optuna.trial import TrialState
 from optuna_integration import PyTorchLightningPruningCallback
 from src import LightningDataset, Module
@@ -113,46 +113,46 @@ def sample_hyperparameters(trial: optuna.Trial) -> dict:
         _ = trial.suggest_int("classification_layers", 1, 4)
 
     elif MODEL_NAME == "cegannv2":
-        # _ = trial.suggest_categorical("emb_num_radial", [4, 8, 16])
-        # _ = trial.suggest_categorical("emb_num_angular", [16, 32, 64])
-        # _ = trial.suggest_categorical("emb_num_channels", [32, 64, 128])
-        # # _ = trial.suggest_int("emb_num_layers", 1, 2)
-        # _ = trial.suggest_categorical("conv_hidden_channels", [64, 128, 256])
-        # _ = trial.suggest_categorical("conv_node_out_channels", [64, 128, 256])
-        # _ = trial.suggest_categorical("conv_edge_out_channels", [32, 64, 128])
-        # _ = trial.suggest_int("conv_num_layers", 2, 4)
-        # _ = trial.suggest_categorical("conv_heads", [1, 2, 4])
-        # _ = trial.suggest_categorical("conv_concat", [True, False])
-        # _ = trial.suggest_categorical("conv_residual", [True, False])
-        # _ = trial.suggest_float("dropout", 0.2, 0.5, step=0.1)
-        # _ = trial.suggest_categorical("act", ["LeakyReLU", "SiLU"])
-
+        _ = trial.suggest_categorical("emb_num_radial", [4, 8, 16])
+        _ = trial.suggest_categorical("emb_num_angular", [16, 32, 64])
+        _ = trial.suggest_categorical("emb_num_channels", [32, 64, 128])
+        _ = trial.suggest_int("emb_num_layers", 1, 2)
+        _ = trial.suggest_categorical("conv_hidden_channels", [64, 128, 256])
+        _ = trial.suggest_categorical("conv_node_out_channels", [64, 128, 256])
+        _ = trial.suggest_categorical("conv_edge_out_channels", [32, 64, 128])
+        _ = trial.suggest_int("conv_num_layers", 2, 4)
+        _ = trial.suggest_categorical("conv_heads", [2, 4, 8])
         _ = trial.suggest_categorical("conv_concat", [True, False])
+        #_ = trial.suggest_categorical("conv_residual", [True, False])
+        _ = trial.suggest_float("dropout", 0.2, 0.5, step=0.1)
+        #_ = trial.suggest_categorical("act", ["LeakyReLU", "SiLU"])
+
         _ = trial.suggest_float("lr", 5.0e-5, 5e-3, log=True)
         _ = trial.suggest_int("warmup", 0, 1000, step=100)
+        _ = trial.suggest_int("k", 10, 16)
 
-        trial.set_user_attr("k", 16)
-        trial.set_user_attr("emb_num_radial", 4)
-        trial.set_user_attr("emb_num_angular", 64)
-        trial.set_user_attr("emb_num_channels", 128)
-        trial.set_user_attr("conv_hidden_channels", 256)
-        trial.set_user_attr("conv_node_out_channels", 256)
-        trial.set_user_attr("conv_edge_out_channels", 32)
-        trial.set_user_attr("conv_heads", 8)
+        #trial.set_user_attr("k", 16)
+        #trial.set_user_attr("emb_num_radial", 4)
+        #trial.set_user_attr("emb_num_angular", 64)
+        #trial.set_user_attr("emb_num_channels", 128)
+        #trial.set_user_attr("conv_hidden_channels", 256)
+        #trial.set_user_attr("conv_node_out_channels", 256)
+        #trial.set_user_attr("conv_edge_out_channels", 32)
+        #trial.set_user_attr("conv_heads", 8)
         trial.set_user_attr("conv_residual", True)
-        trial.set_user_attr("conv_num_layers", 4)
-        trial.set_user_attr("dropout", 0.3)
+        #trial.set_user_attr("conv_num_layers", 4)
+        #trial.set_user_attr("dropout", 0.3)
         trial.set_user_attr("act", "SiLU")
 
     elif MODEL_NAME == "painn":
         import math
         _ = trial.suggest_categorical("num_radial", [4, 8, 16])
-        _ = trial.suggest_categorical("hidden_channels", [64, 128, 256])
-        _ = trial.suggest_int("num_layers", 3, 5)
+        _ = trial.suggest_categorical("hidden_channels", [32, 64, 128])
+        _ = trial.suggest_int("num_layers", 1, 3)
         _ = trial.suggest_float("dropout", 0.1, 0.6, step=0.1)
         _ = trial.suggest_float("lr", 5.0e-5, 5e-3, log=True)
-        _ = trial.suggest_int("warmup", 100, 1000, step=100)
-        _ = trial.suggest_int("k", 10, 16)
+        _ = trial.suggest_int("warmup", 100, 500, step=100)
+        _ = trial.suggest_int("k", 10, 20)
         trial.set_user_attr("scale_factor", 1. / math.sqrt(trial.params["k"]))
 
     elif MODEL_NAME == "mlp":
@@ -188,7 +188,7 @@ def sample_hyperparameters(trial: optuna.Trial) -> dict:
     return hparams
 
 
-def objective(trial: optuna.Trial) -> float:
+def objective(trial: optuna.Trial) -> tuple[float, float]:
     # Make sure the memory is correctly released
     torch.cuda.empty_cache()
     torch._dynamo.reset()
@@ -206,15 +206,16 @@ def objective(trial: optuna.Trial) -> float:
 
     # Configure the Lightning Trainer
     trainer = Trainer(
+        logger=True,
         precision="bf16-mixed",
         enable_progress_bar=True,
-        logger=True,
+        enable_model_summary=False,
         enable_checkpointing=False,
         max_epochs=EPOCHS,
-        log_every_n_steps=50,
         callbacks=[
-            RichModelSummary(max_depth=-1),
-            PyTorchLightningPruningCallback(trial, monitor="val/f1"),
+            RichModelSummary(),
+            # PyTorchLightningPruningCallback(trial, monitor="val/f1"),
+            EarlyStopping(monitor="val/loss", mode="min", patience=10, check_finite=True),
             DeviceStatsMonitor(),
         ],
         deterministic=True,  # FIXME GAT compilation fails if set to False
@@ -225,10 +226,10 @@ def objective(trial: optuna.Trial) -> float:
         dataset_name=DATASET,
         lengths=(0.8, 0.2),
         use_imbalance_sampler=False,
-        pre_transforms=LineGraph(),
+        pre_transforms=LineGraph() if MODEL_NAME != "painn" else None,
         transforms=[
             RandomPerturbation(std=0.1),
-        ],
+        ] if DATASET != "csg" else None,
         num_workers=5,
         k=hparams["k"],
         batch_size=BATCH_SIZE,
@@ -262,15 +263,20 @@ def objective(trial: optuna.Trial) -> float:
 
     trainer.fit(model, datamodule=datamodule)
 
-    metric = trainer.callback_metrics.get("val/f1", 0.0)
-    if isinstance(metric, torch.Tensor):
-        metric = metric.item()
+    metrics = [
+        trainer.callback_metrics.get("val/f1", 0.0),
+        trainer.callback_metrics.get("val/loss", 0.0),
+        sum(p.numel() for p in model.parameters()), # number of parameters
+    ]
+    for metric in metrics:
+        if isinstance(metric, torch.Tensor):
+            metric = metric.item()
 
     del trainer
     del datamodule
     del model
 
-    return metric
+    return (*metrics,)
 
 
 if __name__ == "__main__":
@@ -295,12 +301,10 @@ if __name__ == "__main__":
     )
 
     study = optuna.create_study(
-        direction="maximize",
-        # sampler=optuna.samplers.TPESampler(constant_liar=True),
+        directions=["maximize", "minimize", "minimize"],
         sampler=module.AutoSampler(),
-        # pruner=optuna.pruners.HyperbandPruner(),
         pruner=optuna.pruners.NopPruner(),
-        study_name=MODEL_NAME + "-lr",
+        study_name=MODEL_NAME + "-Si",
         storage=storage,
         load_if_exists=True,
     )
