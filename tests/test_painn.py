@@ -5,10 +5,8 @@ from pathlib import Path
 import numpy as np
 import torch
 import torchmetrics
-from ase import Atoms
 from lightning import Trainer, seed_everything
 from lightning.pytorch.callbacks import Callback, ModelCheckpoint, RichModelSummary
-from line_profiler import profile
 from ovito.data import DataCollection
 from ovito.io import export_file, import_file
 from src import LightningDataset, Module
@@ -24,7 +22,6 @@ torch.serialization.add_safe_globals([RandomPerturbation])
 EPOCHS = 50
 NUM_NEIGHBORS = 20
 COMPILE = False
-# CKPT_NAME = None
 CKPT_NAME = (
     Path(".") / "lightning_logs" / "version_45927470" / "checkpoints" / "epoch=45-step=1564.ckpt"
 )
@@ -38,8 +35,10 @@ def train(trainer: Trainer, model: Module, datamodule: LightningDataset) -> None
     trainer.validate(model=model, datamodule=datamodule)
     trainer.test(model=model, datamodule=datamodule)
 
+    del trainer, datamodule
 
-def _convert_to_graphs(atoms_list: Iterable[Atoms]) -> list[Data]:
+
+def _convert_to_graphs(atoms_list: Iterable[DataCollection]) -> list[Data]:
     knn = PeriodicKNN(k=NUM_NEIGHBORS)
 
     graph_list = []
@@ -51,8 +50,7 @@ def _convert_to_graphs(atoms_list: Iterable[Atoms]) -> list[Data]:
 
 
 @torch.inference_mode()
-@profile
-def inference(model: Module, atoms_list: Iterable[Atoms]) -> list[torch.Tensor]:
+def inference(model: Module, atoms_list: Iterable[DataCollection]) -> list[torch.Tensor]:
     to_predict = _convert_to_graphs(atoms_list)
     num_layers = model.model.num_layers  # type: ignore
 
@@ -114,7 +112,9 @@ def dump_outputs(
         print(f"Saved predictions to {out_path}")
 
 
-def clean_state_dict(state_dict: dict[str, torch.Tensor], compile: bool) -> dict[str, torch.Tensor]:
+def clean_state_dict(
+    state_dict: dict[str, torch.Tensor], compile: bool
+) -> dict[str, torch.Tensor]:
     """Removes the '_orig_mod.' prefix added by torch.compile from state dict keys."""
     if compile:
         return state_dict
