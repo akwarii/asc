@@ -9,12 +9,14 @@ try:
 except ImportError:
     faiss = None  # type: ignore
 
-import numpy as np
 import torch
 from ase import Atoms
+from ase.data import atomic_numbers
 from ase.io import read
 from freud.box import Box
 from freud.locality import AABBQuery
+from ovito.data import DataCollection
+from ovito.io import import_file
 from torch import Tensor
 from torch_geometric.data import Data
 
@@ -191,6 +193,8 @@ class KNNGraph:
         elif isinstance(atoms_repr, Path):
             if not atoms_repr.exists():
                 raise ValueError(f"The file {atoms_repr} does not exist.")
+            if fmt is None and atoms_repr.suffix == ".lmp":
+                fmt = "lammps-data"
             atoms = read(atoms_repr, format=fmt)
 
         elif isinstance(atoms_repr, str):
@@ -242,33 +246,75 @@ class PeriodicKNN(KNNGraph):
     def __init__(self, k: int = 20, **kwargs) -> None:
         super().__init__(k=k, **kwargs)
 
-    def _get_graph_data(self, atoms: Atoms) -> tuple[Tensor, Tensor, Tensor]:
+    def _get_graph_data(self, atoms: DataCollection) -> tuple[Tensor, Tensor, Tensor]:
+        # Map OVITO particle types to atomic numbers
+        type_mapper = {t.id: atomic_numbers[t.name] for t in atoms.particles.particle_types.types}
+
+        elements_id = torch.from_numpy(atoms.particles.particle_types[...]).long()
+
+        max_type = int(elements_id.max().item())
+        mapping = torch.zeros(max_type + 1, dtype=torch.long)
+
+        for lmp_type, z in type_mapper.items():
+            mapping[lmp_type] = z
+
+        x = mapping[elements_id]
+
         # extract data from ASE Atoms object
-        pos = atoms.get_positions()
-        atomic_numbers = atoms.get_atomic_numbers()
-        cell_matrix = atoms.get_cell().array
+        pos = atoms.particles.positions[...]
+        cell_matrix = atoms.cell[...][:3, :3].T
 
         # Create Freud Box for PBC handling
         box = Box.from_matrix(cell_matrix)
-        box.periodic = atoms.get_pbc().tolist()
+        box.periodic = atoms.cell.pbc
 
         # Perfom knn query
-        aq = AABBQuery(box, pos)
-        query_result = aq.query(pos, dict(num_neighbors=self.k, exclude_ii=True))
-        nlist = query_result.toNeighborList()
+        nq = AABBQuery(box, pos)
+        nlist = nq.query(pos, dict(num_neighbors=self.k, exclude_ii=True)).toNeighborList()
 
-        # Build graph data
-        edge_index = torch.from_numpy(
-            np.stack([nlist.query_point_indices, nlist.point_indices])
-        ).long()
+        # Build edge index and attributes
+        q_idx = torch.from_numpy(nlist.query_point_indices.copy()).long()
+        p_idx = torch.from_numpy(nlist.point_indices.copy()).long()
 
-        diff = pos[nlist.point_indices] - pos[nlist.query_point_indices]
-        wrapped_diff = box.wrap(diff)
+        edge_index = torch.stack([q_idx, p_idx])
+
+        pos_t = torch.from_numpy(pos).float()
+        diff_t = pos_t[p_idx] - pos_t[q_idx]
+        wrapped_diff = box.wrap(diff_t.numpy())
         edge_attr = torch.from_numpy(wrapped_diff).float()
 
-        x = torch.from_numpy(atomic_numbers).long()
-
         return x, edge_index, edge_attr
+
+    def convert(
+        self, atoms_repr: Atoms | DataCollection | str | Path, fmt: str | None = None
+    ) -> Data:
+        """Convert a single atomic structure to a PyG Data object.
+
+        Args:
+            atoms_repr: A pymatgen structure or an object convertible to a pymatgen structure.
+            fmt: The format of the input structure if it is a string.
+
+        Returns:
+            A PyG Data object with positions, edge index, distances and cosine of the angles.
+        """
+        if isinstance(atoms_repr, Atoms):
+            from ovito.io.ase import ase_to_ovito
+            atoms = ase_to_ovito(atoms_repr)
+        elif isinstance(atoms_repr, DataCollection):
+            atoms = atoms_repr
+        else:
+            atoms = import_file(atoms_repr).compute()
+
+        x, edge_index, edge_attr = self._get_graph_data(atoms)
+
+        data = Data(
+            num_nodes=atoms.particles.count,
+            x=x,
+            edge_index=edge_index,
+            edge_attr=edge_attr,
+        )
+
+        return data
 
 
 def detect_format_from_str(atoms_str: str) -> FileFormats:
