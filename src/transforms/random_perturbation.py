@@ -6,25 +6,93 @@ from torch_geometric.transforms import BaseTransform
 class RandomPerturbation(BaseTransform):
     """Applies random Gaussian noise to both node and edge features of a graph if they exist.
 
+    Note that the edge attributes are only recomputed if the node positions are perturbed and the
+    `recompute_edge_attrs` flag is set to True.
+
     Args:
         std: Standard deviation of the applied noise.
+        std_range: A tuple specifying the range from which to uniformly sample the standard
+        deviation for each graph. If provided, this takes precedence over the `std` argument.
+        apply_to: A string or list of strings specifying which attributes to perturb.
+        recompute_edge_attrs: Whether to recompute edge attributes after perturbing node positions.
     """
 
-    def __init__(self, std: float = 0.01) -> None:
-        if std <= 0.0:
-            raise ValueError("The standard deviation must be strictly positive.")
-
+    def __init__(
+        self,
+        std: float | None = None,
+        std_range: tuple[float, float] | None = None,
+        apply_to: str | list[str] = "pos",
+        recompute_edge_attrs: bool = True,
+    ) -> None:
         self.std = std
+        self.std_range = std_range
+        self.apply_to = apply_to if isinstance(apply_to, list) else [apply_to]
+        self.recompute_edge_attrs = recompute_edge_attrs
+
+        self.validate()
+
+    def validate(self) -> None:
+        """Validates the input parameters."""
+        if self.std is None and self.std_range is None:
+            raise ValueError("Either std or std_range must be provided.")
+        if self.std is not None and self.std < 0.0:
+            raise ValueError("The standard deviation must be positive.")
+        if self.std_range is not None and (self.std_range[0] < 0.0 or self.std_range[1] < 0.0):
+            raise ValueError("The standard deviation range must be positive.")
+
+    def _get_std(self) -> float:
+        if self.std_range is not None:
+            return torch.empty(1).uniform_(self.std_range[0], self.std_range[1]).item()
+        if self.std is not None:
+            return self.std
+
+        raise RuntimeError("This should never happen since we check for this in the constructor.")
+
+    def _wrap(
+        self, vectors: torch.Tensor, cell: torch.Tensor, pbc: torch.Tensor
+    ) -> torch.Tensor:
+        """Applies MIC to a triclinic box with optional periodicity per dimension.
+
+        Args:
+            vectors: (N, 3) displacement vectors.
+            cell: (3, 3) matrix where columns are [a, b, c].
+            pbc: Boolean flags for (x, y, z) periodicity.
+        """
+        # Transform to fractional coordinates
+        inv_box = torch.linalg.inv(cell)
+        s = torch.matmul(vectors, inv_box.T)
+
+        # Create a wrapping term for periodic dimensions
+        wrap_term = torch.round(s) * pbc
+        s_mic = s - wrap_term
+
+        # Transform back to Cartesian
+        r_mic = torch.matmul(s_mic, cell.T)
+
+        return r_mic
 
     def forward(self, data: Data) -> Data:
         """Runs the transform."""
-        if data.x is not None:
-            data.x += torch.randn_like(data.x) * self.std
+        for attr in self.apply_to:
+            if hasattr(data, attr):
+                attr_val = getattr(data, attr)
+                if attr_val is not None:
+                    noise = torch.randn_like(attr_val) * self._get_std()
+                    setattr(data, attr, attr_val + noise)
 
-        if data.edge_attr is not None:
-            data.edge_attr += torch.randn_like(data.edge_attr) * self.std
+        if self.recompute_edge_attrs:
+            if "pos" in self.apply_to and hasattr(data, "pos") and data.pos is not None:
+                assert data.edge_index is not None
+                assert data.cell is not None
+
+                new_edge_attr = data.pos[data.edge_index[0]] - data.pos[data.edge_index[1]]
+                new_edge_attr = self._wrap(new_edge_attr, data.cell, data.pbc)
+
+                data.edge_attr = new_edge_attr
 
         return data
 
     def __repr__(self) -> str:
+        if self.std_range is not None:
+            return f"{self.__class__.__name__}(std_range={self.std_range})"
         return f"{self.__class__.__name__}(stddev={self.std})"
