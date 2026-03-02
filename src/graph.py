@@ -11,16 +11,16 @@ except ImportError:
 
 import torch
 from ase import Atoms
-from ase.data import atomic_numbers
-from ase.io import read
 from freud.box import Box
 from freud.locality import AABBQuery
+from line_profiler import profile
 from ovito.data import DataCollection
 from ovito.io import import_file
 from torch import Tensor
 from torch_geometric.data import Data
 
 from src.typing import FileFormats
+from src.utils import atomic_numbers
 
 CENTRAL_CELL = 13
 
@@ -187,6 +187,8 @@ class KNNGraph:
         Returns:
             atoms : ase.Atoms
         """
+        from ase.io import read
+
         if isinstance(atoms_repr, Atoms):
             atoms = atoms_repr
 
@@ -240,12 +242,16 @@ class KNNGraph:
         return data
 
 
-class PeriodicKNN(KNNGraph):
+class PeriodicKNN:
     """Test of a periodic knn using Freud."""
 
     def __init__(self, k: int = 20, **kwargs) -> None:
-        super().__init__(k=k, **kwargs)
+        if k < 1:
+            raise ValueError("The number of neighbors must be greater than 0.")
 
+        self.k = k
+
+    @profile
     def _get_graph_data(self, atoms: DataCollection) -> tuple[Tensor, Tensor, Tensor]:
         # Map OVITO particle types to atomic numbers
         type_mapper = {t.id: atomic_numbers[t.name] for t in atoms.particles.particle_types.types}
@@ -285,8 +291,33 @@ class PeriodicKNN(KNNGraph):
 
         return x, edge_index, edge_attr
 
+    @staticmethod
+    def _to_ovito(representation: str | Path | DataCollection | io.StringIO) -> DataCollection:
+        if isinstance(representation, DataCollection):
+            return representation
+
+        if isinstance(representation, io.StringIO):
+            representation.seek(0)
+
+        elif isinstance(representation, str):
+            if not Path(representation).exists():
+                representation = io.StringIO(representation.strip())
+                representation.seek(0)
+
+        elif isinstance(representation, Path):
+            if not representation.exists():
+                raise ValueError(f"The file {representation} does not exist.")
+
+        else:
+            raise TypeError(f"Unsupported input type {type(representation)}")
+
+        print(type(representation))
+        atoms = import_file(representation).compute()  # type: ignore
+
+        return atoms
+
     def convert(
-        self, atoms_repr: Atoms | DataCollection | str | Path, fmt: str | None = None
+        self, atoms_repr: str | Path | DataCollection | io.StringIO, fmt: str | None = None
     ) -> Data:
         """Convert a single atomic structure to a PyG Data object.
 
@@ -297,19 +328,25 @@ class PeriodicKNN(KNNGraph):
         Returns:
             A PyG Data object with positions, edge index, distances and cosine of the angles.
         """
-        if isinstance(atoms_repr, Atoms):
-            from ovito.io.ase import ase_to_ovito
-            atoms = ase_to_ovito(atoms_repr)
-        elif isinstance(atoms_repr, DataCollection):
-            atoms = atoms_repr
-        else:
-            atoms = import_file(atoms_repr).compute()
+        atoms = self._to_ovito(atoms_repr)
+
+        cell_obj = atoms.cell
+        assert (
+            cell_obj is not None
+        ), "The input structure must have a cell defined for periodic knn."
+
+        pbc = torch.tensor(atoms.cell_.pbc).bool()
+        cell = torch.from_numpy(atoms.cell_[...][:3, :3].T).float()
+        positions = torch.from_numpy(atoms.particles_.positions_[...]).float()
 
         x, edge_index, edge_attr = self._get_graph_data(atoms)
 
         data = Data(
             num_nodes=atoms.particles.count,
             x=x,
+            pos=positions,
+            cell=cell,
+            pbc=pbc,
             edge_index=edge_index,
             edge_attr=edge_attr,
         )
