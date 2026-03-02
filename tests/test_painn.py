@@ -7,6 +7,7 @@ import torch
 import torchmetrics
 from lightning import Trainer, seed_everything
 from lightning.pytorch.callbacks import Callback, ModelCheckpoint, RichModelSummary
+from line_profiler import profile
 from ovito.data import DataCollection
 from ovito.io import export_file, import_file
 from src import LightningDataset, Module
@@ -22,11 +23,10 @@ torch.serialization.add_safe_globals([RandomPerturbation])
 EPOCHS = 50
 NUM_NEIGHBORS = 20
 COMPILE = False
-CKPT_NAME = (
-    Path(".") / "lightning_logs" / "version_45927470" / "checkpoints" / "epoch=45-step=1564.ckpt"
-)
+CKPT_NAME = Path(".") / "lightning_logs" / "version_45927470" / "checkpoints" / "epoch=45-step=1564.ckpt"
+# CKPT_NAME = None
 TO_PREDICT = [
-    Path.home() / "THESE" / "TEST" / "Si_diamond_polycrystal" / "polycrystal.xyz",
+    Path.home() / "THESE" / "TEST" / "Si_mixture_polycrystal" / "final.cfg",
 ]
 
 
@@ -38,31 +38,46 @@ def train(trainer: Trainer, model: Module, datamodule: LightningDataset) -> None
     del trainer, datamodule
 
 
-def _convert_to_graphs(atoms_list: Iterable[DataCollection]) -> list[Data]:
-    knn = PeriodicKNN(k=NUM_NEIGHBORS)
+def train_epoch(model: Module, dataloader: Iterable[Data]) -> None:
+    import torch.nn.functional as F
 
-    graph_list = []
-    for atoms in atoms_list:
-        data = knn.convert(atoms)
-        graph_list.append(data)
+    device = next(model.parameters()).device
+    print(f"Training on device: {device}")
 
-    return graph_list
+    optimizers, schedulers = model.configure_optimizers()
+    for data in tqdm(dataloader, unit="batch", total=len(dataloader)):
+        data = data.to(device, non_blocking=True)
+
+        preds: torch.Tensor = model(data)
+        loss = F.cross_entropy(preds, torch.as_tensor(data.y))
+
+        for opt in optimizers:
+            opt.zero_grad()
+
+        loss.backward()
+
+        for opt, sch in zip(optimizers, schedulers):
+            opt.step()
+            sch.step()
 
 
 @torch.inference_mode()
+@profile
 def inference(model: Module, atoms_list: Iterable[DataCollection]) -> list[torch.Tensor]:
-    to_predict = _convert_to_graphs(atoms_list)
-    num_layers = model.model.num_layers  # type: ignore
+    knn = PeriodicKNN(k=NUM_NEIGHBORS)
 
     model.eval()
     device = next(model.parameters()).device
+    num_layers = model.model.num_layers  # type: ignore
 
     all_predictions = []
-    for graph in to_predict:
+    for atoms in atoms_list:
+        graph = knn.convert(atoms)
+
         loader = NeighborLoader(
             graph,
             num_neighbors=[-1] * num_layers,
-            batch_size=2**16,
+            batch_size=min(2**16, graph.num_nodes), # type: ignore
             shuffle=False,
             num_workers=8,
             persistent_workers=True,
@@ -72,7 +87,7 @@ def inference(model: Module, atoms_list: Iterable[DataCollection]) -> list[torch
 
         graph_preds = []
         for batch in tqdm(loader, unit="batch", total=len(loader)):
-            batch = batch.to(device, non_blocking=True)
+            batch = batch.to(device)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                 out = model.predict_step(batch)
             graph_preds.append(out.to("cpu", non_blocking=True))
@@ -147,7 +162,7 @@ def main() -> None:
     datamodule = LightningDataset(
         dataset_name="custom",
         lengths=(0.7, 0.2, 0.1),
-        transforms=RandomPerturbation(std=0.1),
+        transforms=RandomPerturbation(std_range=(0.0, 0.1)),
         num_workers=8,
         batch_size=512,
         k=NUM_NEIGHBORS,
@@ -179,11 +194,16 @@ def main() -> None:
         )
 
     if CKPT_NAME is None or not Path(CKPT_NAME).exists():
-        train(trainer, model, datamodule)
+        # train(trainer, model, datamodule)
+        train_epoch(model, datamodule.train_dataloader())
     else:
         print(f"Loading checkpoint weights from: {CKPT_NAME}")
         checkpoint = torch.load(CKPT_NAME, map_location="cpu", weights_only=False)
         model.load_state_dict(clean_state_dict(checkpoint["state_dict"], compile=COMPILE))
+
+    if not TO_PREDICT:
+        print("No files specified for prediction. Exiting.")
+        return
 
     loaded_data: list[DataCollection] = [import_file(str(path)).compute() for path in TO_PREDICT]
 
