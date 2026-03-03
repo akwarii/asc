@@ -3,7 +3,10 @@ from typing import Any
 import torch
 import torch.nn as nn
 from lightning import LightningModule
+from packaging.version import Version
+from pytorch_lightning.core.optimizer import LightningOptimizer
 from pytorch_lightning.utilities import grad_norm
+from pytorch_lightning.utilities.types import LRSchedulerType
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 from torch_geometric.data import Data
@@ -12,13 +15,13 @@ from torchmetrics import MetricCollection
 from src import models
 from src.optim import get_cosine_schedule_with_warmup
 
-MODEL_FACTORY = {
+MODEL_FACTORY: dict[str, nn.Module] = {
     "cegann": models.CEGANN,
     "mlp": models.MLPClassifier,
     "gat": models.GATClassifier,
     "cegannv2": models.CEGANNv2,
     "painn": models.PaiNN,
-}
+}  # type: ignore
 
 
 class Module(LightningModule):
@@ -55,6 +58,17 @@ class Module(LightningModule):
 
         self.automatic_optimization = False
 
+        self.can_compile = True
+        if torch.cuda.is_available() and (
+            torch.cuda.get_device_capability() < (7, 0)
+            or Version(torch.__version__) < Version("2.0")
+        ):
+            print(
+                "Warning: torch.compile is not supported on this device or PyTorch version. "
+                "Proceeding without compilation."
+            )
+            self.can_compile = False
+
         self.save_hyperparameters(logger=False, ignore=["metrics"])
         self._create_model()
 
@@ -86,29 +100,30 @@ class Module(LightningModule):
 
         self.model = model(out_channels=out_channels, **model_kwargs)
 
-        if self.hparams["compile"]:
+        if self.hparams["compile"] and self.can_compile:
             self.model = torch.compile(self.model, fullgraph=True)
 
     def forward(self, data: Data) -> torch.Tensor:
         return self.model(data)
 
     def training_step(self, data: Data) -> torch.Tensor:
-        opt_muon, opt_adamw = self.optimizers()
-        sch_muon, sch_adamw = self.lr_schedulers()
+        opts = self.optimizers()
+        schs = self.lr_schedulers()
+
+        if not isinstance(opts, list):
+            opts = [opts]
+        if schs is not None and not isinstance(schs, list):
+            schs = [schs]
 
         preds: torch.Tensor = self(data)
         loss = self.criterion(preds, torch.as_tensor(data.y))
 
-        opt_muon.zero_grad()
-        opt_adamw.zero_grad()
+        for opt in opts:
+            opt.zero_grad(set_to_none=True)
 
         self.manual_backward(loss)
 
-        opt_muon.step()
-        opt_adamw.step()
-
-        sch_muon.step()
-        sch_adamw.step()
+        self._optimization_step(opts, schs)
 
         if hasattr(self, "train_metrics"):
             batch_value = self.train_metrics(preds.softmax(dim=-1), data.y)
@@ -164,7 +179,7 @@ class Module(LightningModule):
         # if hasattr(self.model, "inference"):
         #     preds: torch.Tensor = self.model.inference(data)[:data.batch_size]
         # else:
-        preds: torch.Tensor = self(data)[:data.batch_size]
+        preds: torch.Tensor = self(data)[: data.batch_size]
         return torch.argmax(preds, dim=-1)
 
     def configure_optimizers(self) -> tuple[list[Optimizer], list[LambdaLR]]:
@@ -181,10 +196,9 @@ class Module(LightningModule):
                     adamw_params.append(p)
 
         # Initialize Optimizers
-        opt_muon = torch.optim.Muon(
-            muon_params, lr=self.hparams["lr"], adjust_lr_fn="match_rms_adamw"
-        )
-        opt_adamw = torch.optim.AdamW(adamw_params, lr=self.hparams["lr"])
+        lr_tensor = torch.tensor(self.hparams["lr"])
+        opt_muon = torch.optim.Muon(muon_params, lr=lr_tensor, adjust_lr_fn="match_rms_adamw")
+        opt_adamw = torch.optim.AdamW(adamw_params, lr=lr_tensor)
 
         # Initialize Schedulers
         sched_muon = get_cosine_schedule_with_warmup(
@@ -200,7 +214,28 @@ class Module(LightningModule):
 
         return [opt_muon, opt_adamw], [sched_muon, sched_adamw]
 
-    def on_before_optimizer_step(self, optimizer) -> None:
+    @staticmethod
+    def _run_optimization(
+        optimizers: list[LightningOptimizer], schedulers: list[LRSchedulerType] | None
+    ) -> None:
+        for opt in optimizers:
+            opt.step()
+
+        if schedulers is not None:
+            for sch in schedulers:
+                sch.step()
+
+    def _optimization_step(
+        self, optimizers: list[LightningOptimizer], schedulers: list[LRSchedulerType] | None
+    ) -> None:
+        if self.can_compile:
+            if not hasattr(self, "_compiled_fn"):
+                self._compiled_fn = torch.compile(self._run_optimization, fullgraph=False)
+            self._compiled_fn(optimizers, schedulers)
+        else:
+            self._run_optimization(optimizers, schedulers)
+
+    def on_before_optimizer_step(self, optimizer: Optimizer) -> None:
         # Compute the 2-norm for each layer
         # If using mixed precision, the gradients are already unscaled here
         norms = grad_norm(self.model, norm_type=2)
