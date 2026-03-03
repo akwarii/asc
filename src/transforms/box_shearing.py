@@ -19,6 +19,8 @@ class BoxShearing(BaseTransform):
             same standard deviation.
         scale_positions: Whether to apply the shear transformation to node positions.
         recompute_edge_attrs: Whether to apply the shear transformation to edge attributes.
+        resample_on_invalid: If True, resample shear matrix when face offset exceeds L/2 in
+            shearing direction. If False, skip the transform and return data unchanged.
     """
 
     def __init__(
@@ -28,12 +30,14 @@ class BoxShearing(BaseTransform):
         shear_components: list[str] | None = None,
         scale_positions: bool = True,
         recompute_edge_attrs: bool = True,
+        resample_on_invalid: bool = False,
     ) -> None:
         self.std = std
         self.std_range = std_range
         self.shear_components = shear_components or ["xy", "xz", "yz"]
         self.scale_positions = scale_positions
         self.recompute_edge_attrs = recompute_edge_attrs
+        self.resample_on_invalid = resample_on_invalid
 
         self.validate()
 
@@ -47,7 +51,7 @@ class BoxShearing(BaseTransform):
             raise ValueError("The standard deviation range must be non-negative.")
 
         valid_components = {"xy", "xz", "yz"}
-        if not all(comp in valid_components for comp in self.shear_components):
+        if not set(self.shear_components).issubset(valid_components):
             raise ValueError(f"Shear components must be subset of {valid_components}.")
 
     def _get_std(self) -> float:
@@ -58,39 +62,84 @@ class BoxShearing(BaseTransform):
 
         raise RuntimeError("This should never happen since we check for this in the constructor.")
 
-    def _build_shear_matrix(self) -> torch.Tensor:
+    def _build_shear_matrix(self, *, dtype: torch.dtype, device: torch.device) -> torch.Tensor:
         """Builds a 3x3 shear transformation matrix.
 
         Returns:
             A 3x3 shear transformation matrix.
         """
-        shear_matrix = torch.eye(3)
+        shear_matrix = torch.eye(3, dtype=dtype, device=device)
         std = self._get_std()
 
         # Apply shear components
         if "xy" in self.shear_components:
-            shear_matrix[0, 1] = torch.randn(1).item() * std
+            shear_matrix[0, 1] = torch.randn((), dtype=dtype, device=device) * std
         if "xz" in self.shear_components:
-            shear_matrix[0, 2] = torch.randn(1).item() * std
+            shear_matrix[0, 2] = torch.randn((), dtype=dtype, device=device) * std
         if "yz" in self.shear_components:
-            shear_matrix[1, 2] = torch.randn(1).item() * std
+            shear_matrix[1, 2] = torch.randn((), dtype=dtype, device=device) * std
 
         return shear_matrix
+
+    def _check_shear_limit(self, cell: torch.Tensor, shear_matrix: torch.Tensor) -> bool:
+        """Checks that face offsets do not exceed half-box length in shearing direction.
+
+        Returns:
+            True if all shear components are valid, False otherwise.
+        """
+        lengths = torch.linalg.norm(cell, dim=0)
+        component_to_indices = {
+            "xy": (0, 1),
+            "xz": (0, 2),
+            "yz": (1, 2),
+        }
+
+        # Extract indices for active components
+        indices = [component_to_indices[comp] for comp in self.shear_components]
+        if not indices:
+            return True
+
+        i_vals = torch.tensor([idx[0] for idx in indices], device=cell.device, dtype=torch.long)
+        j_vals = torch.tensor([idx[1] for idx in indices], device=cell.device, dtype=torch.long)
+
+        # Extract shear coefficients using fancy indexing
+        shear_coeffs = torch.abs(shear_matrix[i_vals, j_vals])
+
+        # Compute offsets: offset[k] = shear_coeff[k] * lengths[j_vals[k]]
+        offsets = shear_coeffs * lengths[j_vals]
+
+        # Compute max offsets: max_offset[k] = 0.5 * lengths[i_vals[k]]
+        max_offsets = 0.5 * lengths[i_vals]
+
+        # Check if all offsets are valid
+        valid = torch.all(offsets <= max_offsets)
+        if not valid:
+            return False
+        return True
 
     def forward(self, data: Data) -> Data:
         """Runs the transform."""
         if not hasattr(data, "cell") or data.cell is None:
             return data
 
-        # Build shear transformation matrix
-        shear_matrix = self._build_shear_matrix()
+        max_attempts = 100 if self.resample_on_invalid else 1
+
+        for attempt in range(max_attempts):
+            # Build shear transformation matrix
+            shear_matrix = self._build_shear_matrix(dtype=data.cell.dtype, device=data.cell.device)
+
+            # Check if shear is valid
+            if self._check_shear_limit(data.cell, shear_matrix):
+                break
+            elif not self.resample_on_invalid:
+                # Invalid shear and not resampling: return data unchanged
+                return data
+        else:
+            # Max attempts reached without valid shear
+            return data
 
         # Apply shear to cell
-        if hasattr(data, "cell") and data.cell is not None:
-            data.cell = torch.matmul(data.cell, shear_matrix.T)
-            # We may want to scale positions and edge attributes
-            # regardless of whether the cell attribute is present
-            # --> no `else: return data` here
+        data.cell = torch.matmul(data.cell, shear_matrix.T)
 
         # Optionally apply shear to positions
         if self.scale_positions and hasattr(data, "pos") and data.pos is not None:
@@ -103,11 +152,11 @@ class BoxShearing(BaseTransform):
         return data
 
     def __repr__(self) -> str:
-        if self.std_range is not None:
-            return (
-                f"{self.__class__.__name__}(std_range={self.std_range}, "
-                f"shear_components={self.shear_components})"
-            )
+        std_str = (
+            f"std_range={self.std_range}" if self.std_range is not None else f"std={self.std}"
+        )
         return (
-            f"{self.__class__.__name__}(std={self.std}, shear_components={self.shear_components})"
+            f"{self.__class__.__name__}({std_str}, "
+            f"shear_components={self.shear_components}, "
+            f"resample_on_invalid={self.resample_on_invalid})"
         )
