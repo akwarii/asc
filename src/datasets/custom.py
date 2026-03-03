@@ -117,7 +117,7 @@ class CustomDataset(InMemoryDataset):
         from pymatgen.io.vasp.inputs import BadPoscarWarning
         from tqdm.auto import tqdm
 
-        from src.graph import KNNGraph, PeriodicKNN
+        from src.graph import PeriodicKNN
 
         if self.download_only:
             return

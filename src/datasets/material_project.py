@@ -117,7 +117,7 @@ class MaterialProject(InMemoryDataset):
         import torch
         from pymatgen.io.vasp.inputs import BadPoscarWarning
 
-        from src.graph import KNNGraph
+        from src.graph import PeriodicKNN
 
         if self.download_only:
             return
@@ -134,7 +134,7 @@ class MaterialProject(InMemoryDataset):
         label_to_index = {label: idx for idx, label in enumerate(unique_targets)}
         target_list = [label_to_index[target] for target in target_list]
 
-        knn = KNNGraph(**self.kwargs)
+        knn = PeriodicKNN(**self.kwargs)
 
         data_list = []
         for raw_data, target in tqdm(zip(raw_data_list, target_list), total=len(raw_data_list)):
