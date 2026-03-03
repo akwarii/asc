@@ -22,7 +22,7 @@ torch.serialization.add_safe_globals([RandomPerturbation])
 
 EPOCHS = 50
 NUM_NEIGHBORS = 20
-COMPILE = False
+COMPILE = True
 CKPT_NAME = Path(".") / "lightning_logs" / "version_45927470" / "checkpoints" / "epoch=45-step=1564.ckpt"
 # CKPT_NAME = None
 TO_PREDICT = [
@@ -44,21 +44,25 @@ def train_epoch(model: Module, dataloader: Iterable[Data]) -> None:
     device = next(model.parameters()).device
     print(f"Training on device: {device}")
 
-    optimizers, schedulers = model.configure_optimizers()
+    opts, schs = model.configure_optimizers()
+
+    if not isinstance(opts, list):
+        opts = [opts]
+    if schs is not None and not isinstance(schs, list):
+        schs = [schs]
+
     for data in tqdm(dataloader, unit="batch", total=len(dataloader)):
         data = data.to(device, non_blocking=True)
 
         preds: torch.Tensor = model(data)
         loss = F.cross_entropy(preds, torch.as_tensor(data.y))
 
-        for opt in optimizers:
-            opt.zero_grad()
+        for opt in opts:
+            opt.zero_grad(set_to_none=True)
 
         loss.backward()
 
-        for opt, sch in zip(optimizers, schedulers):
-            opt.step()
-            sch.step()
+        model._optimization_step(opts, schs)
 
 
 @torch.inference_mode()
@@ -106,10 +110,8 @@ def dump_outputs(
     for graph_preds, data, path in zip(predictions, data_list, pred_paths):
         pred_array = graph_preds.detach().cpu().numpy()
 
-        # 1. Attach custom property natively in OVITO
         data.particles_.create_property("Prediction", data=pred_array)
 
-        # 2. Fast C++ export
         out_path = path.with_name(f"{path.stem}_predicted.extxyz")
         export_file(
             data,
@@ -125,20 +127,6 @@ def dump_outputs(
             ],
         )
         print(f"Saved predictions to {out_path}")
-
-
-def clean_state_dict(
-    state_dict: dict[str, torch.Tensor], compile: bool
-) -> dict[str, torch.Tensor]:
-    """Removes the '_orig_mod.' prefix added by torch.compile from state dict keys."""
-    if compile:
-        return state_dict
-
-    clean_dict = {}
-    for key, val in state_dict.items():
-        new_key = key.replace("_orig_mod.", "")
-        clean_dict[new_key] = val
-    return clean_dict
 
 
 def main() -> None:
@@ -175,31 +163,31 @@ def main() -> None:
         "acc": torchmetrics.Accuracy(task="multiclass", num_classes=num_classes),
     }
 
-    with trainer.init_module():
-        model = Module(
-            model_name="PaiNN",
-            num_classes=num_classes,
-            compile=COMPILE,
-            metrics=torchmetrics.MetricCollection(metrics),  # type: ignore
-            warmup=400,
-            lr=0.004678965862088063,
-            max_iters=EPOCHS * len(datamodule.train_dataloader()),
-            model_kwargs={
-                "num_radial": 8,
-                "hidden_channels": 32,
-                "num_layers": 2,
-                "dropout": 0.5,
-                "scale_factor": 1.0 / math.sqrt(NUM_NEIGHBORS),
-            },
-        )
-
     if CKPT_NAME is None or not Path(CKPT_NAME).exists():
+        with trainer.init_module():
+            model = Module(
+                model_name="PaiNN",
+                num_classes=num_classes,
+                compile=COMPILE,
+                metrics=torchmetrics.MetricCollection(metrics),  # type: ignore
+                warmup=400,
+                lr=0.004678965862088063,
+                max_iters=EPOCHS * len(datamodule.train_dataloader()),
+                model_kwargs={
+                    "num_radial": 8,
+                    "hidden_channels": 32,
+                    "num_layers": 2,
+                    "dropout": 0.5,
+                    "scale_factor": 1.0 / math.sqrt(NUM_NEIGHBORS),
+                },
+            )
+
         # train(trainer, model, datamodule)
         train_epoch(model, datamodule.train_dataloader())
     else:
         print(f"Loading checkpoint weights from: {CKPT_NAME}")
-        checkpoint = torch.load(CKPT_NAME, map_location="cpu", weights_only=False)
-        model.load_state_dict(clean_state_dict(checkpoint["state_dict"], compile=COMPILE))
+        with trainer.init_module(empty_init=True):
+            model = Module.load_from_checkpoint(CKPT_NAME)
 
     if not TO_PREDICT:
         print("No files specified for prediction. Exiting.")
