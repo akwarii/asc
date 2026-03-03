@@ -51,24 +51,21 @@ class BoxScaling(BaseTransform):
 
     def forward(self, data: Data) -> Data:
         """Runs the transform."""
-        # Sample scaling factor from normal distribution centered at 1.0
+        # Sample three independent scaling factors from normal distribution centered at 1.0
         std = self._get_std()
-        scale_factor = torch.randn(1).item() * std + 1.0
+        scale_factors = torch.randn(3) * std + 1.0
 
-        # Scale the cell
+        # Scale the cell (each column represents an axis)
         if hasattr(data, "cell") and data.cell is not None:
-            data.cell = data.cell * scale_factor
-            # We may want to scale positions and edge attributes
-            # regardless of whether the cell attribute is present
-            # --> no `else: return data` here
+            data.cell = data.cell * scale_factors
 
         # Optionally scale positions
         if self.scale_positions and hasattr(data, "pos") and data.pos is not None:
-            data.pos = data.pos * scale_factor
+            data.pos = data.pos * scale_factors
 
         # Optionally scale edge attributes
         if self.recompute_edge_attrs and hasattr(data, "edge_attr") and data.edge_attr is not None:
-            data.edge_attr = data.edge_attr * scale_factor
+            data.edge_attr = data.edge_attr * scale_factors
 
         return data
 
