@@ -198,7 +198,7 @@ class Module(LightningModule):
         # Initialize Optimizers
         lr_tensor = torch.tensor(self.hparams["lr"])
         opt_muon = torch.optim.Muon(muon_params, lr=lr_tensor, adjust_lr_fn="match_rms_adamw")
-        opt_adamw = torch.optim.AdamW(adamw_params, lr=lr_tensor)
+        opt_adamw = torch.optim.AdamW(adamw_params, lr=lr_tensor, fused=not self.can_compile)
 
         # Initialize Schedulers
         sched_muon = get_cosine_schedule_with_warmup(
