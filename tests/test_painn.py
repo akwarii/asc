@@ -136,7 +136,7 @@ def main() -> None:
 
     callbacks: list[Callback] = [
         ModelCheckpoint(monitor="val/loss", mode="min", every_n_epochs=1),
-        RichModelSummary(max_depth=-1),
+        RichModelSummary(max_depth=2),
     ]
 
     trainer = Trainer(
@@ -150,10 +150,11 @@ def main() -> None:
     datamodule = LightningDataset(
         dataset_name="custom",
         lengths=(0.7, 0.2, 0.1),
-        transforms=RandomPerturbation(std_range=(0.0, 0.1)),
+        transforms=RandomPerturbation(std_range=(0.0, 0.05)),
         num_workers=8,
         batch_size=512,
         k=NUM_NEIGHBORS,
+        use_imbalance_sampler=True,
     )
 
     num_classes = datamodule.num_classes
@@ -182,8 +183,8 @@ def main() -> None:
                 },
             )
 
-        # train(trainer, model, datamodule)
-        train_epoch(model, datamodule.train_dataloader())
+        train(trainer, model, datamodule)
+        # train_epoch(model, datamodule.train_dataloader())
     else:
         print(f"Loading checkpoint weights from: {CKPT_NAME}")
         with trainer.init_module(empty_init=True):
