@@ -1,33 +1,33 @@
 import torch
-from line_profiler import profile
 from torch import Tensor
 from torch_geometric.data import Data
 from torch_geometric.transforms import BaseTransform
-from torch_geometric.utils import scatter
+from torch_geometric.utils import cumsum, scatter
 
 
-def compute_bonds_angles(x: Tensor, eps: float = 1e-8) -> torch.Tensor:
-    """Computes bond angles (in radians) for all *directed* neighbor pairs of bonds.
+def compute_bonds_angles(x: Tensor, lg_edge_index: Tensor, eps: float = 1e-8) -> torch.Tensor:
+    """Computes bond angles for all *directed* neighbor pairs of bonds.
 
     Args:
-        x (torch.Tensor): Displacement components between central atom i and neighbors j
-            and k in all 3 spatial dimensions for all unordered neighbor triplets in the graph.
+        x (torch.Tensor): Distance vector between atom i and j in all 3 spatial dimensions.
+        lg_edge_index (torch.Tensor): The edge indices of the line graph, shape (2, num_lg_edges).
         eps (float): A small value to avoid division by zero.
 
     Returns:
-        torch.Tensor: Angles (in radians) for all *directed* neighbor pairs of bonds
-            (i → j, i → k) and (i → k, i → j), shape (2 * num_triplets, 1).
+        torch.Tensor: Angle cosines for all *directed* neighbor pairs of bonds
+            shape (num_lg_edges, 1).
     """
-    # For each unordered pair (j, k), we build two directed pairs:
-    #   (i -> j, i -> k) and (i -> k, i -> j)
-    v1 = torch.cat((x[:, :3], x[:, 3:]), dim=0)  # first bond in the pair
-    v2 = torch.cat((x[:, 3:], x[:, :3]), dim=0)  # second bond in the pair
+    v1 = x[lg_edge_index[0]]
+    v2 = x[lg_edge_index[1]]
 
-    # Cosine of the angle between v1 and v2
-    denom = (v1.norm(dim=1) * v2.norm(dim=1)).add_(eps)
-    cos_theta = ((v1 * v2).sum(dim=1)).div_(denom).clamp_(-1.0, 1.0)
+    dot_product = (v1 * v2).sum(dim=-1)
+    norm_v1 = v1.norm(dim=-1)
+    norm_v2 = v2.norm(dim=-1)
 
-    return cos_theta.acos_()
+    cos_theta = dot_product / (norm_v1 * norm_v2 + eps)
+    cos_theta = torch.clamp(cos_theta, -1.0 + eps, 1.0 - eps)
+
+    return cos_theta.unsqueeze(-1)
 
 
 # TODO check if we can "easily" ensure that num_atoms stays an int after batching
@@ -45,8 +45,6 @@ class LineGraphData(Data):
         return super().__inc__(key, value, *args, **kwargs)
 
 
-# TODO consider computing triplets in model forward instead
-# TODO fix angle flow direction (currently j -> i -> k instead of k -> j -> i)
 class LineGraph(BaseTransform):
     """Converts a graph to its directed line-graph version.
 
@@ -61,79 +59,69 @@ class LineGraph(BaseTransform):
     3. We avoid coalescing the graph to ensure periodicity invariance.
     """
 
-    # TODO try to optimize
-    @profile
-    def _get_new_adj(
-        self, old_row: Tensor, old_col: Tensor, num_atoms: int, num_bonds: int
-    ) -> tuple[list[Tensor], list[Tensor]]:
-        device = old_row.device
-
-        i = torch.arange(num_bonds, dtype=torch.long, device=device)
-
-        # We want k-1 edges to avoid angles between a bond and itself
-        count = (
-            scatter(
-                src=torch.ones_like(old_row),
-                index=old_row,
-                dim=0,
-                dim_size=num_atoms,
-                reduce="sum",
-            )
-            - 1
-        )
-
-        # build ptr as CSR-style pointer: size = num_atoms + 1
-        ptr = torch.empty(num_atoms + 1, dtype=torch.long, device=device)
-        ptr[0] = 0
-        ptr[1:] = count.cumsum(dim=0)
-
-        # Precompute the slice for each atom
-        atom_cols: list[Tensor] = [i[ptr[a] : ptr[a + 1]] for a in range(num_atoms)]
-
-        cols: list[Tensor] = [atom_cols[v.item()] for v in old_col]  # type: ignore
-        rows: list[Tensor] = [old_row.new_full((c.numel(),), j) for j, c in enumerate(cols)]
-
-        return rows, cols
-
-    @profile
     def forward(self, data: Data) -> Data:
-        """Modified Linegraph forward but also adds cosine angles as LineGraph edge_attr. The
-        resulting graph will be directed.
+        """An optimized version of the LineGraph forward method that avoids coalescing and
+        directly computes the new edge_index without intermediate list constructions. This is
+        expected to be much faster for large graphs.
 
-        Args:
-            data (Data): the PyG Data graph to be converted into a LineGraph.
-
-        Returns:
-            data (Data): a LineGraph data object.
+        Note: This method is not fully implemented yet and serves as a placeholder for the
+        optimized logic.
         """
+        # Ensure edge indices are sorted
+        data = data.sort(sort_by_row=True)
+
         assert data.edge_index is not None
+        assert data.edge_attr is not None
+        assert data.num_nodes is not None
         assert data.x is not None
 
         # Original graph data
-        edge_index = data.edge_index
+        edge_index, edge_attr = data.edge_index, data.edge_attr
         row, col = edge_index
 
         num_atoms = data.num_nodes
-        num_bonds = edge_index.size(1)
-
-        # Compute angle cosines (line graph edge attributes)
-        new_edge_attr = compute_bonds_angles(data.x)
+        num_edges = data.num_edges
 
         # Each bond j has a central atom col[j]
         bond_source = row.clone()
         bond_target = col.clone()
 
-        # New adjacency for the line graph
-        rows, cols = self._get_new_adj(row, col, num_atoms, num_bonds)
+        # Compute the directed line graph adjacency
+        # The implementation is similar to PyG (without coalesce) but much more efficient
+        # since we avoid nested loops and use PyTorch operations directly on tensors.
+        count = scatter(torch.ones_like(row), row, dim=0, dim_size=num_atoms, reduce="sum")
+        ptr = cumsum(count)
 
-        lg_row, lg_col = torch.cat(rows, dim=0), torch.cat(cols, dim=0)
-        lg_edge_index = torch.stack([lg_row, lg_col], dim=0)
+        # Determine how many outgoing bonds each target atom has
+        repeats = count[col]
+
+        # Repeats the index of bond 'j' for every outgoing bond from its target atom
+        lg_row = torch.repeat_interleave(torch.arange(num_edges, device=row.device), repeats)
+
+        total_lg_edges = repeats.sum().item()
+
+        # Generate a local index (0, 1, 2... for each group)
+        cum_repeats = repeats.cumsum(0)
+        offsets = torch.arange(total_lg_edges, device=row.device) - torch.repeat_interleave(
+            cum_repeats - repeats, repeats
+        )
+        # Add the start pointer for each target atom and add the offset
+        lg_col = ptr[col].repeat_interleave(repeats) + offsets
+
+        # Stack to get the new edge_index for the line graph
+        new_edge_index = torch.stack([lg_row, lg_col], dim=0)
+
+        # Compute angle cosines (line graph edge attributes)
+        new_edge_attr = compute_bonds_angles(edge_attr, new_edge_index)
+
+        # Compute distance magnitudes (line graph node attributes)
+        new_node_attr = edge_attr.norm(dim=-1, keepdim=True)
 
         # Update data object (nodes are now bonds, edges are angles)
-        data.x = data.edge_attr
+        data.x = new_node_attr
         data.edge_attr = new_edge_attr
-        data.edge_index = lg_edge_index
-        data.num_nodes = num_bonds
+        data.edge_index = new_edge_index
+        data.num_nodes = num_edges
 
         # Store additional metadata
         data.bond_source = bond_source
