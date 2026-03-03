@@ -1,0 +1,113 @@
+import torch
+from torch_geometric.data import Data
+from torch_geometric.transforms import BaseTransform
+
+
+class BoxShearing(BaseTransform):
+    """Applies random box shearing (shear strain) to a graph structure.
+
+    The box (cell matrix) is sheared by applying a shear transformation matrix with random
+    shear components sampled from a normal distribution. Optionally, node positions and edge
+    attributes can be transformed by the same shear matrix.
+
+    Args:
+        std: Standard deviation of the shear strain distribution.
+        std_range: A tuple specifying the range from which to uniformly sample the standard
+            deviation for each graph. If provided, this takes precedence over the `std` argument.
+        shear_components: List of shear components to apply. Options are 'xy', 'xz', 'yz'.
+            Default is ['xy', 'xz', 'yz']. Each component is sheared independently with the
+            same standard deviation.
+        scale_positions: Whether to apply the shear transformation to node positions.
+        recompute_edge_attrs: Whether to apply the shear transformation to edge attributes.
+    """
+
+    def __init__(
+        self,
+        std: float | None = None,
+        std_range: tuple[float, float] | None = None,
+        shear_components: list[str] | None = None,
+        scale_positions: bool = True,
+        recompute_edge_attrs: bool = True,
+    ) -> None:
+        self.std = std
+        self.std_range = std_range
+        self.shear_components = shear_components or ["xy", "xz", "yz"]
+        self.scale_positions = scale_positions
+        self.recompute_edge_attrs = recompute_edge_attrs
+
+        self.validate()
+
+    def validate(self) -> None:
+        """Validates the input parameters."""
+        if self.std is None and self.std_range is None:
+            raise ValueError("Either std or std_range must be provided.")
+        if self.std is not None and self.std < 0.0:
+            raise ValueError("The standard deviation must be non-negative.")
+        if self.std_range is not None and (self.std_range[0] < 0.0 or self.std_range[1] < 0.0):
+            raise ValueError("The standard deviation range must be non-negative.")
+
+        valid_components = {"xy", "xz", "yz"}
+        if not all(comp in valid_components for comp in self.shear_components):
+            raise ValueError(f"Shear components must be subset of {valid_components}.")
+
+    def _get_std(self) -> float:
+        if self.std_range is not None:
+            return torch.empty(1).uniform_(self.std_range[0], self.std_range[1]).item()
+        if self.std is not None:
+            return self.std
+
+        raise RuntimeError("This should never happen since we check for this in the constructor.")
+
+    def _build_shear_matrix(self) -> torch.Tensor:
+        """Builds a 3x3 shear transformation matrix.
+
+        Returns:
+            A 3x3 shear transformation matrix.
+        """
+        shear_matrix = torch.eye(3)
+        std = self._get_std()
+
+        # Apply shear components
+        if "xy" in self.shear_components:
+            shear_matrix[0, 1] = torch.randn(1).item() * std
+        if "xz" in self.shear_components:
+            shear_matrix[0, 2] = torch.randn(1).item() * std
+        if "yz" in self.shear_components:
+            shear_matrix[1, 2] = torch.randn(1).item() * std
+
+        return shear_matrix
+
+    def forward(self, data: Data) -> Data:
+        """Runs the transform."""
+        if not hasattr(data, "cell") or data.cell is None:
+            return data
+
+        # Build shear transformation matrix
+        shear_matrix = self._build_shear_matrix()
+
+        # Apply shear to cell
+        if hasattr(data, "cell") and data.cell is not None:
+            data.cell = torch.matmul(data.cell, shear_matrix.T)
+            # We may want to scale positions and edge attributes
+            # regardless of whether the cell attribute is present
+            # --> no `else: return data` here
+
+        # Optionally apply shear to positions
+        if self.scale_positions and hasattr(data, "pos") and data.pos is not None:
+            data.pos = torch.matmul(data.pos, shear_matrix.T)
+
+        # Optionally apply shear to edge attributes
+        if self.recompute_edge_attrs and hasattr(data, "edge_attr") and data.edge_attr is not None:
+            data.edge_attr = torch.matmul(data.edge_attr, shear_matrix.T)
+
+        return data
+
+    def __repr__(self) -> str:
+        if self.std_range is not None:
+            return (
+                f"{self.__class__.__name__}(std_range={self.std_range}, "
+                f"shear_components={self.shear_components})"
+            )
+        return (
+            f"{self.__class__.__name__}(std={self.std}, shear_components={self.shear_components})"
+        )
