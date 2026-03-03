@@ -1,4 +1,5 @@
 from typing import Any
+from packaging.version import Version
 
 import torch
 import torch.nn as nn
@@ -87,7 +88,16 @@ class Module(LightningModule):
         self.model = model(out_channels=out_channels, **model_kwargs)
 
         if self.hparams["compile"]:
-            self.model = torch.compile(self.model, fullgraph=True)
+            if torch.cuda.is_available() and (
+                torch.cuda.get_device_capability() < (7, 0)
+                or Version(torch.__version__) < Version("2.0")
+            ):
+                print(
+                    "Warning: torch.compile is not supported on this device or PyTorch version. "
+                    "Proceeding without compilation."
+                )
+            else:
+                self.model = torch.compile(self.model, fullgraph=True)
 
     def forward(self, data: Data) -> torch.Tensor:
         return self.model(data)
@@ -164,7 +174,7 @@ class Module(LightningModule):
         # if hasattr(self.model, "inference"):
         #     preds: torch.Tensor = self.model.inference(data)[:data.batch_size]
         # else:
-        preds: torch.Tensor = self(data)[:data.batch_size]
+        preds: torch.Tensor = self(data)[: data.batch_size]
         return torch.argmax(preds, dim=-1)
 
     def configure_optimizers(self) -> tuple[list[Optimizer], list[LambdaLR]]:
