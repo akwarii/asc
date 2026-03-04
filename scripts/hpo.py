@@ -9,14 +9,13 @@ from fvcore.nn import FlopCountAnalysis
 from lightning import Trainer, seed_everything
 from lightning.pytorch.callbacks import EarlyStopping, RichModelSummary
 from optuna.trial import TrialState
-from optuna_integration import PyTorchLightningPruningCallback
 from src import LightningDataset, Module
 from src.constants import DEFAULT_SEED
-from src.transforms import LineGraph, RandomPerturbation
+from src.transforms import LineGraph, RandomPerturbation, BoxScaling, BoxShearing
 from src.transforms.line_graph import LineGraphData
 
 warnings.filterwarnings("ignore", category=optuna.exceptions.ExperimentalWarning)
-torch.serialization.add_safe_globals([LineGraphData, LineGraph, RandomPerturbation])
+torch.serialization.add_safe_globals([LineGraphData, LineGraph])  #, RandomPerturbation, BoxScaling, BoxShearing])
 torch.set_float32_matmul_precision("high")
 
 
@@ -130,29 +129,30 @@ def sample_hyperparameters(trial: optuna.Trial) -> dict:
         _ = trial.suggest_int("conv_num_layers", 2, 4)
         _ = trial.suggest_categorical("conv_heads", [2, 4, 8])
         _ = trial.suggest_categorical("conv_concat", [True, False])
-        #_ = trial.suggest_categorical("conv_residual", [True, False])
+        # _ = trial.suggest_categorical("conv_residual", [True, False])
         _ = trial.suggest_float("dropout", 0.2, 0.5, step=0.1)
-        #_ = trial.suggest_categorical("act", ["LeakyReLU", "SiLU"])
+        # _ = trial.suggest_categorical("act", ["LeakyReLU", "SiLU"])
 
         _ = trial.suggest_float("lr", 5.0e-5, 5e-3, log=True)
         _ = trial.suggest_int("warmup", 0, 1000, step=100)
         _ = trial.suggest_int("k", 10, 16)
 
-        #trial.set_user_attr("k", 16)
-        #trial.set_user_attr("emb_num_radial", 4)
-        #trial.set_user_attr("emb_num_angular", 64)
-        #trial.set_user_attr("emb_num_channels", 128)
-        #trial.set_user_attr("conv_hidden_channels", 256)
-        #trial.set_user_attr("conv_node_out_channels", 256)
-        #trial.set_user_attr("conv_edge_out_channels", 32)
-        #trial.set_user_attr("conv_heads", 8)
+        # trial.set_user_attr("k", 16)
+        # trial.set_user_attr("emb_num_radial", 4)
+        # trial.set_user_attr("emb_num_angular", 64)
+        # trial.set_user_attr("emb_num_channels", 128)
+        # trial.set_user_attr("conv_hidden_channels", 256)
+        # trial.set_user_attr("conv_node_out_channels", 256)
+        # trial.set_user_attr("conv_edge_out_channels", 32)
+        # trial.set_user_attr("conv_heads", 8)
         trial.set_user_attr("conv_residual", True)
-        #trial.set_user_attr("conv_num_layers", 4)
-        #trial.set_user_attr("dropout", 0.3)
+        # trial.set_user_attr("conv_num_layers", 4)
+        # trial.set_user_attr("dropout", 0.3)
         trial.set_user_attr("act", "SiLU")
 
     elif MODEL_NAME == "painn":
         import math
+
         _ = trial.suggest_categorical("num_radial", [4, 8, 16])
         _ = trial.suggest_categorical("hidden_channels", [32, 64, 128])
         _ = trial.suggest_int("num_layers", 1, 3)
@@ -160,7 +160,7 @@ def sample_hyperparameters(trial: optuna.Trial) -> dict:
         _ = trial.suggest_float("lr", 5.0e-5, 5e-3, log=True)
         _ = trial.suggest_int("warmup", 100, 500, step=100)
         _ = trial.suggest_int("k", 10, 20)
-        trial.set_user_attr("scale_factor", 1. / math.sqrt(trial.params["k"]))
+        trial.set_user_attr("scale_factor", 1.0 / math.sqrt(trial.params["k"]))
 
     elif MODEL_NAME == "mlp":
         _ = trial.suggest_int("num_layers", 3, 8)
@@ -235,7 +235,9 @@ def objective(trial: optuna.Trial) -> tuple[float, float]:
         pre_transforms=LineGraph() if MODEL_NAME != "painn" else None,
         transforms=[
             RandomPerturbation(std_range=(0.0, 0.05)),
-        ] if DATASET != "csg" else None,
+        ]
+        if DATASET != "csg"
+        else None,
         num_workers=5,
         k=hparams["k"],
         batch_size=BATCH_SIZE,
@@ -249,14 +251,12 @@ def objective(trial: optuna.Trial) -> tuple[float, float]:
             model_name=MODEL_NAME,
             compile=COMPILE,
             num_classes=num_classes,
-            metrics=torchmetrics.MetricCollection(
-                {
-                    "f1": torchmetrics.F1Score(
-                        task="multiclass",
-                        num_classes=num_classes,
-                    ),
-                }
-            ),
+            metrics=torchmetrics.MetricCollection({
+                "f1": torchmetrics.F1Score(
+                    task="multiclass",
+                    num_classes=num_classes,
+                ),
+            }),
             warmup=hparams.pop("warmup", 100),
             lr=hparams.pop("lr", 1e-3),
             max_iters=trainer.max_epochs * len(datamodule.train_dataloader()),  # type: ignore
