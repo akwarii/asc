@@ -2,10 +2,10 @@ from typing import Any
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from lightning import LightningModule
 from packaging.version import Version
 from pytorch_lightning.core.optimizer import LightningOptimizer
-from pytorch_lightning.utilities import grad_norm
 from pytorch_lightning.utilities.types import LRSchedulerType
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
@@ -72,7 +72,7 @@ class Module(LightningModule):
         self.save_hyperparameters(logger=False, ignore=["metrics"])
         self._create_model()
 
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = F.cross_entropy
 
         if metrics is not None:
             self.train_metrics = metrics.clone(prefix="train/")
@@ -198,7 +198,7 @@ class Module(LightningModule):
         # Initialize Optimizers
         lr_tensor = torch.tensor(self.hparams["lr"])
         opt_muon = torch.optim.Muon(muon_params, lr=lr_tensor, adjust_lr_fn="match_rms_adamw")
-        opt_adamw = torch.optim.AdamW(adamw_params, lr=lr_tensor, fused=not self.can_compile)
+        opt_adamw = torch.optim.AdamW(adamw_params, lr=lr_tensor)
 
         # Initialize Schedulers
         sched_muon = get_cosine_schedule_with_warmup(
@@ -234,9 +234,3 @@ class Module(LightningModule):
             self._compiled_fn(optimizers, schedulers)
         else:
             self._run_optimization(optimizers, schedulers)
-
-    def on_before_optimizer_step(self, optimizer: Optimizer) -> None:
-        # Compute the 2-norm for each layer
-        # If using mixed precision, the gradients are already unscaled here
-        norms = grad_norm(self.model, norm_type=2)
-        self.log_dict(norms)

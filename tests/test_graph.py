@@ -32,39 +32,31 @@ class TestGraph:
 
     def test_lg_adj(self):
         """Check that the optimized _get_new_adj returns the same rows/cols as the original."""
-        if not hasattr(self.lg_transform, "_get_new_adj_test"):
-            return  # Skip test if optimized method is not implemented
+        if not hasattr(self.lg_transform, "optimized"):
+            return
 
         for struct in tqdm(self.structures[:1_000]):
             g = self.knn.convert(struct, fmt="vasp")
 
-            old_row, old_col = g.edge_index  # type: ignore
-            num_atoms = g.num_nodes
-            num_bonds = g.edge_index.size(1)  # type: ignore
-
             # Reference (slow) result
-            ref_rows, ref_cols = self.lg_transform._get_new_adj(
-                old_row, old_col, num_atoms, num_bonds
-            )
+            old = self.lg_transform.forward(g)
 
             # Optimized result from the LineGraph transform
-            opt_rows, opt_cols = self.lg_transform._get_new_adj_test(
-                old_row, old_col, num_atoms, num_bonds
-            )
+            new = self.lg_transform.optimized(g)
 
             # Check list lengths
-            assert len(ref_rows) == len(opt_rows)
-            assert len(ref_cols) == len(opt_cols)
+            assert len(old.edge_index[0]) == len(new.edge_index[0])
+            assert len(old.edge_index[1]) == len(new.edge_index[1])
 
             # Element-wise tensor equality
-            for r_ref, r_opt in zip(ref_rows, opt_rows):
+            for r_ref, r_opt in zip(old.edge_index[0], new.edge_index[0]):
                 assert torch.equal(r_ref, r_opt)
 
-            for c_ref, c_opt in zip(ref_cols, opt_cols):
+            for c_ref, c_opt in zip(old.edge_index[1], new.edge_index[1]):
                 assert torch.equal(c_ref, c_opt)
 
 
 if __name__ == "__main__":
     test = TestGraph()
-    test.test_lg_adj()
+    # test.test_lg_adj()
     test.test_knn_performances()
