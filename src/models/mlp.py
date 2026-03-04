@@ -1,5 +1,5 @@
 import torch
-from torch_geometric.data import Data
+from torch import Tensor
 from torch_geometric.nn import MLP
 
 from src.models.expansion import GaussianBasis
@@ -12,16 +12,15 @@ class MLPClassifier(MLP):  # noqa
         self.rbf = GaussianBasis(num_radial=num_radial)
         self.sbf = GaussianBasis(num_radial=num_radial)
 
-    def forward(self, data: Data) -> torch.Tensor:  # type: ignore
-        """Forward pass of the model."""
-        assert data.x is not None
-        assert data.edge_attr is not None
-        assert data.edge_index is not None
-        assert data.num_nodes is not None
+    def forward(self, x: Tensor, edge_index: Tensor, edge_attr: Tensor) -> torch.Tensor:  # type: ignore
+        """Forward pass of the model.
 
-        x, edge_attr = data.x, data.edge_attr
-
-        num_nodes, num_edges = data.num_nodes, edge_attr.size(0)
+        Args:
+            x (Tensor): The node features.
+            edge_index (Tensor): The neighbor indices.
+            edge_attr (Tensor): The edge features.
+        """
+        num_nodes, num_edges = x.size(0), edge_attr.size(0)
         num_radial = self.rbf.num_radial
         k = num_edges // num_nodes + 1
         num_atoms = num_nodes // k

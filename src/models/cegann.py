@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torch_geometric.data import Data
+from torch import Tensor
 from torch_geometric.nn import MLP
 
 from src.models.expansion import GaussianBasis
@@ -92,23 +92,23 @@ class CEGANN(nn.Module):
 
     def _message_passing(
         self,
-        x: torch.Tensor,
-        edge_attr: torch.Tensor,
-        edge_index: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+        x: Tensor,
+        edge_attr: Tensor,
+        edge_index: Tensor,
+    ) -> tuple[Tensor, Tensor]:
         """Performs hierarchical message passing on the edge and angle features. The edge layer is
         updated before the angle layer. This follows the hierarchy that the bond angles are
         constructed from a pair of edges and any change at the edge level should get propagated to
         the angle level.
 
         Args:
-            x (torch.Tensor): The bond features ie the node attributes of the line graph.
-            edge_attr (torch.Tensor): The angle features ie the edge attributes of the line graph.
-            edge_index (torch.Tensor): The neighbor indices.
+            x (Tensor): The bond features ie the node attributes of the line graph.
+            edge_attr (Tensor): The angle features ie the edge attributes of the line graph.
+            edge_index (Tensor): The neighbor indices.
 
         Returns:
-            torch.Tensor: The updated bond features of shape `(n_at * k, n_radial_bond)`.
-            torch.Tensor: The updated angle features of shape `(n_at * k, k - 1, n_radial_angle)`.
+            Tensor: The updated bond features of shape `(n_at * k, n_radial_bond)`.
+            Tensor: The updated angle features of shape `(n_at * k, k - 1, n_radial_angle)`.
         """
         num_nodes, num_edges = x.size(0), edge_attr.size(0)
         k = num_edges // num_nodes + 1
@@ -121,22 +121,20 @@ class CEGANN(nn.Module):
 
         return x, edge_attr
 
-    def forward(self, data: Data) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self, x: Tensor, edge_index: Tensor, edge_attr: Tensor
+    ) -> Tensor | tuple[Tensor, Tensor]:
         """Forward pass of the CEGANN model.
 
         Args:
-            data: Tuple of bond features, angle features, neighbor indices, and crystal indices.
+            x (Tensor): The bond features.
+            edge_index (Tensor): The neighbor indices.
+            edge_attr (Tensor): The angle features.
 
         Returns:
-            torch.Tensor: Output of the model.
-            torch.Tensor: Embedded features (if self.embedding is set to True).
+            Tensor: Output of the model.
+            Tensor: Embedded features (if self.embedding is set to True).
         """
-        assert data.x is not None
-        assert data.edge_attr is not None
-        assert data.edge_index is not None
-
-        x, edge_attr, edge_index = data.x, data.edge_attr, data.edge_index
-
         # Create features using Gaussian basis function expansion
         x = self.rbf(x)
         edge_attr = self.sbf(edge_attr)
@@ -168,10 +166,7 @@ class CEGANN(nn.Module):
         node_repr = torch.cat([x, edge_attr], dim=-1)
 
         # Normalize and apply softplus activation
-        # ? WHY
         embedding = self.softplus(self.layer_norm(node_repr))
-
-        # TODO add readout for optional graph-level prediction here
 
         # Apply dropout and linear layer
         output = self.classification_head(embedding)

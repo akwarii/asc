@@ -113,16 +113,20 @@ class CEGANNv2(Module):
         """Device on which the model is located."""
         return next(self.parameters()).device
 
-    def forward(self, data: Data) -> Tensor:
+    def forward(
+        self,
+        x: Tensor,
+        edge_index: Tensor,
+        edge_attr: Tensor | None = None,
+        bond_source: Tensor | None = None,
+        num_atoms: int | Tensor | None = None,
+        num_sampled_nodes_per_hop: list[int] | None = None,
+        num_sampled_edges_per_hop: list[int] | None = None,
+    ) -> Tensor:
         """Forward pass of the model."""
-        assert data.x is not None, "Node features are required."
-        assert data.edge_attr is not None, "Edge attributes are required."
-        assert data.edge_index is not None, "Edge index is required."
-
-        # Extract data
-        x = data.x
-        edge_index = data.edge_index
-        edge_attr = data.edge_attr
+        assert edge_attr is not None, "edge_attr cannot be None for CEGANNv2"
+        assert bond_source is not None, "bond_source cannot be None for CEGANNv2"
+        assert num_atoms is not None, "num_atoms cannot be None for CEGANNv2"
 
         # Encode distances and angles
         x, edge_attr = self.embedding(x, edge_attr)
@@ -130,9 +134,7 @@ class CEGANNv2(Module):
         # Convolution blocks on the line graph
         for i, conv in enumerate(self.convs):
             # Trim to sampled nodes/edges if neighbor sampling is used
-            if hasattr(data, "num_sampled_nodes_per_hop"):
-                num_sampled_nodes_per_hop: list[int] = data.num_sampled_nodes_per_hop
-                num_sampled_edges_per_hop: list[int] = data.num_sampled_edges_per_hop
+            if num_sampled_nodes_per_hop is not None and num_sampled_edges_per_hop is not None:
                 x, edge_index, edge_attr = trim_to_layer(
                     i,
                     num_sampled_nodes_per_hop,
@@ -141,32 +143,17 @@ class CEGANNv2(Module):
                     edge_index,
                     edge_attr,
                 )
-                # ? [DB] @Gael : it could happen that after trimming, no nodes or edges remain
-                # ?              to process. In such cases I just added the following to avoid
-                # ?              silent failures.
-                if x.size(0) == 0:
-                    raise ValueError(f"No nodes left after trimming for layer {i}.")
-                if edge_index.size(1) == 0:
-                    if i != len(self.convs) - 1:
-                        # Nothing to pass to subsequent layers
-                        raise RuntimeError(f"No edges left after trimming for layer {i}.")
-                    else:
-                        # Allow last layer to have no edges (e.g., for isolated nodes)
-                        break
 
             x, edge_attr = conv(x=x, edge_index=edge_index, edge_attr=edge_attr)
-
-        # Pooling from bonds to atoms
-        # FIXME will break when using neighbor sampling on the line graph because
-        # we can't ensure we have the full bond-to-atom incidence info
-        bond_source = data.bond_source if hasattr(data, "bond_source") else None
-        num_atoms = data.num_atoms if hasattr(data, "num_atoms") else None
 
         # During batching, num_atoms can be a tensor
         # Keep as tensor to avoid graph breaks in torch.compile
         if isinstance(num_atoms, Tensor):
             num_atoms = num_atoms.sum()
 
+        # Pooling from bonds to atoms
+        # FIXME will break when using neighbor sampling on the line graph because
+        # we can't ensure we have the full bond-to-atom incidence info
         h_atom = self.readout(x, num_atoms, bond_source=bond_source)
 
         # Final MLP for node classification

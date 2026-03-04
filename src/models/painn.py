@@ -239,26 +239,19 @@ class PaiNN(nn.Module):
         )
         self.head = PaiNNHead(hidden_channels, out_channels, dropout)
 
-    def forward(self, data: Data) -> Tensor:
+    def forward(self, x: Tensor, edge_index: Tensor, edge_attr: Tensor) -> Tensor:
         """Forward pass for the PaiNN model.
 
         Args:
-            data: PyG Data object containing:
-                z: Atomic numbers (shape [num_nodes]).
-                edge_index: Edge indices (shape [2, num_edges]).
-                edge_attr: Distance vector (shape [num_edges, 3]).
+            x: Node features (shape [num_nodes, num_features]).
+            edge_index: Edge indices (shape [2, num_edges]).
+            edge_attr: Edge features (distance vectors) (shape [num_edges, 3]).
         """
-        assert data.x is not None
-        assert data.edge_index is not None
-        assert data.edge_attr is not None
-
-        z, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
-
         # dist_mag = torch.linalg.norm(edge_attr, dim=1, keepdim=True)
         dist_mag = edge_attr.pow(2).sum(dim=1, keepdim=True).clamp_min(1e-8).sqrt()
         edge_unit_vec = edge_attr / dist_mag
 
-        s = self.embedding(z).unsqueeze(1)
+        s = self.embedding(x).unsqueeze(1)
         v = torch.zeros(s.size(0), 3, s.size(2), device=s.device)
 
         rbf_filter = self.rbf(dist_mag)
