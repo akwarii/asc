@@ -67,6 +67,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable model compilation.",
     )
+    parser.add_argument(
+        "--study-name",
+        type=str,
+        default=None,
+        help="Name of the Optuna study. If not provided, it will be set to <model_name>.",
+    )
     return parser.parse_args()
 
 
@@ -228,7 +234,7 @@ def objective(trial: optuna.Trial) -> tuple[float, float]:
         use_imbalance_sampler=False,
         pre_transforms=LineGraph() if MODEL_NAME != "painn" else None,
         transforms=[
-            RandomPerturbation(std=0.1),
+            RandomPerturbation(std_range=(0.0, 0.05)),
         ] if DATASET != "csg" else None,
         num_workers=5,
         k=hparams["k"],
@@ -266,8 +272,9 @@ def objective(trial: optuna.Trial) -> tuple[float, float]:
     metrics = [
         trainer.callback_metrics.get("val/f1", 0.0),
         trainer.callback_metrics.get("val/loss", 0.0),
-        sum(p.numel() for p in model.parameters()), # number of parameters
+        sum(p.numel() for p in model.parameters()),  # number of parameters
     ]
+    # TODO: replace by num. of FLOPS (found on optuna docs somewhere)
     for metric in metrics:
         if isinstance(metric, torch.Tensor):
             metric = metric.item()
@@ -291,6 +298,7 @@ if __name__ == "__main__":
     DATASET = args.dataset
     STORAGE = args.storage
     COMPILE = not args.no_compile
+    STUDY_NAME = args.study_name or MODEL_NAME
 
     storage = optuna.storages.RDBStorage(
         url=STORAGE,
@@ -301,10 +309,10 @@ if __name__ == "__main__":
     )
 
     study = optuna.create_study(
-        directions=["maximize", "minimize", "minimize"],
+        directions=["maximize", "minimize", "minimize"],  # F1, loss, num. of parameters
         sampler=module.AutoSampler(),
         pruner=optuna.pruners.NopPruner(),
-        study_name=MODEL_NAME + "-Si",
+        study_name=STUDY_NAME,
         storage=storage,
         load_if_exists=True,
     )
