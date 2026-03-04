@@ -58,9 +58,10 @@ class Module(LightningModule):
 
         self.automatic_optimization = False
 
-        self.can_compile = True
-        if torch.cuda.is_available() and (
-            torch.cuda.get_device_capability() < (7, 0)
+        self.can_compile = compile
+        if (
+            not torch.cuda.is_available()
+            or torch.cuda.get_device_capability() < (7, 0)
             or Version(torch.__version__) < Version("2.0")
         ):
             print(
@@ -69,7 +70,7 @@ class Module(LightningModule):
             )
             self.can_compile = False
 
-        self.save_hyperparameters(logger=False, ignore=["metrics"])
+        self.save_hyperparameters(logger=False, ignore=["metrics", "compile"])
         self._create_model()
 
         self.criterion = F.cross_entropy
@@ -100,8 +101,8 @@ class Module(LightningModule):
 
         self.model = model(out_channels=out_channels, **model_kwargs)
 
-        if self.hparams["compile"] and self.can_compile:
-            self.model = torch.compile(self.model, fullgraph=True)
+        if self.can_compile:
+            self.model = torch.compile(self.model, fullgraph=True, dynamic=True)
 
     def forward(self, data: Data) -> torch.Tensor:
         return self.model(data)
@@ -189,16 +190,18 @@ class Module(LightningModule):
         for name, p in self.model.named_parameters():
             if p.requires_grad:
                 # Muon: 2D+ weights (Linear, Conv)
-                # AdamW: 1D params (Biases, LayerNorm, Embeddings)
+                # AdamW: 1D params (Biases, Norms, Embeddings)
                 if p.ndim >= 2 and "weight" in name and "norm" not in name:
                     muon_params.append(p)
                 else:
                     adamw_params.append(p)
 
         # Initialize Optimizers
-        lr_tensor = torch.tensor(self.hparams["lr"])
-        opt_muon = torch.optim.Muon(muon_params, lr=lr_tensor, adjust_lr_fn="match_rms_adamw")
-        opt_adamw = torch.optim.AdamW(adamw_params, lr=lr_tensor)
+        # TODO torch.compile does not support Muon optimizer yet
+        # we will set lr as a tensor once it is supported to avoid graph breaks
+        lr = self.hparams["lr"]
+        opt_muon = torch.optim.Muon(muon_params, lr=lr, adjust_lr_fn="match_rms_adamw")
+        opt_adamw = torch.optim.AdamW(adamw_params, lr=lr)
 
         # Initialize Schedulers
         sched_muon = get_cosine_schedule_with_warmup(
@@ -228,9 +231,10 @@ class Module(LightningModule):
     def _optimization_step(
         self, optimizers: list[LightningOptimizer], schedulers: list[LRSchedulerType] | None
     ) -> None:
-        if self.can_compile:
-            if not hasattr(self, "_compiled_fn"):
-                self._compiled_fn = torch.compile(self._run_optimization, fullgraph=False)
-            self._compiled_fn(optimizers, schedulers)
-        else:
-            self._run_optimization(optimizers, schedulers)
+        # TODO torch.compile does not support Muon optimizer yet
+        # if self.can_compile:
+        #     if not hasattr(self, "_compiled_fn"):
+        #         self._compiled_fn = torch.compile(self._run_optimization, fullgraph=False)
+        #     self._compiled_fn(optimizers, schedulers)
+        # else:
+        self._run_optimization(optimizers, schedulers)
