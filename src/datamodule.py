@@ -92,6 +92,13 @@ class LightningDataset(LightningDataModule):
         kwargs.setdefault("num_workers", 0)
         kwargs.setdefault("pin_memory", True)
         kwargs.setdefault("persistent_workers", kwargs["num_workers"] > 0)
+
+        # ! DB : with force_reload=True, dataset preprocessing runs OVITO/Freud (threaded C/C++).
+        # ! This can cause deadlocks when using multiprocessing with the default "fork" (Unix).
+        # ! Using multiprocessing_context="spawn" avoids deadlock by spawning fresh processes
+        # ! instead of forking.
+        if force_reload and kwargs["num_workers"] > 0:
+            kwargs.setdefault("multiprocessing_context", "spawn")
         self.kwargs = kwargs
 
         self.dataset_name = dataset_name if dataset is None else None
