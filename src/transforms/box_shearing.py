@@ -1,3 +1,5 @@
+from collections.abc import Iterable
+
 import torch
 from torch_geometric.data import Data
 from torch_geometric.transforms import BaseTransform
@@ -19,25 +21,23 @@ class BoxShearing(BaseTransform):
             same standard deviation.
         scale_positions: Whether to apply the shear transformation to node positions.
         recompute_edge_attrs: Whether to apply the shear transformation to edge attributes.
-        resample_on_invalid: If True, resample shear matrix when face offset exceeds L/2 in
-            shearing direction. If False, skip the transform and return data unchanged.
     """
 
     def __init__(
         self,
         std: float | None = None,
         std_range: tuple[float, float] | None = None,
-        shear_components: list[str] | None = None,
+        shear_components: Iterable[str] | None = None,
         scale_positions: bool = True,
         recompute_edge_attrs: bool = True,
-        resample_on_invalid: bool = False,
     ) -> None:
         self.std = std
         self.std_range = std_range
-        self.shear_components = shear_components or ["xy", "xz", "yz"]
+        self.shear_components = (
+            set(shear_components) if shear_components is not None else {"xy", "xz", "yz"}
+        )
         self.scale_positions = scale_positions
         self.recompute_edge_attrs = recompute_edge_attrs
-        self.resample_on_invalid = resample_on_invalid
 
         self.validate()
 
@@ -51,14 +51,14 @@ class BoxShearing(BaseTransform):
             raise ValueError("The standard deviation range must be non-negative.")
 
         valid_components = {"xy", "xz", "yz"}
-        if not set(self.shear_components).issubset(valid_components):
+        if not self.shear_components.issubset(valid_components):
             raise ValueError(f"Shear components must be subset of {valid_components}.")
 
-    def _get_std(self) -> float:
+    def _get_std(self) -> torch.Tensor:
         if self.std_range is not None:
-            return torch.empty(1).uniform_(self.std_range[0], self.std_range[1]).item()
+            return torch.empty(1).uniform_(self.std_range[0], self.std_range[1])
         if self.std is not None:
-            return self.std
+            return torch.tensor(self.std)
 
         raise RuntimeError("This should never happen since we check for this in the constructor.")
 
@@ -81,7 +81,7 @@ class BoxShearing(BaseTransform):
 
         return shear_matrix
 
-    def _check_shear_limit(self, cell: torch.Tensor, shear_matrix: torch.Tensor) -> bool:
+    def _check_shear_limit(self, cell: torch.Tensor, shear_matrix: torch.Tensor) -> None:
         """Checks that face offsets do not exceed half-box length in shearing direction.
 
         Returns:
@@ -97,7 +97,7 @@ class BoxShearing(BaseTransform):
         # Extract indices for active components
         indices = [component_to_indices[comp] for comp in self.shear_components]
         if not indices:
-            return True
+            return
 
         i_vals = torch.tensor([idx[0] for idx in indices], device=cell.device, dtype=torch.long)
         j_vals = torch.tensor([idx[1] for idx in indices], device=cell.device, dtype=torch.long)
@@ -114,29 +114,21 @@ class BoxShearing(BaseTransform):
         # Check if all offsets are valid
         valid = torch.all(offsets <= max_offsets)
         if not valid:
-            return False
-        return True
+            raise RuntimeError(
+                "Shear transformation would result in face offsets exceeding half-box length. "
+                "This indicates that your chosen standard deviation is way "
+                "too large for the box size."
+            )
 
     def forward(self, data: Data) -> Data:
         """Runs the transform."""
         if not hasattr(data, "cell") or data.cell is None:
             return data
 
-        max_attempts = 100 if self.resample_on_invalid else 1
+        # Build shear transformation matrix
+        shear_matrix = self._build_shear_matrix(dtype=data.cell.dtype, device=data.cell.device)
 
-        for attempt in range(max_attempts):
-            # Build shear transformation matrix
-            shear_matrix = self._build_shear_matrix(dtype=data.cell.dtype, device=data.cell.device)
-
-            # Check if shear is valid
-            if self._check_shear_limit(data.cell, shear_matrix):
-                break
-            elif not self.resample_on_invalid:
-                # Invalid shear and not resampling: return data unchanged
-                return data
-        else:
-            # Max attempts reached without valid shear
-            return data
+        self._check_shear_limit(data.cell, shear_matrix)
 
         # Apply shear to cell
         data.cell = torch.matmul(data.cell, shear_matrix.T)

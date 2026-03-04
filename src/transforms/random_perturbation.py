@@ -1,3 +1,5 @@
+from collections.abc import Iterable
+
 import torch
 from torch_geometric.data import Data
 from torch_geometric.transforms import BaseTransform
@@ -21,12 +23,12 @@ class RandomPerturbation(BaseTransform):
         self,
         std: float | None = None,
         std_range: tuple[float, float] | None = None,
-        apply_to: str | list[str] = "pos",
+        apply_to: str | Iterable[str] = "pos",
         recompute_edge_attrs: bool = True,
     ) -> None:
         self.std = std
         self.std_range = std_range
-        self.apply_to = apply_to if isinstance(apply_to, list) else [apply_to]
+        self.apply_to = set(apply_to) if not isinstance(apply_to, str) else set(apply_to)
         self.recompute_edge_attrs = recompute_edge_attrs
 
         self.validate()
@@ -40,11 +42,11 @@ class RandomPerturbation(BaseTransform):
         if self.std_range is not None and (self.std_range[0] < 0.0 or self.std_range[1] < 0.0):
             raise ValueError("The standard deviation range must be positive.")
 
-    def _get_std(self) -> float:
+    def _get_std(self) -> torch.Tensor:
         if self.std_range is not None:
-            return torch.empty(1).uniform_(self.std_range[0], self.std_range[1]).item()
+            return torch.empty(1).uniform_(self.std_range[0], self.std_range[1])
         if self.std is not None:
-            return self.std
+            return torch.tensor(self.std)
 
         raise RuntimeError("This should never happen since we check for this in the constructor.")
 
