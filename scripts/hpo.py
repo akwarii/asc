@@ -11,11 +11,13 @@ from lightning.pytorch.callbacks import EarlyStopping, RichModelSummary
 from optuna.trial import TrialState
 from src import LightningDataset, Module
 from src.constants import DEFAULT_SEED
-from src.transforms import LineGraph, RandomPerturbation, BoxScaling, BoxShearing
+from src.transforms import BoxScaling, BoxShearing, LineGraph, RandomPerturbation
 from src.transforms.line_graph import LineGraphData
 
 warnings.filterwarnings("ignore", category=optuna.exceptions.ExperimentalWarning)
-torch.serialization.add_safe_globals([LineGraphData, LineGraph])  #, RandomPerturbation, BoxScaling, BoxShearing])
+torch.serialization.add_safe_globals(
+    [LineGraphData, LineGraph]
+)  # , RandomPerturbation, BoxScaling, BoxShearing])
 torch.set_float32_matmul_precision("high")
 
 
@@ -155,9 +157,9 @@ def sample_hyperparameters(trial: optuna.Trial) -> dict:
 
         _ = trial.suggest_categorical("num_radial", [4, 8, 16])
         _ = trial.suggest_categorical("hidden_channels", [32, 64, 128])
-        _ = trial.suggest_int("num_layers", 1, 3)
+        _ = trial.suggest_int("num_layers", 2, 4)
         _ = trial.suggest_float("dropout", 0.1, 0.6, step=0.1)
-        _ = trial.suggest_float("lr", 5.0e-5, 5e-3, log=True)
+        _ = trial.suggest_float("lr", 5.0e-5, 5.0e-3, log=True)
         _ = trial.suggest_int("warmup", 100, 500, step=100)
         _ = trial.suggest_int("k", 10, 20)
         trial.set_user_attr("scale_factor", 1.0 / math.sqrt(trial.params["k"]))
@@ -235,6 +237,8 @@ def objective(trial: optuna.Trial) -> tuple[float, float]:
         pre_transforms=LineGraph() if MODEL_NAME != "painn" else None,
         transforms=[
             RandomPerturbation(std_range=(0.0, 0.05)),
+            BoxScaling(std_range=(0.0, 0.05)),
+            BoxShearing(std_range=(0.0, 0.05)),
         ]
         if DATASET != "csg"
         else None,
@@ -251,12 +255,14 @@ def objective(trial: optuna.Trial) -> tuple[float, float]:
             model_name=MODEL_NAME,
             compile=COMPILE,
             num_classes=num_classes,
-            metrics=torchmetrics.MetricCollection({
-                "f1": torchmetrics.F1Score(
-                    task="multiclass",
-                    num_classes=num_classes,
-                ),
-            }),
+            metrics=torchmetrics.MetricCollection(
+                {
+                    "f1": torchmetrics.F1Score(
+                        task="multiclass",
+                        num_classes=num_classes,
+                    ),
+                }
+            ),
             warmup=hparams.pop("warmup", 100),
             lr=hparams.pop("lr", 1e-3),
             max_iters=trainer.max_epochs * len(datamodule.train_dataloader()),  # type: ignore
