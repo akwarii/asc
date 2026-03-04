@@ -86,6 +86,10 @@ class LightningDataset(LightningDataModule):
         super().__init__()
 
         self.save_hyperparameters(logger=False)
+        self.save_hyperparameters(
+            logger=False,
+            ignore=["transforms"],
+        )  # see for pre_filters and pre_transforms
 
         kwargs.pop("shuffle", None)
         kwargs.setdefault("batch_size", 1)
@@ -98,7 +102,7 @@ class LightningDataset(LightningDataModule):
         # ! Using multiprocessing_context="spawn" avoids deadlock by spawning fresh processes
         # ! instead of forking.
         # if force_reload and kwargs["num_workers"] > 0:
-        #     kwargs.setdefault("multiprocessing_context", "spawn")
+        kwargs.setdefault("multiprocessing_context", "spawn")
         self.kwargs = kwargs
 
         self.dataset_name = dataset_name if dataset is None else None
