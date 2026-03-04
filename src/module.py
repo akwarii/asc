@@ -1,12 +1,13 @@
+from collections.abc import Callable
 from typing import Any
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from lightning import LightningModule
 from packaging.version import Version
 from pytorch_lightning.core.optimizer import LightningOptimizer
 from pytorch_lightning.utilities.types import LRSchedulerType
+from torch import Tensor
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 from torch_geometric.data import Data
@@ -15,7 +16,7 @@ from torchmetrics import MetricCollection
 from src import models
 from src.optim import get_cosine_schedule_with_warmup
 
-MODEL_FACTORY: dict[str, nn.Module] = {
+MODEL_FACTORY: dict[str, Callable] = {
     "cegann": models.CEGANN,
     "mlp": models.MLPClassifier,
     "gat": models.GATClassifier,
@@ -104,10 +105,41 @@ class Module(LightningModule):
         if self.can_compile:
             self.model = torch.compile(self.model, fullgraph=True, dynamic=True)
 
-    def forward(self, data: Data) -> torch.Tensor:
-        return self.model(data)
+    def _prepare_forward_kwargs(self, data: Data) -> dict[str, Any]:
+        """Extracts optional graph sampling/batching arguments from the data object."""
+        return {
+            "num_sampled_nodes_per_hop": getattr(data, "num_sampled_nodes_per_hop", None),
+            "num_sampled_edges_per_hop": getattr(data, "num_sampled_edges_per_hop", None),
+            "num_atoms": getattr(data, "num_atoms", None),
+            "bond_source": getattr(data, "bond_source", None),  # Added for completeness
+        }
 
-    def training_step(self, data: Data) -> torch.Tensor:
+    def forward(
+        self,
+        x: Tensor,
+        edge_index: Tensor,
+        edge_attr: Tensor,
+        **kwargs,
+    ) -> Tensor:
+        """Forward pass of the model.
+
+        Args:
+            x (Tensor): The node features.
+            edge_index (Tensor): The neighbor indices.
+            edge_attr (Tensor): The edge features.
+            num_sampled_nodes_per_hop (list[int] | None, optional): The number of sampled nodes per
+                hop for neighbor sampling. Defaults to None.
+            num_sampled_edges_per_hop (list[int] | None, optional): The number of sampled edges per
+                hop for neighbor sampling. Defaults to None.
+            num_atoms (int | None, optional): The number of atoms in the graph, used for batching
+                in LineGraph. Defaults to None.
+            bond_source (str | None, optional): The rows of the original graph adjacency matrix.
+                Used to reconstruct the orginal graph from a LineGraphData. Defaults to None.
+        """
+        clean_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+        return self.model(x, edge_index, edge_attr, **clean_kwargs)
+
+    def training_step(self, data: Data) -> Tensor:
         opts = self.optimizers()
         schs = self.lr_schedulers()
 
@@ -116,7 +148,8 @@ class Module(LightningModule):
         if schs is not None and not isinstance(schs, list):
             schs = [schs]
 
-        preds: torch.Tensor = self(data)
+        kwargs = self._prepare_forward_kwargs(data)
+        preds: Tensor = self(data.x, data.edge_index, data.edge_attr, **kwargs)
         loss = self.criterion(preds, torch.as_tensor(data.y))
 
         for opt in opts:
@@ -154,7 +187,8 @@ class Module(LightningModule):
             self.train_metrics.reset()
 
     def validation_step(self, data: Data) -> None:
-        preds: torch.Tensor = self(data)
+        kwargs = self._prepare_forward_kwargs(data)
+        preds: Tensor = self(data.x, data.edge_index, data.edge_attr, **kwargs)
         loss = self.criterion(preds, torch.as_tensor(data.y))
 
         if hasattr(self, "val_metrics"):
@@ -167,7 +201,8 @@ class Module(LightningModule):
             self.val_metrics.reset()
 
     def test_step(self, data: Data) -> None:
-        preds: torch.Tensor = self(data)
+        kwargs = self._prepare_forward_kwargs(data)
+        preds: Tensor = self(data.x, data.edge_index, data.edge_attr, **kwargs)
         if hasattr(self, "test_metrics"):
             self.test_metrics.update(preds.softmax(dim=-1), data.y)
 
@@ -176,11 +211,12 @@ class Module(LightningModule):
             self.log_dict(self.test_metrics.compute())
             self.test_metrics.reset()
 
-    def predict_step(self, data: Data) -> torch.Tensor:
+    def predict_step(self, data: Data) -> Tensor:
         # if hasattr(self.model, "inference"):
-        #     preds: torch.Tensor = self.model.inference(data)[:data.batch_size]
+        #     preds: Tensor = self.model.inference(data)[:data.batch_size]
         # else:
-        preds: torch.Tensor = self(data)[: data.batch_size]
+        kwargs = self._prepare_forward_kwargs(data)
+        preds: Tensor = self(data.x, data.edge_index, data.edge_attr, **kwargs)
         return torch.argmax(preds, dim=-1)
 
     def configure_optimizers(self) -> tuple[list[Optimizer], list[LambdaLR]]:
