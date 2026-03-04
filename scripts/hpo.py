@@ -5,8 +5,9 @@ import optuna
 import optunahub
 import torch
 import torchmetrics
+from fvcore.nn import FlopCountAnalysis
 from lightning import Trainer, seed_everything
-from lightning.pytorch.callbacks import DeviceStatsMonitor, RichModelSummary, EarlyStopping
+from lightning.pytorch.callbacks import EarlyStopping, RichModelSummary
 from optuna.trial import TrialState
 from optuna_integration import PyTorchLightningPruningCallback
 from src import LightningDataset, Module
@@ -38,7 +39,7 @@ def parse_args() -> argparse.Namespace:
         help="Number of trials to run for the optimization.",
     )
     parser.add_argument(
-        "--batch_size",
+        "--batch-size",
         type=int,
         default=512,
         help="Batch size to use for the training.",
@@ -221,8 +222,7 @@ def objective(trial: optuna.Trial) -> tuple[float, float]:
         callbacks=[
             RichModelSummary(),
             # PyTorchLightningPruningCallback(trial, monitor="val/f1"),
-            EarlyStopping(monitor="val/loss", mode="min", patience=10, check_finite=True),
-            DeviceStatsMonitor(),
+            EarlyStopping(monitor="val/loss", mode="min", patience=20, check_finite=True),
         ],
         deterministic=True,  # FIXME GAT compilation fails if set to False
     )
@@ -269,12 +269,17 @@ def objective(trial: optuna.Trial) -> tuple[float, float]:
 
     trainer.fit(model, datamodule=datamodule)
 
+    # Evaluate the model on the validation set and compute the FLOPs
+    device = model.device
+    batch = next(iter(datamodule.val_dataloader()))
+    inputs = (batch.x.to(device), batch.edge_index.to(device), batch.edge_attr.to(device))
+
     metrics = [
         trainer.callback_metrics.get("val/f1", 0.0),
         trainer.callback_metrics.get("val/loss", 0.0),
-        sum(p.numel() for p in model.parameters()),  # number of parameters
+        FlopCountAnalysis(model, inputs).total(),
     ]
-    # TODO: replace by num. of FLOPS (found on optuna docs somewhere)
+
     for metric in metrics:
         if isinstance(metric, torch.Tensor):
             metric = metric.item()
