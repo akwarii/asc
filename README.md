@@ -161,7 +161,7 @@ Once you got your credentials, create a `.env` file (using `cp .env.example .env
 
 **Code and Framework:**
 
-- [ ] Production ready trainning script
+- [ ] Production ready training script
 - [ ] Production ready inference script
 - [ ] OVITO interface
 - [ ] Update documentation
@@ -173,6 +173,7 @@ Once you got your credentials, create a `.env` file (using `cp .env.example .env
 - [ ] Choose final version of CSG dataset
 
 **Optional:**
+
 - [ ] Graph coarsening transformation
 - [ ] Allows to use graph embedding for clustering
 
