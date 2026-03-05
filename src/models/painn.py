@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 from torch import Tensor
-from torch_geometric.data import Data
 from torch_geometric.nn import Linear
 from torch_geometric.utils import scatter
 
@@ -80,9 +79,9 @@ class PaiNNMessage(nn.Module):
             rbf_filter: Radial filter (shape [num_edges, 1, 3 * hidden_channels]).
             edge_vector: Distance unit vectors (shape [num_edges, 3]).
         """
-        assert (
-            rbf_filter.shape[-1] == 3 * self.hidden_channels
-        ), "Edge filter output dimension must be 3x hidden_channels"
+        assert rbf_filter.shape[-1] == 3 * self.hidden_channels, (
+            "Edge filter output dimension must be 3x hidden_channels"
+        )
 
         i, j = edge_index
 
@@ -263,58 +262,50 @@ class PaiNN(nn.Module):
 
         return out
 
-    #TODO this is not working
-    def inference(self, data: Data) -> Tensor:
-        assert data.x is not None
-        assert data.edge_index is not None
-        assert data.edge_attr is not None
+    # # TODO this is not working
+    # def inference(
+    #     self,
+    #     x: Tensor,
+    #     edge_index: Tensor,
+    #     edge_attr: Tensor,
+    #     num_sampled_nodes_per_hop: list[int] | None = None,
+    #     num_sampled_edges_per_hop: list[int] | None = None,
+    # ) -> Tensor:
+    #     """Inference method for the PaiNN model. It enables hierarchical neighbor sampling and is
+    #     expected to be much faster than the standard forward method when the graph is large.
 
-        z, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
+    #     In the future this method will be merged with the forward method but more testing is
+    #     needed.
 
-        dist_mag = edge_attr.pow(2).sum(dim=1, keepdim=True).clamp_min(1e-8).sqrt()
-        edge_unit_vec = edge_attr / dist_mag
+    #     Args:
+    #         x: Node features (shape [num_nodes, num_features]).
+    #         edge_index: Edge indices (shape [2, num_edges]).
+    #         edge_attr: Edge features (distance vectors) (shape [num_edges, 3]).
+    #         num_sampled_nodes_per_hop: List of number of nodes to sample at each hop.
+    #         num_sampled_edges_per_hop: List of number of edges to sample at each hop.
+    #     """
+    #     dist_mag = edge_attr.pow(2).sum(dim=1, keepdim=True).clamp_min(1e-8).sqrt()
+    #     edge_unit_vec = edge_attr / dist_mag
 
-        s = self.embedding(z).unsqueeze(1)
-        v = torch.zeros(s.size(0), 3, s.size(2), device=s.device)
+    #     s = self.embedding(x).unsqueeze(1)
+    #     v = torch.zeros(s.size(0), 3, s.size(2), device=s.device)
 
-        rbf_filter_full = self.rbf(dist_mag)
+    #     rbf_filter_full = self.rbf(dist_mag)
 
-        is_hierarchical = hasattr(data, "num_sampled_nodes") and data.num_sampled_nodes is not None
-        for i in range(self.num_layers):
-            if is_hierarchical:
-                # Get counts for current layer (indexing from furthest to target)
-                node_count = data.num_sampled_nodes[i]
-                edge_count = data.num_sampled_edges[i]
-                print(data.num_nodes, node_count, data.num_edges, edge_count)
+    #     for i in range(self.num_layers):
+    #         if num_sampled_nodes_per_hop is not None and num_sampled_edges_per_hop is not None:
+    #             x, edge_index, value = trim_to_layer(
+    #                 i,
+    #                 num_sampled_nodes_per_hop,
+    #                 num_sampled_edges_per_hop,
+    #                 x,
+    #                 edge_index,
+    #                 edge_attr,
+    #             )
+    #             if value is None:
+    #                 raise ValueError(
+    #                     "trim_to_layer returned None for edge_attr, check sampling parameters"
+    #                 )
+    #             edge_attr = value
 
-                # Slice graph and pre-calculated features
-                l_edge_index = edge_index[:, :edge_count]
-                l_edge_unit_vec = edge_unit_vec[:edge_count]
-                l_rbf_filter = rbf_filter_full[:edge_count]
-
-                # Slice active features
-                s_active = s[:node_count]
-                v_active = v[:node_count]
-            else:
-                l_edge_index = edge_index
-                l_edge_unit_vec = edge_unit_vec
-                l_rbf_filter = rbf_filter_full
-                s_active = s
-                v_active = v
-
-            s_active, v_active = self.message_blocks[i](
-                s_active, v_active, l_edge_index, l_rbf_filter, l_edge_unit_vec
-            )
-
-            s_active, v_active = self.update_blocks[i](s_active, v_active)
-
-            if is_hierarchical:
-                s[:node_count] = s_active
-                v[:node_count] = v_active
-            else:
-                s, v = s_active, v_active
-
-        # Head only cares about the target nodes (the batch)
-        out = self.head(s[: data.batch_size].squeeze(1))
-
-        return out
+    #     return self.head(s.squeeze(1))
