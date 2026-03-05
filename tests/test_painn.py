@@ -20,13 +20,13 @@ from tqdm.auto import tqdm
 
 torch.serialization.add_safe_globals([RandomPerturbation])
 
-EPOCHS = 50
+EPOCHS = 30
 NUM_NEIGHBORS = 20
 COMPILE = True
-CKPT_NAME = Path(".") / "lightning_logs" / "version_45927470" / "checkpoints" / "epoch=45-step=1564.ckpt"
+CKPT_NAME = Path(".") / "lightning_logs" / "version_0" / "checkpoints" / "epoch=22-step=782.ckpt"
 # CKPT_NAME = None
-TO_PREDICT = [
-    Path.home() / "THESE" / "TEST" / "Si_mixture_polycrystal" / "final.cfg",
+TO_PREDICT: list[Path | str] = [
+    # Path.home() / "THESE" / "TEST" / "Si_mixture_polycrystal" / "final.cfg",
 ]
 
 
@@ -51,10 +51,10 @@ def train_epoch(model: Module, dataloader: Iterable[Data]) -> None:
     if schs is not None and not isinstance(schs, list):
         schs = [schs]
 
-    for data in tqdm(dataloader, unit="batch", total=len(dataloader)):
+    for data in tqdm(dataloader, unit="batch"):
         data = data.to(device, non_blocking=True)
 
-        preds: torch.Tensor = model(data)
+        preds: torch.Tensor = model(data.x, data.edge_index, data.edge_attr)
         loss = F.cross_entropy(preds, torch.as_tensor(data.y))
 
         for opt in opts:
@@ -81,7 +81,7 @@ def inference(model: Module, atoms_list: Iterable[DataCollection]) -> list[torch
         loader = NeighborLoader(
             graph,
             num_neighbors=[-1] * num_layers,
-            batch_size=min(2**16, graph.num_nodes), # type: ignore
+            batch_size=min(2**16, graph.num_nodes),  # type: ignore
             shuffle=False,
             num_workers=8,
             persistent_workers=True,
@@ -105,9 +105,11 @@ def inference(model: Module, atoms_list: Iterable[DataCollection]) -> list[torch
 def dump_outputs(
     predictions: list[torch.Tensor],
     data_list: Iterable[DataCollection],
-    pred_paths: Iterable[Path],
+    pred_paths: Iterable[Path | str],
 ) -> None:
     for graph_preds, data, path in zip(predictions, data_list, pred_paths):
+        path = Path(path)
+
         pred_array = graph_preds.detach().cpu().numpy()
 
         data.particles_.create_property("Prediction", data=pred_array)

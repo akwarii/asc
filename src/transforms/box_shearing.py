@@ -1,6 +1,7 @@
 from collections.abc import Iterable
 
 import torch
+from torch import Tensor
 from torch_geometric.data import Data
 from torch_geometric.transforms import BaseTransform
 
@@ -54,7 +55,7 @@ class BoxShearing(BaseTransform):
         if not self.shear_components.issubset(valid_components):
             raise ValueError(f"Shear components must be subset of {valid_components}.")
 
-    def _get_std(self) -> torch.Tensor:
+    def _get_std(self) -> Tensor:
         if self.std_range is not None:
             return torch.empty(1).uniform_(self.std_range[0], self.std_range[1])
         if self.std is not None:
@@ -62,7 +63,7 @@ class BoxShearing(BaseTransform):
 
         raise RuntimeError("This should never happen since we check for this in the constructor.")
 
-    def _build_shear_matrix(self, *, dtype: torch.dtype, device: torch.device) -> torch.Tensor:
+    def _build_shear_matrix(self, *, dtype: torch.dtype, device: torch.device) -> Tensor:
         """Builds a 3x3 shear transformation matrix.
 
         Returns:
@@ -81,7 +82,7 @@ class BoxShearing(BaseTransform):
 
         return shear_matrix
 
-    def _check_shear_limit(self, cell: torch.Tensor, shear_matrix: torch.Tensor) -> None:
+    def _check_shear_limit(self, cell: Tensor, shear_matrix: Tensor) -> None:
         """Checks that face offsets do not exceed half-box length in shearing direction.
 
         Returns:
@@ -147,8 +148,4 @@ class BoxShearing(BaseTransform):
         std_str = (
             f"std_range={self.std_range}" if self.std_range is not None else f"std={self.std}"
         )
-        return (
-            f"{self.__class__.__name__}({std_str}, "
-            f"shear_components={self.shear_components}, "
-            f"resample_on_invalid={self.resample_on_invalid})"
-        )
+        return f"{self.__class__.__name__}({std_str}, shear_components={self.shear_components}, "

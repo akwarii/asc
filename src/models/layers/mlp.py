@@ -1,6 +1,6 @@
 import inspect
 from collections.abc import Callable
-from typing import Any, Final
+from typing import Any
 
 import torch
 import torch.nn.functional as F
@@ -68,7 +68,7 @@ class MLP(torch.nn.Module):
             learn an additive bias. (default: :obj:`True`)
     """
 
-    supports_norm_batch: Final[bool]
+    supports_norm_batch: bool
 
     def __init__(
         self,
@@ -118,9 +118,9 @@ class MLP(torch.nn.Module):
         self.plain_last = plain_last
         self.dropout = dropout
 
-        self.lins = ModuleList()
+        self.linears = ModuleList()
         for in_channels, out_channels in zip(channel_list[:-1], channel_list[1:]):
-            self.lins.append(Linear(in_channels, out_channels, bias=bias))
+            self.linears.append(Linear(in_channels, out_channels, bias=bias))
 
         self.norms = ModuleList()
         iterator = channel_list[1:-1] if plain_last else channel_list[1:]
@@ -159,8 +159,8 @@ class MLP(torch.nn.Module):
 
     def reset_parameters(self) -> None:
         r"""Resets all learnable parameters of the module."""
-        for lin in self.lins:
-            lin.reset_parameters()
+        for linear in self.linears:
+            linear.reset_parameters()
         for norm in self.norms:
             if hasattr(norm, "reset_parameters"):
                 norm.reset_parameters()
@@ -187,10 +187,10 @@ class MLP(torch.nn.Module):
                 layers require the :obj:`batch` information.
                 (default: :obj:`None`)
         """
-        # If `plain_last=True`, then `len(norms) = len(lins) -1, thus skipping
+        # If `plain_last=True`, then `len(norms) = len(linears) -1, thus skipping
         # the execution of the last layer inside the for-loop.
-        for lin, norm in zip(self.lins, self.norms):
-            x = lin(x)
+        for linear, norm in zip(self.linears, self.norms):
+            x = linear(x)
             if self.act is not None and self.act_first:
                 x = self.act(x)
             if self.supports_norm_batch:
@@ -203,7 +203,7 @@ class MLP(torch.nn.Module):
 
         # Final layer (if plain_last=True, this is skipped in the for-loop)
         if self.plain_last:
-            x = self.lins[-1](x)
+            x = self.linears[-1](x)
 
         return x
 

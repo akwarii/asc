@@ -234,9 +234,10 @@ def test_step(
     data = subgraph_loader.data
     y = data.y.to(y_hat.device)  # type: ignore
 
-    accs = []
-    for mask in [data.train_mask, data.val_mask, data.test_mask]:
-        accs.append(int((y_hat[mask] == y[mask]).sum()) / int(mask.sum()))
+    accs = [
+        int((y_hat[mask] == y[mask]).sum()) / int(mask.sum())
+        for mask in [data.train_mask, data.val_mask, data.test_mask]
+    ]
 
     return accs
 
@@ -353,8 +354,6 @@ def main() -> None:
     else:
         raise FileNotFoundError("Model weights not found. Set retrain=True to train the model.")
 
-    # accs = test_step(model, subgraph_loader, embedding_device="cpu")
-    # print(f"Final Test Accuracies: Train: {accs[0]:.4f}, Val: {accs[1]:.4f}, Test: {accs[2]:.4f}")
     benchmark_model_inference(
         model,  # type: ignore
         subgraph_loader,
