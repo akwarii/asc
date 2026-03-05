@@ -3,14 +3,14 @@ from pathlib import Path
 import pandas as pd
 import torch
 from line_profiler import profile
-from src.graph import KNNGraph
+from src.graph import PeriodicKNN
 from src.transforms.line_graph import LineGraph
 from tqdm.auto import tqdm
 
 
 class TestGraph:
     def __init__(self):
-        self.knn = KNNGraph(k=20, rcut=7.5)
+        self.knn = PeriodicKNN(k=20, rcut=7.5)
         self.lg_transform = LineGraph()
         self.structures = self._load_random_structure()
 
@@ -27,7 +27,7 @@ class TestGraph:
     @profile
     def test_knn_performances(self):
         for struct in tqdm(self.structures):
-            g = self.knn.convert(struct, fmt="vasp")
+            g = self.knn.convert(struct)
             _ = self.lg_transform(g)
 
     def test_lg_adj(self):
@@ -36,7 +36,7 @@ class TestGraph:
             return
 
         for struct in tqdm(self.structures[:1_000]):
-            g = self.knn.convert(struct, fmt="vasp")
+            g = self.knn.convert(struct)
 
             # Reference (slow) result
             old = self.lg_transform.forward(g)
