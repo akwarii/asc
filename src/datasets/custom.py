@@ -66,7 +66,7 @@ class CustomDataset(InMemoryDataset):
             whether the graph should be included in the dataset.
         force_reload: Whether to reload the dataset even if it already exists.
         download_only: Whether to download the dataset only without processing and loading it.
-        kwargs: Additional keyword arguments to be passed to the KNNGraph or InMemoryDataset class.
+        kwargs: Additional keyword arguments to be passed to PeriodicKNN or InMemoryDataset class.
     """
 
     def __init__(
@@ -111,10 +111,7 @@ class CustomDataset(InMemoryDataset):
         pre-transform functions, and saving the processed data to disk. The data is saved in the
         processed directory as a single file named "data.pt".
         """
-        import warnings
-
         import torch
-        from pymatgen.io.vasp.inputs import BadPoscarWarning
         from tqdm.auto import tqdm
 
         from src.graph import PeriodicKNN
@@ -127,25 +124,25 @@ class CustomDataset(InMemoryDataset):
 
         raw_data_list, target_list = [], []
         for file in self.raw_paths:
-            data, targets = get_raw_data_and_targets(file)
-            raw_data_list.extend(data)
-            target_list.extend(targets)
+            raw_data, raw_target = get_raw_data_and_targets(file)
+            raw_data_list.extend(raw_data)
+            target_list.extend(raw_target)
 
         knn = PeriodicKNN(**self.kwargs)
 
         data_list = []
-        for raw_data, target in tqdm(zip(raw_data_list, target_list), total=len(raw_data_list)):
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", BadPoscarWarning)
-                data = knn.convert(raw_data)
+        for raw_data, raw_target in tqdm(
+            zip(raw_data_list, target_list), total=len(raw_data_list)
+        ):
+            data = knn.convert(raw_data)
 
             if data.num_nodes is None or data.num_nodes == 0:
                 raise RuntimeError("The number of nodes in the graph is zero.")
 
-            if isinstance(target, int):
-                data.y = torch.full((data.num_nodes,), target, dtype=torch.long)
-            elif isinstance(target, list):
-                data.y = torch.tensor(target, dtype=torch.long)
+            if isinstance(raw_target, int):
+                data.y = torch.full((data.num_nodes,), raw_target, dtype=torch.long)
+            elif isinstance(raw_target, list):
+                data.y = torch.tensor(raw_target, dtype=torch.long)
             else:
                 raise ValueError("Something went wrong with the target.")
 

@@ -17,7 +17,7 @@ class Aflow(InMemoryDataset):
             whether the graph should be included in the dataset.
         force_reload: Whether to reload the dataset even if it already exists.
         download_only: Whether to download the dataset only without processing and loading it.
-        kwargs: Additional keyword arguments to be passed to the KNNGraph or InMemoryDataset class.
+        kwargs: Additional keyword arguments to be passed to PeriodicKNN or InMemoryDataset class.
     """
 
     def __init__(
@@ -104,10 +104,7 @@ class Aflow(InMemoryDataset):
         pre-transform functions, and saving the processed data to disk. The data is saved in the
         processed directory as a single file named "data.pt".
         """
-        import warnings
-
         import torch
-        from pymatgen.io.vasp.inputs import BadPoscarWarning
 
         from src.graph import PeriodicKNN
 
@@ -130,9 +127,7 @@ class Aflow(InMemoryDataset):
 
         data_list = []
         for raw_data, target in tqdm(zip(raw_data_list, target_list), total=len(raw_data_list)):
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", BadPoscarWarning)
-                data = knn.convert(raw_data)
+            data = knn.convert(raw_data)
 
             if data.num_nodes is None or data.num_nodes == 0:
                 raise RuntimeError("The number of nodes in the graph is zero.")

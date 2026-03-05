@@ -31,7 +31,7 @@ class CSG(InMemoryDataset):
             whether the graph should be included in the dataset.
         force_reload: Whether to reload the dataset even if it already exists.
         download_only: Whether to download the dataset only without processing and loading it.
-        kwargs: Additional keyword arguments to be passed to the KNNGraph or InMemoryDataset class.
+        kwargs: Additional keyword arguments to be passed to PeriodicKNN or InMemoryDataset class.
 
     Attributes:
         KAGGLE_DATASET (str): The name of the Kaggle dataset.
