@@ -265,13 +265,6 @@ def main() -> None:
     # Compute confusion matrix
     cm = confusion_matrix(ground_truth, predictions)
 
-    # Get class names if available
-    class_names = None
-    if hasattr(datamodule, "class_names"):
-        class_names = datamodule.class_names
-    elif hasattr(datamodule.dataset, "class_names"):
-        class_names = datamodule.dataset.class_names
-
     # Print classification report
     print("\n" + "=" * 80)
     print("Classification Report:")
@@ -279,7 +272,6 @@ def main() -> None:
     report = classification_report(
         ground_truth,
         predictions,
-        target_names=class_names,
         digits=4,
     )
     print(report)
@@ -299,7 +291,6 @@ def main() -> None:
     cm_raw_path = output_dir / f"confusion_matrix_{args.split}_raw.png"
     plot_confusion_matrix(
         cm,
-        class_names=class_names,
         save_path=cm_raw_path,
         normalize=False,
     )
@@ -309,7 +300,6 @@ def main() -> None:
         cm_norm_path = output_dir / f"confusion_matrix_{args.split}_normalized.png"
         plot_confusion_matrix(
             cm,
-            class_names=class_names,
             save_path=cm_norm_path,
             normalize=True,
         )
