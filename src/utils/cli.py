@@ -38,11 +38,12 @@ class KeyValueParserAction(argparse.Action):
             values = [values]
 
         result = {}
-        for pair in values:
-            try:
+        pair = ""
+        try:
+            for pair in values:
                 key, value = pair.split("=")
                 result[key] = convert_value(value)
-            except ValueError as e:
-                message = f"Error on '{pair}' - it should be in key=value format.\nTraceback: {e}"
-                raise argparse.ArgumentError(self, message)
+        except ValueError as e:
+            message = f"Error on '{pair}' - it should be in key=value format.\nTraceback: {e}"
+            raise argparse.ArgumentError(self, message)
         setattr(namespace, self.dest, result)
