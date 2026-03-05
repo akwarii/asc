@@ -119,7 +119,6 @@ class AngularBasisExpansion(torch.nn.Module):
             The output tensor after applying the angular basis expansion. its shape is
             `(len(dist), num_spherical, num_radial)`.
         """
-        # ? [DB] @Gael : I added a minor check here
         if dist.shape[0] != phi.shape[0]:
             raise ValueError(
                 f"dist and phi must have the same length. Got {dist.shape[0]} and {phi.shape[0]}."
@@ -128,5 +127,4 @@ class AngularBasisExpansion(torch.nn.Module):
         rbf = self.radial_basis(dist)  # (num_edges, num_radial)
         abf = self.angular_basis(phi)  # (num_triplets, num_spherical)
 
-        # ! Only work if len(dist) == len(phi)
         return rbf[:, None, :] * abf[:, :, None]  # (num_triplets, num_spherical, num_radial)

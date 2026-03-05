@@ -30,7 +30,6 @@ def compute_bonds_angles(x: Tensor, lg_edge_index: Tensor, eps: float = 1e-8) ->
     return cos_theta.unsqueeze(-1)
 
 
-# TODO check if we can "easily" ensure that num_atoms stays an int after batching
 class LineGraphData(Data):
     """Custom Data class for LineGraph to handle batching of bond-to-atom indices."""
 

@@ -227,7 +227,7 @@ def objective(trial: optuna.Trial) -> tuple[float, float]:
             # PyTorchLightningPruningCallback(trial, monitor="val/f1"),
             EarlyStopping(monitor="val/loss", mode="min", patience=20, check_finite=True),
         ],
-        deterministic=True,  # FIXME GAT compilation fails if set to False
+        deterministic=True,
     )
 
     # Configure the Lightning DataModule
