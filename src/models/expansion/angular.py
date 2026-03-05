@@ -3,7 +3,7 @@ from typing import Any
 
 import torch
 from scipy.special import sph_harm
-from torch import nn
+from torch import Tensor, nn
 
 from .radial import GaussianBasis, RadialBasisExpansion
 
@@ -21,14 +21,14 @@ class RealSphHarmBasis(torch.nn.Module):
         super().__init__()
         self.num_spherical = num_spherical
 
-    def forward(self, phi: torch.Tensor) -> torch.Tensor:
+    def forward(self, phi: Tensor) -> Tensor:
         """Forward pass of the real spherical harmonics basis expansion module.
 
         Args:
             phi: The angle tensor in radians. The values should be in the range [0, pi].
 
         Returns:
-            torch.Tensor: The spherical harmonics basis expansion.
+            Tensor: The spherical harmonics basis expansion.
                 The output tensor is of shape `(len(phi), num_spherical)`.
         """
         # TODO retrieve PyG implementation of Dimenet embedding for faster computation
@@ -57,14 +57,14 @@ class SineBasis(nn.Module):
         freqs = torch.arange(1.0, self.num_basis + 1.0).float()
         self.register_buffer("freqs", freqs)
 
-    def forward(self, theta: torch.Tensor) -> torch.Tensor:
+    def forward(self, theta: Tensor) -> Tensor:
         """Evaluate the sine basis for angles theta.
 
         Args:
             theta: Input tensor in radian.
 
         Returns:
-            torch.Tensor: Sine basis.
+            Tensor: Sine basis.
         """
         z = theta.unsqueeze(-1) * self.freqs.view(1, -1)  # type: ignore
         return torch.sin(z)
@@ -108,7 +108,7 @@ class AngularBasisExpansion(torch.nn.Module):
         )
 
     # TODO handle the case where len(dist) != len(phi)
-    def forward(self, dist: torch.Tensor, phi: torch.Tensor) -> torch.Tensor:
+    def forward(self, dist: Tensor, phi: Tensor) -> Tensor:
         """Forward pass of the angular basis expansion module.
 
         Args:

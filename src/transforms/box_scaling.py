@@ -1,4 +1,5 @@
 import torch
+from torch import Tensor
 from torch_geometric.data import Data
 from torch_geometric.transforms import BaseTransform
 
@@ -41,7 +42,7 @@ class BoxScaling(BaseTransform):
         if self.std_range is not None and (self.std_range[0] < 0.0 or self.std_range[1] < 0.0):
             raise ValueError("The standard deviation range must be non-negative.")
 
-    def _get_std(self) -> torch.Tensor:
+    def _get_std(self) -> Tensor:
         if self.std_range is not None:
             return torch.empty(1).uniform_(self.std_range[0], self.std_range[1])
         if self.std is not None:

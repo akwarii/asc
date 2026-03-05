@@ -3,9 +3,9 @@ from collections.abc import Callable
 from typing import Any
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
-from torch.nn import Identity, ModuleList
 from torch_geometric.nn.dense.linear import Linear
 from torch_geometric.nn.resolver import (
     activation_resolver,
@@ -118,11 +118,11 @@ class MLP(torch.nn.Module):
         self.plain_last = plain_last
         self.dropout = dropout
 
-        self.linears = ModuleList()
+        self.linears = nn.ModuleList()
         for in_channels, out_channels in zip(channel_list[:-1], channel_list[1:]):
             self.linears.append(Linear(in_channels, out_channels, bias=bias))
 
-        self.norms = ModuleList()
+        self.norms = nn.ModuleList()
         iterator = channel_list[1:-1] if plain_last else channel_list[1:]
         for hidden_channels in iterator:
             if norm is not None:
@@ -132,7 +132,7 @@ class MLP(torch.nn.Module):
                     **(norm_kwargs or {}),
                 )
             else:
-                norm_layer = Identity()
+                norm_layer = nn.Identity()
             self.norms.append(norm_layer)
 
         self.supports_norm_batch = False
@@ -174,8 +174,8 @@ class MLP(torch.nn.Module):
         r"""Forward pass.
 
         Args:
-            x (torch.Tensor): The source tensor.
-            batch (torch.Tensor, optional): The batch vector
+            x (Tensor): The source tensor.
+            batch (Tensor, optional): The batch vector
                 :math:`\mathbf{b} \in {\{ 0, \ldots, B-1\}}^N`, which assigns
                 each element to a specific example.
                 Only needs to be passed in case the underlying normalization

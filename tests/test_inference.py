@@ -3,8 +3,9 @@ from copy import copy
 from pathlib import Path
 
 import torch
+import torch.nn.functional as F
 from line_profiler import profile
-from torch.nn import functional as F
+from torch import Tensor
 from torch_geometric.data import Data
 from torch_geometric.datasets import Reddit
 from torch_geometric.loader import CachedLoader, NeighborLoader
@@ -41,7 +42,7 @@ class SAGE(torch.nn.Module):
     def device(self) -> torch.device:
         return next(self.parameters()).device
 
-    def forward(self, x, edge_index) -> torch.Tensor:
+    def forward(self, x, edge_index) -> Tensor:
         for conv in self.convs[:-1]:
             x = conv(x, edge_index)
             x = self.act(x)
@@ -54,10 +55,10 @@ class SAGE(torch.nn.Module):
     def inference_per_layer(
         self,
         layer: int,
-        x: torch.Tensor,
-        edge_index: torch.Tensor,
+        x: Tensor,
+        edge_index: Tensor,
         batch_size: int,
-    ) -> torch.Tensor:
+    ) -> Tensor:
         x = self.convs[layer](x, edge_index)[:batch_size]
 
         if layer == self.num_layers - 1:
@@ -76,7 +77,7 @@ class SAGE(torch.nn.Module):
         embedding_device: str = "cpu",
         *,
         cache: bool = True,
-    ) -> torch.Tensor:
+    ) -> Tensor:
         assert isinstance(subloader, NeighborLoader)
         assert len(subloader.dataset) == subloader.data.num_nodes
         assert len(subloader.node_sampler.num_neighbors) == 1
@@ -202,7 +203,7 @@ def model_inference(
     embedding_device: torch.device | str = "cpu",
     *,
     use_layerwise_inference: bool,
-) -> torch.Tensor:
+) -> Tensor:
     has_layerwise_inference = hasattr(model, "inference") and callable(model.inference)
 
     with torch.inference_mode():

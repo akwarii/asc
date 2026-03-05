@@ -2,9 +2,9 @@ from collections.abc import Callable
 from typing import Any, Optional
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
-from torch.nn import Parameter
 from torch_geometric.nn.conv import MessagePassing
 from torch_geometric.nn.dense.linear import Linear
 from torch_geometric.nn.inits import glorot
@@ -90,7 +90,7 @@ class GeometricConv(MessagePassing):
         # Node attention (GATv2-like, multi-headed)
         self.lin_lr = Linear(node_in_channels, heads * fused_channels, bias=False)
         self.lin_e = Linear(edge_out_channels, heads * hidden_channels, bias=False)
-        self.att = Parameter(torch.empty(1, heads, hidden_channels))
+        self.att = nn.Parameter(torch.empty(1, heads, hidden_channels))
 
         # Output projection depends on head combining
         total_node_out_channels = hidden_channels * (heads if concat else 1)

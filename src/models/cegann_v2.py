@@ -1,8 +1,8 @@
 from collections.abc import Callable
 
 import torch
+import torch.nn as nn
 from torch import Tensor
-from torch.nn import Module, ModuleList
 from torch_geometric.data import Data
 from torch_geometric.loader import CachedLoader, NeighborLoader
 from torch_geometric.nn import Linear
@@ -16,7 +16,7 @@ from src.models.layers.readout import BondToAtomReadout
 
 # TODO we can probably trim down some arguments
 # such as hidden channels in conv and embedding output channels
-class CEGANNv2(Module):
+class CEGANNv2(nn.Module):
     """CEGANNv2 model for node classification on crystal graphs.
 
     Args:
@@ -67,7 +67,7 @@ class CEGANNv2(Module):
 
         node_in, edge_in = emb_num_channels, emb_num_channels
 
-        self.convs = ModuleList()
+        self.convs = nn.ModuleList()
         for layer in range(conv_num_layers):
             is_last = layer == conv_num_layers - 1
             node_out = conv_node_out_channels if is_last else conv_hidden_channels

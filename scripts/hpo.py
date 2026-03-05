@@ -13,6 +13,7 @@ from src import LightningDataset, Module
 from src.constants import DEFAULT_SEED
 from src.transforms import BoxScaling, BoxShearing, LineGraph, RandomPerturbation
 from src.transforms.line_graph import LineGraphData
+from torch import Tensor
 
 warnings.filterwarnings("ignore", category=optuna.exceptions.ExperimentalWarning)
 torch.serialization.add_safe_globals(
@@ -287,7 +288,7 @@ def objective(trial: optuna.Trial) -> tuple[float, float]:
     ]
 
     for metric in metrics:
-        if isinstance(metric, torch.Tensor):
+        if isinstance(metric, Tensor):
             metric = metric.item()
 
     del trainer

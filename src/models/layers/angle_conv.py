@@ -1,5 +1,6 @@
 import torch
-from torch import nn
+import torch.nn as nn
+from torch import Tensor
 
 
 class AngleConvLayer(nn.Module):
@@ -34,19 +35,19 @@ class AngleConvLayer(nn.Module):
 
     def forward(
         self,
-        x: torch.Tensor,
-        edge_attr: torch.Tensor,
-        neigh_index: torch.Tensor,
-    ) -> torch.Tensor:
+        x: Tensor,
+        edge_attr: Tensor,
+        neigh_index: Tensor,
+    ) -> Tensor:
         """Forward pass of the AngleConv module.
 
         Args:
-            x (torch.Tensor): bond features of shape `(n_at * k, n_radial_bond)`.
-            edge_attr (torch.Tensor): angle features of shape `(n_at * k, k - 1, n_radial_angle)`.
-            neigh_index (torch.Tensor): neighbor indices, shape `(n_at * k, k - 1)`.
+            x (Tensor): bond features of shape `(n_at * k, n_radial_bond)`.
+            edge_attr (Tensor): angle features of shape `(n_at * k, k - 1, n_radial_angle)`.
+            neigh_index (Tensor): neighbor indices, shape `(n_at * k, k - 1)`.
 
         Returns:
-            torch.Tensor: The output of the module, of shape `(n_at * k, k - 1, n_radial_angle)`.
+            Tensor: The output of the module, of shape `(n_at * k, k - 1, n_radial_angle)`.
         """
         m = neigh_index.size(0)  # N_at * k
         n = neigh_index.size(1)  # k - 1

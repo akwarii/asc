@@ -3,11 +3,13 @@ from collections.abc import Callable
 from typing import Any
 
 import torch
+import torch.nn as nn
+from torch import Tensor
 
 from .envelope import ExponentialEnvelope, PolynomialEnvelope
 
 
-class GaussianBasis(torch.nn.Module):
+class GaussianBasis(nn.Module):
     """Reimplementation of the gaussian smearing of `torch_geometric.nn.schnet.GaussianSmearing`.
 
     Args:
@@ -30,20 +32,20 @@ class GaussianBasis(torch.nn.Module):
         self.coeff = -0.5 / (offset[1] - offset[0]).item() ** 2
         self.register_buffer("offset", offset)
 
-    def forward(self, dist: torch.Tensor) -> torch.Tensor:
+    def forward(self, dist: Tensor) -> Tensor:
         """Forward pass of the Gaussian smearing module.
 
         Args:
             dist: The input scaled distance tensor.
 
         Returns:
-            torch.Tensor: The smearing output tensor.
+            Tensor: The smearing output tensor.
         """
         dist = dist.view(-1, 1) - self.offset.view(1, -1)  # type: ignore
         return torch.exp(self.coeff * torch.pow(dist, 2))
 
 
-class RadialBesselBasis(torch.nn.Module):
+class RadialBesselBasis(nn.Module):
     r"""Radial Bessel basis, as proposed in Gasteiger et al (2022). Directional Message Passing for
     Molecular Graphs (arXiv:2003.03123).
 
@@ -76,14 +78,14 @@ class RadialBesselBasis(torch.nn.Module):
             torch.arange(1, self.freq.numel() + 1, out=self.freq).mul_(math.pi)
         self.freq.requires_grad_(self.trainable)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: Tensor) -> Tensor:
         """Evaluate Bessel Basis for input x.
 
         Args:
             x: Input tensor.
 
         Returns:
-            torch.Tensor: Radial Bessel basis (shape [num_edges, 1, num_radial]).
+            Tensor: Radial Bessel basis (shape [num_edges, 1, num_radial]).
         """
         inv_r_max = 1.0 / self.r_max
         prefactor = 2.0 * inv_r_max
@@ -105,7 +107,7 @@ ENVELOPE_FUNCTIONS: dict[str, Callable] = {
 }
 
 
-class RadialBasisExpansion(torch.nn.Module):
+class RadialBasisExpansion(nn.Module):
     """Radial basis expansion module. This module can be used either as the radial part of the
     3-body basis expansion or as the 2-body basis expansion.
 
@@ -162,14 +164,14 @@ class RadialBasisExpansion(torch.nn.Module):
         if hasattr(self.expansion, "cutoff"):
             self.expansion.cutoff = stop
 
-    def forward(self, dist: torch.Tensor) -> torch.Tensor:
+    def forward(self, dist: Tensor) -> Tensor:
         """Forward pass of the radial basis expansion module.
 
         Args:
             dist: The input distance tensor.
 
         Returns:
-            torch.Tensor: The output tensor after applying the radial basis expansion.
+            Tensor: The output tensor after applying the radial basis expansion.
                 The output tensor is of shape (len(dist), num_radial).
         """
         d_scaled = dist * self.icutoff

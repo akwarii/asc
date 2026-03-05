@@ -12,7 +12,7 @@ class MLPClassifier(MLP):  # noqa
         self.rbf = GaussianBasis(num_radial=num_radial)
         self.sbf = GaussianBasis(num_radial=num_radial)
 
-    def forward(self, x: Tensor, edge_index: Tensor, edge_attr: Tensor) -> torch.Tensor:  # type: ignore
+    def forward(self, x: Tensor, edge_index: Tensor, edge_attr: Tensor) -> Tensor:  # type: ignore
         """Forward pass of the model.
 
         Args:
@@ -26,8 +26,8 @@ class MLPClassifier(MLP):  # noqa
         num_atoms = num_nodes // k
 
         # Embed the features
-        x_emb: torch.Tensor = self.rbf(x)
-        edge_attr_emb: torch.Tensor = self.sbf(edge_attr)
+        x_emb: Tensor = self.rbf(x)
+        edge_attr_emb: Tensor = self.sbf(edge_attr)
 
         # Aggregate the features and reshape the tensor to the inverse line graph structure
         edge_attr_emb = edge_attr_emb.view(num_nodes, (k - 1) * num_radial)

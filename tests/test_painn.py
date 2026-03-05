@@ -15,6 +15,7 @@ from src.constants import DEFAULT_SEED
 from src.graph import PeriodicKNN
 from src.transforms import RandomPerturbation
 from src.typing import PathLike
+from torch import Tensor
 from torch_geometric.data import Data
 from torch_geometric.loader import NeighborLoader
 from tqdm.auto import tqdm
@@ -55,7 +56,7 @@ def train_epoch(model: Module, dataloader: Iterable[Data]) -> None:
     for data in tqdm(dataloader, unit="batch"):
         data = data.to(device, non_blocking=True)
 
-        preds: torch.Tensor = model(data.x, data.edge_index, data.edge_attr)
+        preds: Tensor = model(data.x, data.edge_index, data.edge_attr)
         loss = F.cross_entropy(preds, torch.as_tensor(data.y))
 
         for opt in opts:
@@ -68,7 +69,7 @@ def train_epoch(model: Module, dataloader: Iterable[Data]) -> None:
 
 @torch.inference_mode()
 @profile
-def inference(model: Module, atoms_list: Iterable[DataCollection]) -> list[torch.Tensor]:
+def inference(model: Module, atoms_list: Iterable[DataCollection]) -> list[Tensor]:
     knn = PeriodicKNN(k=NUM_NEIGHBORS)
 
     model.eval()
@@ -104,7 +105,7 @@ def inference(model: Module, atoms_list: Iterable[DataCollection]) -> list[torch
 
 
 def dump_outputs(
-    predictions: list[torch.Tensor],
+    predictions: list[Tensor],
     data_list: Iterable[DataCollection],
     pred_paths: Iterable[PathLike],
 ) -> None:

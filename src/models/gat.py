@@ -2,6 +2,7 @@ from collections.abc import Callable
 from typing import Any
 
 import torch
+from torch import Tensor
 from torch_geometric.data import Data
 from torch_geometric.nn import GAT, MLP
 
@@ -69,11 +70,11 @@ class GATClassifier(GAT):  # noqa
     def forward(  # noqa
         self,
         data: Data,
-        batch: torch.Tensor | None = None,
+        batch: Tensor | None = None,
         batch_size: int | None = None,
         num_sampled_nodes_per_hop: list[int] | None = None,
         num_sampled_edges_per_hop: list[int] | None = None,
-    ) -> torch.Tensor:
+    ) -> Tensor:
         assert data.x is not None
         assert data.edge_attr is not None
         assert data.edge_index is not None

@@ -1,9 +1,11 @@
 from functools import cached_property
 
 import torch
+import torch.nn as nn
+from torch import Tensor
 
 
-class ExponentialEnvelope(torch.nn.Module):
+class ExponentialEnvelope(nn.Module):
     """Exponential envelope function that ensures a smooth cutoff, as proposed in Unke et al
     (2021).
 
@@ -14,17 +16,17 @@ class ExponentialEnvelope(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
 
-    def forward(self, d_scaled: torch.Tensor) -> torch.Tensor:
+    def forward(self, d_scaled: Tensor) -> Tensor:
         """Forward pass of the exponential envelope function.
 
         Args:
-            d_scaled (torch.Tensor): The scaled distance tensor.
+            d_scaled (Tensor): The scaled distance tensor.
         """
         env = torch.exp(-(d_scaled**2) / ((1 - d_scaled) * (1 + d_scaled)))
         return torch.where(d_scaled < 1, env, torch.zeros_like(d_scaled))
 
 
-class PolynomialEnvelope(torch.nn.Module):
+class PolynomialEnvelope(nn.Module):
     """Polynomial envelope function that ensures a smooth cutoff, as proposed in Gasteiger et al
     (2022). Directional Message Passing for Molecular Graphs (arXiv:2003.03123).
 
@@ -50,11 +52,11 @@ class PolynomialEnvelope(torch.nn.Module):
         c = -d * (d + 1) / 2
         return a, b, c
 
-    def forward(self, d_scaled: torch.Tensor) -> torch.Tensor:
+    def forward(self, d_scaled: Tensor) -> Tensor:
         """Forward pass of the polynomial envelope function.
 
         Args:
-            d_scaled (torch.Tensor): The scaled distance tensor.
+            d_scaled (Tensor): The scaled distance tensor.
         """
         a, b, c = self._coeffs
         env = (

@@ -5,16 +5,16 @@ from torch_geometric.transforms import BaseTransform
 from torch_geometric.utils import cumsum, scatter
 
 
-def compute_bonds_angles(x: Tensor, lg_edge_index: Tensor, eps: float = 1e-8) -> torch.Tensor:
+def compute_bonds_angles(x: Tensor, lg_edge_index: Tensor, eps: float = 1e-8) -> Tensor:
     """Computes bond angles for all *directed* neighbor pairs of bonds.
 
     Args:
-        x (torch.Tensor): Distance vector between atom i and j in all 3 spatial dimensions.
-        lg_edge_index (torch.Tensor): The edge indices of the line graph, shape (2, num_lg_edges).
+        x (Tensor): Distance vector between atom i and j in all 3 spatial dimensions.
+        lg_edge_index (Tensor): The edge indices of the line graph, shape (2, num_lg_edges).
         eps (float): A small value to avoid division by zero.
 
     Returns:
-        torch.Tensor: Angle cosines for all *directed* neighbor pairs of bonds
+        Tensor: Angle cosines for all *directed* neighbor pairs of bonds
             shape (num_lg_edges, 1).
     """
     v1 = x[lg_edge_index[0]]
@@ -34,7 +34,7 @@ def compute_bonds_angles(x: Tensor, lg_edge_index: Tensor, eps: float = 1e-8) ->
 class LineGraphData(Data):
     """Custom Data class for LineGraph to handle batching of bond-to-atom indices."""
 
-    def __inc__(self, key: str, value: torch.Tensor, *args, **kwargs) -> int:
+    def __inc__(self, key: str, value: Tensor, *args, **kwargs) -> int:
         if key in ["bond_source", "bond_target"]:
             if hasattr(self, "num_atoms"):
                 return self.num_atoms
