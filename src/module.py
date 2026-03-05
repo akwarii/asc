@@ -127,14 +127,17 @@ class Module(LightningModule):
             x (Tensor): The node features.
             edge_index (Tensor): The neighbor indices.
             edge_attr (Tensor): The edge features.
-            num_sampled_nodes_per_hop (list[int] | None, optional): The number of sampled nodes per
-                hop for neighbor sampling. Defaults to None.
-            num_sampled_edges_per_hop (list[int] | None, optional): The number of sampled edges per
-                hop for neighbor sampling. Defaults to None.
-            num_atoms (int | None, optional): The number of atoms in the graph, used for batching
-                in LineGraph. Defaults to None.
-            bond_source (str | None, optional): The rows of the original graph adjacency matrix.
-                Used to reconstruct the orginal graph from a LineGraphData. Defaults to None.
+            kwargs (dict[str, Any]): Additional keyword arguments for the forward pass, which may
+                include:
+                num_sampled_nodes_per_hop (list[int] | None, optional): The number of sampled
+                nodes per hop for neighbor sampling. Defaults to None.
+                num_sampled_edges_per_hop (list[int] | None, optional): The number of sampled
+                    edges per hop for neighbor sampling. Defaults to None.
+                num_atoms (int | None, optional): The number of atoms in the graph, used for
+                    batching in LineGraph. Defaults to None.
+                bond_source (str | None, optional): The rows of the original graph adjacency
+                    matrix. Used to reconstruct the original graph from a LineGraphData.
+                    Defaults to None.
         """
         clean_kwargs = {k: v for k, v in kwargs.items() if v is not None}
         return self.model(x, edge_index, edge_attr, **clean_kwargs)
