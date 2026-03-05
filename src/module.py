@@ -4,9 +4,9 @@ from typing import Any
 import torch
 import torch.nn.functional as F
 from lightning import LightningModule
+from lightning.pytorch.core.optimizer import LightningOptimizer
+from lightning.pytorch.utilities.types import LRSchedulerPLType
 from packaging.version import Version
-from pytorch_lightning.core.optimizer import LightningOptimizer
-from pytorch_lightning.utilities.types import LRSchedulerType
 from torch import Tensor
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
@@ -100,7 +100,7 @@ class Module(LightningModule):
                 f"Model {model_name} is not implemented. Available models: {MODEL_FACTORY.keys()}"
             )
 
-        self.model = model(out_channels=out_channels, **model_kwargs)
+        self.model: torch.nn.Module = model(out_channels=out_channels, **model_kwargs)
 
         if self.can_compile:
             self.model = torch.compile(self.model, fullgraph=True, dynamic=True)
@@ -258,7 +258,7 @@ class Module(LightningModule):
 
     @staticmethod
     def _run_optimization(
-        optimizers: list[LightningOptimizer], schedulers: list[LRSchedulerType] | None
+        optimizers: list[LightningOptimizer], schedulers: list[LRSchedulerPLType] | None
     ) -> None:
         for opt in optimizers:
             opt.step()
@@ -268,7 +268,7 @@ class Module(LightningModule):
                 sch.step()
 
     def _optimization_step(
-        self, optimizers: list[LightningOptimizer], schedulers: list[LRSchedulerType] | None
+        self, optimizers: list[LightningOptimizer], schedulers: list[LRSchedulerPLType] | None
     ) -> None:
         # TODO torch.compile does not support Muon optimizer yet
         # if self.can_compile:
