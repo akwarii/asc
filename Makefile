@@ -16,7 +16,7 @@ clean-logs: ## Clean logs
 	rm -rf lightning_logs
 
 format: ## Run pre-commit hooks
-	pre-commit run -a
+	prek run -a
 
 sync: ## Merge changes from main branch to your current branch
 	git pull
