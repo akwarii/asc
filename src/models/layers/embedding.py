@@ -1,8 +1,8 @@
 from collections.abc import Callable
 from typing import Any
 
-import torch
-from torch import Tensor, nn
+import torch.nn as nn
+from torch import Tensor
 
 from src.models.expansion import RadialBesselBasis, SineBasis
 from src.models.layers import MLP
