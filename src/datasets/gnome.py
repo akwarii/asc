@@ -142,7 +142,7 @@ class Gnome(InMemoryDataset):
         ]
 
         raw_data_list = [f.read_text() for f in fnames]
-        target_list = df["Space Group Number"].values.tolist()
+        target_list = df["Space Group Number"].values
 
         # Convert the target labels to consecutive 0-based indices
         unique_targets = sorted(set(target_list))

@@ -24,11 +24,15 @@ def _load_from_dump(file: str) -> tuple[list[str], list[int]]:
     with open(file) as f:
         lines = f.readlines()
 
+    atom_lines = None
     raw_data_list, target_list = [], []
     for line in lines:
         if line[:11] == "ITEM: ATOMS":
             atom_lines = lines[lines.index(line) + 1 :]
             break
+
+    if atom_lines is None:
+        raise ValueError("No atom lines found in the dump file.")
 
     for atom_line in atom_lines:
         raw_data_list.append(atom_line.strip())
@@ -146,7 +150,9 @@ class CustomDataset(InMemoryDataset):
             else:
                 raise ValueError("Something went wrong with the target.")
 
-            assert (data.y >= 0).all(), "The target labels must be non-negative integers."
+            assert torch.all(data.y >= 0).item(), (
+                "The target labels must be non-negative integers."
+            )
 
             if self.pre_filter is not None and not self.pre_filter(data):
                 continue
