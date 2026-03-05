@@ -1,10 +1,10 @@
 import json
 import string
+from typing import Self
 
 import requests
 from requests.adapters import HTTPAdapter
 from requests.exceptions import HTTPError
-from typing_extensions import Self
 from urllib3 import Retry
 
 from src.api.constants import (
