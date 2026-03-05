@@ -10,6 +10,7 @@ from ovito.io import import_file
 from torch import Tensor
 from torch_geometric.data import Data
 
+from src.typing import PathLike
 from src.utils import atomic_numbers
 
 
@@ -33,7 +34,7 @@ def type_id_to_atomic_number(type_id: Tensor, type_mapping: dict[int, int]) -> T
     return atomic_numbers
 
 
-def read_structure(representation: str | Path | DataCollection) -> DataCollection:
+def read_structure(representation: PathLike | DataCollection) -> DataCollection:
     """Read a structure from a string, file path or OVITO DataCollection and return it in OVITO's
     format.
 
@@ -107,7 +108,7 @@ class PeriodicKNN:
 
         return x, edge_index, edge_attr
 
-    def convert(self, atoms_repr: str | Path | DataCollection) -> Data:
+    def convert(self, atoms_repr: PathLike | DataCollection) -> Data:
         """Convert a single atomic structure to a PyG Data object.
 
         Args:

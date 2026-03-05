@@ -14,6 +14,7 @@ from src import LightningDataset, Module
 from src.constants import DEFAULT_SEED
 from src.graph import PeriodicKNN
 from src.transforms import RandomPerturbation
+from src.typing import PathLike
 from torch_geometric.data import Data
 from torch_geometric.loader import NeighborLoader
 from tqdm.auto import tqdm
@@ -25,7 +26,7 @@ NUM_NEIGHBORS = 20
 COMPILE = True
 CKPT_NAME = Path(".") / "lightning_logs" / "version_0" / "checkpoints" / "epoch=22-step=782.ckpt"
 # CKPT_NAME = None
-TO_PREDICT: list[Path | str] = [
+TO_PREDICT: list[PathLike] = [
     # Path.home() / "THESE" / "TEST" / "Si_mixture_polycrystal" / "final.cfg",
 ]
 
@@ -105,7 +106,7 @@ def inference(model: Module, atoms_list: Iterable[DataCollection]) -> list[torch
 def dump_outputs(
     predictions: list[torch.Tensor],
     data_list: Iterable[DataCollection],
-    pred_paths: Iterable[Path | str],
+    pred_paths: Iterable[PathLike],
 ) -> None:
     for graph_preds, data, path in zip(predictions, data_list, pred_paths):
         path = Path(path)
