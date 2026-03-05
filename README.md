@@ -161,27 +161,20 @@ Once you got your credentials, create a `.env` file (using `cp .env.example .env
 
 **Code and Framework:**
 
-- [x] Refactor line graph to make it more compliant
-- [x] Improve line graph construction performances
-- [ ] Refactor Conv modules to work with more general graphs (e.g., different number of neighbor per node) and make use of PyG MessagePassing class
-- [x] Refactor CEGANN module in the same way
-- [x] Inference function
-- [ ] Neighbor loader if graph larger than GPU memory
+- [ ] Production ready trainning script
+- [ ] Production ready inference script
+- [ ] OVITO interface
+- [ ] Update documentation
+- [ ] Add Silicium example
+- [ ] Update Node dropout
+- [ ] Update Edge dropout
+- [ ] Complete all TODOs
+- [ ] Find fancy name
+- [ ] Choose final version of CSG dataset
 
-Optional:
-
-- [ ] Try other global pooling such as attention pooling
-- [ ] Allow graph classification
-- [ ] KNN with a tolerance on max k (if multiple distances are the same)
-
-**Data augmentation/transformations**
-
-- [x] Node dropout (on the line graph)
+**Optional:**
 - [ ] Graph coarsening transformation
-
-**Additional Enhancements:**
-
-- [ ] Use of a config file to make use of e.g., Hydra + Submitit
+- [ ] Allows to use graph embedding for clustering
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
