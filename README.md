@@ -161,8 +161,8 @@ Once you got your credentials, create a `.env` file (using `cp .env.example .env
 
 **Code and Framework:**
 
-- [ ] Production ready training script
-- [ ] Production ready inference script
+- [ ] Production ready training script + notebook
+- [ ] Production ready inference script + notebook
 - [ ] OVITO interface
 - [ ] Update documentation
 - [ ] Add Silicium example
