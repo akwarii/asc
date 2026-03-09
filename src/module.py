@@ -16,7 +16,7 @@ from torchmetrics import MetricCollection
 from src import models
 from src.optim import get_cosine_schedule_with_warmup
 
-MODEL_FACTORY: dict[str, Callable] = {
+MODEL_FACTORY: dict[str, Callable[..., torch.nn.Module]] = {
     "cegann": models.CEGANN,
     "mlp": models.MLPClassifier,
     "gat": models.GATClassifier,
@@ -72,7 +72,7 @@ class Module(LightningModule):
             self.can_compile = False
 
         self.save_hyperparameters(logger=False, ignore=["metrics", "compile"])
-        self._create_model()
+        self.model = self._create_model()
 
         self.criterion = F.cross_entropy
 
@@ -81,7 +81,7 @@ class Module(LightningModule):
             self.val_metrics = metrics.clone(prefix="val/")
             self.test_metrics = metrics.clone(prefix="test/")
 
-    def _create_model(self) -> None:
+    def _create_model(self) -> torch.nn.Module:
         model_name = self.hparams["model_name"].lower()
         model_kwargs = self.hparams["model_kwargs"]
         out_channels = self.hparams["num_classes"]
@@ -100,10 +100,11 @@ class Module(LightningModule):
                 f"Model {model_name} is not implemented. Available models: {MODEL_FACTORY.keys()}"
             )
 
-        self.model: torch.nn.Module = model(out_channels=out_channels, **model_kwargs)
-
+        model = model(out_channels=out_channels, **model_kwargs)
         if self.can_compile:
-            self.model = torch.compile(self.model, fullgraph=True, dynamic=True)
+            model.compile(fullgraph=True, dynamic=True)
+
+        return model
 
     def _prepare_forward_kwargs(self, data: Data) -> dict[str, Any]:
         """Extracts optional graph sampling/batching arguments from the data object."""
@@ -177,13 +178,6 @@ class Module(LightningModule):
         )
 
         return loss
-
-    def on_train_epoch_start(self) -> None:
-        if self.trainer.sanity_checking:
-            return
-
-        if self.trainer.progress_bar_callback is None:
-            print(f"Epoch {self.trainer.current_epoch} started")
 
     def on_train_epoch_end(self) -> None:
         if hasattr(self, "train_metrics"):
