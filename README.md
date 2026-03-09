@@ -164,8 +164,10 @@ Once you got your credentials, create a `.env` file (using `cp .env.example .env
 - [ ] Production ready training script + notebook
 - [ ] Production ready inference script + notebook
 - [ ] OVITO interface
+- [X] The DataModule class must be able to accept a path as input (in addition to the dataset name) in case the user uses a custom path (for example, data/to_predict instead of data/custom)
+- [ ] Ideally, replace the inference function by LightningModule.predict + LightningDataModule
 - [ ] Update documentation
-- [ ] Add Silicium example
+- [X] Add Silicium example
 - [ ] Update Node dropout
 - [ ] Update Edge dropout
 - [ ] Complete all TODOs
