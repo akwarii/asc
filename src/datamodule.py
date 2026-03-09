@@ -115,10 +115,17 @@ class LightningDataset(LightningDataModule):
         if isinstance(transforms, list):
             transforms = T.Compose(transforms)
 
-        self.force_reload = force_reload
-        self.pre_filters = pre_filters
-        self.pre_transforms = pre_transforms
-        self.transforms = transforms
+        self.dataset_kwargs = {
+            "transform": transforms,
+            "pre_transform": pre_transforms,
+            "pre_filter": pre_filters,
+            "log": kwargs.pop("log", False),
+            "force_reload": force_reload,
+            "download_only": kwargs.pop("download_only", False),
+            "k": kwargs.pop("k", 12),
+        }
+        if "root" in kwargs:
+            self.dataset_kwargs["root"] = kwargs.pop("root")
 
         self.train_dataset: Dataset | None = None
         self.val_dataset: Dataset | None = None
@@ -129,13 +136,7 @@ class LightningDataset(LightningDataModule):
     def num_classes(self) -> int:
         """Return the number of classes in the dataset."""
         if self.dataset is None and self.dataset_name is not None:
-            self.dataset = DATASET_FACTORY[self.dataset_name](
-                pre_transform=self.pre_transforms,
-                pre_filter=self.pre_filters,
-                force_reload=self.force_reload,
-                log=self.kwargs.get("log", True),
-                k=self.kwargs.get("k", 12),
-            )
+            self.dataset = DATASET_FACTORY[self.dataset_name](**self.dataset_kwargs)
 
         assert self.dataset is not None
         return self.dataset.num_classes
@@ -155,14 +156,16 @@ class LightningDataset(LightningDataModule):
         if self.dataset_name is None or self.dataset is not None:
             return
 
+        kwargs = copy.copy(self.dataset_kwargs)
+        kwargs.pop("download_only", None)
+        kwargs.pop("log", None)
+
         # Check if the dataset needs to be downloaded. We pass the transforms to the dataset
         # to avoid warnings when the dataset was already processed with transforms.
         DATASET_FACTORY[self.dataset_name](
-            download_only=True,
             log=False,
-            pre_filter=self.pre_filters,
-            pre_transform=self.pre_transforms,
-            transform=self.transforms,
+            download_only=True,
+            **self.dataset_kwargs,
         )
 
     def setup(self, stage: Stage) -> None:
@@ -171,12 +174,7 @@ class LightningDataset(LightningDataModule):
         # It avoids reloading the dataset at each call to `setup`.
         if self.dataset is None and self.dataset_name is not None and stage != "predict":
             self.dataset = DATASET_FACTORY[self.dataset_name](
-                pre_filter=self.pre_filters,
-                pre_transform=self.pre_transforms,
-                transform=self.transforms,
-                force_reload=self.force_reload,
-                log=self.kwargs.get("log", True),
-                k=self.kwargs.get("k", 12),
+                **self.dataset_kwargs,
             )
 
         # Make sure the dataset is split only once and ensure the dataset is not
