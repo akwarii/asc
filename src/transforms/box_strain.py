@@ -14,32 +14,25 @@ class BoxStrain(BaseTransform):
         std_range: Range to sample the standard deviation from for each graph.
         directions: Strain components to apply. Options are:
             - "all": Full 3D strain (default).
-            - Letters: 'xx', 'yy', 'zz', 'xy', 'xz', 'yz'
-            - Voigt: 1, 2, 3 (diagonal); 4 (yz), 5 (xz), 6 (xy)
+            - a combination of 'xx', 'yy', 'zz', 'xy', 'xz', 'yz'
         scale_positions: Whether to transform node positions.
         transform_edge_attr: Whether to transform edge attributes (if they are 3D vectors).
     """
 
     COMPONENT_MAP = {
         "xx": (0, 0),
-        1: (0, 0),
         "yy": (1, 1),
-        2: (1, 1),
         "zz": (2, 2),
-        3: (2, 2),
         "yz": (1, 2),
-        4: (1, 2),
         "xz": (0, 2),
-        5: (0, 2),
         "xy": (0, 1),
-        6: (0, 1),
     }
 
     def __init__(
         self,
         std: float | None = None,
         std_range: tuple[float, float] | None = None,
-        directions: Iterable[int | str] | str = "all",
+        directions: Iterable[str] | str = "all",
         scale_positions: bool = True,
         transform_edge_attr: bool = True,
     ) -> None:
@@ -47,8 +40,8 @@ class BoxStrain(BaseTransform):
         self.std_range = std_range
 
         if directions == "all":
-            self.directions = {1, 2, 3, 4, 5, 6}
-        elif isinstance(directions, str | int):
+            self.directions = {"xx", "yy", "zz", "xy", "xz", "yz"}
+        elif isinstance(directions, str):
             self.directions = {directions}
         else:
             self.directions = set(directions)
