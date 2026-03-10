@@ -1,65 +1,41 @@
-import torch
 from torch_geometric.data import Data
 from torch_geometric.transforms import BaseTransform
 from torch_geometric.utils import dropout_edge
 
 
 class DropoutEdge(BaseTransform):
-    """Randomly drops edges from a graph.
+    """Randomly drops edges from the adjacency matrix edge_index with
+    probability p using samples from a Bernoulli distribution.
 
-    Uses `torch_geometric.utils.dropout_edge` to drop each edge with
-    probability `rate`. The transform itself is applied with probability `p`.
+    This is a transform version of `torch_geometric.utils.dropout_edge`.
 
     Args:
-        rate (float): Per-edge drop probability in [0., 1.[.
-        seed (int): Random seed used to decide whether to apply the transform.
-        p (float): Probability to apply the transform on a given sample.
-        force_undirected (bool): If True, ensures edges are dropped in pairs
-            for undirected graphs. Defaults to False.
+        p (float): Dropout probability (default: 0.1).
+        force_undirected (bool): If set to True, will either drop or keep both
+            edges of an undirected edge. (default: True)
     """
 
-    def __init__(
-        self, rate: float = 0.05, seed: int = 42, p: float = 0.1, *, force_undirected: bool = True
-    ) -> None:
-        if not (0.0 <= rate < 1.0):
-            raise ValueError("rate must be in [0., 1.[")
-        if not (0.0 <= p <= 1.0):
-            raise ValueError("p must be in [0., 1.]")
-
+    def __init__(self, p: float = 0.1, *, force_undirected: bool = True) -> None:
         super().__init__()
 
-        # ? Note : I think it is better to have two distinct probabilities
-        # ?        one for applying the transform and one for dropping edges.
-        # ?        I dont know how suitable the default values are though.
-        self.rate = rate
         self.p = p
-        self.force_undirected = force_undirected  # ! with KNN graphs this should (always?) be True
-        self.rng = torch.Generator(device="cpu").manual_seed(seed)
+        self.force_undirected = force_undirected
 
-    # ? Note : if we want to use it as data augmentation, it means we directly modify
-    # ?        the input data.
-    # ? Also, as augmentation is applied during training only, we hard-set `training=True`
-    # ? when calling pyg dropout_edge.
     def forward(self, data: Data) -> Data:
-        """Applies random edge dropout to a graph.
+        """Applies edge dropout to a graph.
 
         Args:
             data (Data): The input graph data.
 
         Returns:
-            Data: The graph data with edges dropped.
+            Data: The transformed graph.
         """
-        if data.edge_index is None:
-            return data
-
-        # Apply transform/augmentations with probability p
-        if torch.rand(1, generator=self.rng).item() > self.p:
-            return data
+        assert data.edge_index is not None
 
         # Use PyG's dropout_edge to compute new edges and mask
         edge_index, edge_mask = dropout_edge(
             data.edge_index,
-            p=self.rate,
+            p=self.p,
             force_undirected=self.force_undirected,
             training=True,
         )
@@ -67,16 +43,11 @@ class DropoutEdge(BaseTransform):
         # If all edges were dropped, keep original to avoid empty graphs
         if edge_index.size(1) == 0:
             return data
-        # ? could also consider re-sampling until at least one edge remains ?
-        # ? what about checking that each node has at least one edge ?
 
         data.edge_index = edge_index
 
         # Propagate mask to standard and custom edge attributes if present
         if data.edge_attr is not None:
             data.edge_attr = data.edge_attr[edge_mask]
-
-        # I don't think for edge dropout we need to modify any graph
-        # (or line-graph) specific attributes beyond edge_attr.
 
         return data

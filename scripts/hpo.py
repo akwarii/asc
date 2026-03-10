@@ -11,7 +11,7 @@ from lightning.pytorch.callbacks import EarlyStopping, RichModelSummary
 from optuna.trial import TrialState
 from src import LightningDataset, Module
 from src.constants import DEFAULT_SEED
-from src.transforms import BoxScaling, BoxShearing, LineGraph, RandomPerturbation
+from src.transforms import BoxStrain, LineGraph, RandomPerturbation
 from src.transforms.line_graph import LineGraphData
 from torch import Tensor
 
@@ -238,8 +238,7 @@ def objective(trial: optuna.Trial) -> tuple[float, float]:
         pre_transforms=LineGraph() if MODEL_NAME != "painn" else None,
         transforms=[
             RandomPerturbation(std_range=(0.0, 0.05)),
-            BoxScaling(std_range=(0.0, 0.05)),
-            BoxShearing(std_range=(0.0, 0.05)),
+            BoxStrain(std_range=(0.0, 0.05)),
         ]
         if DATASET != "csg"
         else None,
