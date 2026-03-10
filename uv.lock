@@ -1655,10 +1655,12 @@ source = { virtual = "." }
 dependencies = [
     { name = "freud-analysis", version = "3.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "freud-analysis", version = "3.5.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "ipykernel" },
     { name = "ipywidgets" },
     { name = "lightning" },
     { name = "ovito" },
     { name = "pandas" },
+    { name = "rich" },
     { name = "tensorboard" },
     { name = "torch-geometric" },
 ]
@@ -1670,19 +1672,17 @@ api = [
     { name = "python-dotenv" },
 ]
 dev = [
-    { name = "ipykernel" },
     { name = "line-profiler" },
     { name = "pytest" },
     { name = "pytest-cov" },
 ]
-optuna = [
+hpo = [
     { name = "cmaes" },
     { name = "fvcore" },
     { name = "optuna" },
     { name = "optuna-dashboard" },
     { name = "optuna-integration" },
     { name = "optunahub" },
-    { name = "rich" },
     { name = "scikit-learn" },
     { name = "scipy" },
 ]
@@ -1690,10 +1690,12 @@ optuna = [
 [package.metadata]
 requires-dist = [
     { name = "freud-analysis", specifier = ">=3.4.0" },
+    { name = "ipykernel", specifier = ">=6.29.5" },
     { name = "ipywidgets", specifier = ">=8.1.8" },
     { name = "lightning", specifier = ">=2.4.0" },
     { name = "ovito", specifier = ">=3.15.0" },
     { name = "pandas", specifier = ">=2.2.3" },
+    { name = "rich", specifier = ">=13.9.4" },
     { name = "tensorboard", specifier = ">=2.18.0" },
     { name = "torch-geometric", specifier = ">=2.6.1" },
 ]
@@ -1705,19 +1707,17 @@ api = [
     { name = "python-dotenv", specifier = ">=1.0.1" },
 ]
 dev = [
-    { name = "ipykernel", specifier = ">=6.29.5" },
     { name = "line-profiler", specifier = ">=5.0.0" },
     { name = "pytest", specifier = ">=8.3.4" },
     { name = "pytest-cov", specifier = ">=6.0.0" },
 ]
-optuna = [
+hpo = [
     { name = "cmaes", specifier = ">=0.12.0" },
     { name = "fvcore", specifier = ">=0.1.5.post20221221" },
     { name = "optuna", specifier = ">=4.1.0" },
     { name = "optuna-dashboard", specifier = ">=0.20.0" },
     { name = "optuna-integration", specifier = ">=4.2.1" },
     { name = "optunahub", specifier = ">=0.4.0" },
-    { name = "rich", specifier = ">=13.9.4" },
     { name = "scikit-learn", specifier = ">=1.6.1" },
     { name = "scipy", specifier = ">=1.15.3" },
 ]
