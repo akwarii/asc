@@ -161,15 +161,16 @@ Once you got your credentials, create a `.env` file (using `cp .env.example .env
 
 **Code and Framework:**
 
+- [ ] Packaging
 - [ ] Production ready training script + notebook
 - [ ] Production ready inference script + notebook
 - [ ] OVITO interface
 - [x] The DataModule class must be able to accept a path as input (in addition to the dataset name) in case the user uses a custom path (for example, data/to_predict instead of data/custom)
-- [ ] Ideally, replace the inference function by LightningModule.predict + LightningDataModule
 - [ ] Update documentation
 - [x] Add Silicium example
-- [ ] Update Node dropout
-- [ ] Update Edge dropout
+- [x] Update Node dropout
+- [x] Update Edge dropout
+- [ ] Ideally, replace the inference function by LightningModule.predict + LightningDataModule
 - [ ] Complete all TODOs
 - [ ] Find fancy name
 - [ ] Choose final version of CSG dataset
