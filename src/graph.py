@@ -27,7 +27,7 @@ def type_id_to_atomic_number(type_id: Tensor, type_mapping: dict[int, int]) -> T
     max_type_id = int(type_id.max().item())
     mapping_tensor = torch.zeros(max_type_id + 1, dtype=torch.long)
     for t_id, z in type_mapping.items():
-        mapping_tensor[t_id] = z
+        mapping_tensor[t_id - 1] = z
 
     atomic_numbers = mapping_tensor[type_id]
 
