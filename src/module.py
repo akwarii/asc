@@ -153,7 +153,7 @@ class Module(LightningModule):
             schs = [schs]
 
         kwargs = self._prepare_forward_kwargs(data)
-        preds: Tensor = self(data.x, data.edge_index, data.edge_attr, **kwargs)
+        preds: Tensor = self(data.x, data.edge_index, data.edge_attr, **kwargs)[:data.batch_size]
         loss = self.criterion(preds, torch.as_tensor(data.y))
 
         for opt in opts:
@@ -185,7 +185,7 @@ class Module(LightningModule):
 
     def validation_step(self, data: Data) -> None:
         kwargs = self._prepare_forward_kwargs(data)
-        preds: Tensor = self(data.x, data.edge_index, data.edge_attr, **kwargs)
+        preds: Tensor = self(data.x, data.edge_index, data.edge_attr, **kwargs)[:data.batch_size]
         loss = self.criterion(preds, torch.as_tensor(data.y))
 
         if hasattr(self, "val_metrics"):
@@ -199,7 +199,7 @@ class Module(LightningModule):
 
     def test_step(self, data: Data) -> None:
         kwargs = self._prepare_forward_kwargs(data)
-        preds: Tensor = self(data.x, data.edge_index, data.edge_attr, **kwargs)
+        preds: Tensor = self(data.x, data.edge_index, data.edge_attr, **kwargs)[:data.batch_size]
         if hasattr(self, "test_metrics"):
             self.test_metrics.update(preds.softmax(dim=-1), data.y)
 
@@ -213,7 +213,7 @@ class Module(LightningModule):
         #     preds: Tensor = self.model.inference(data)[:data.batch_size]
         # else:
         kwargs = self._prepare_forward_kwargs(data)
-        preds: Tensor = self(data.x, data.edge_index, data.edge_attr, **kwargs)
+        preds: Tensor = self(data.x, data.edge_index, data.edge_attr, **kwargs)[:data.batch_size]
         return torch.argmax(preds, dim=-1)
 
     def configure_optimizers(self) -> tuple[list[Optimizer], list[LambdaLR]]:
