@@ -7,7 +7,7 @@ import torch
 import torchmetrics
 from fvcore.nn import FlopCountAnalysis
 from lightning import Trainer, seed_everything
-from lightning.pytorch.callbacks import EarlyStopping, RichModelSummary
+from lightning.pytorch.callbacks import EarlyStopping
 from optuna.trial import TrialState
 from src import LightningDataset, Module
 from src.constants import DEFAULT_SEED
@@ -223,7 +223,6 @@ def objective(trial: optuna.Trial) -> tuple[float, float]:
         enable_checkpointing=False,
         max_epochs=EPOCHS,
         callbacks=[
-            RichModelSummary(),
             # PyTorchLightningPruningCallback(trial, monitor="val/f1"),
             EarlyStopping(monitor="val/loss", mode="min", patience=20, check_finite=True),
         ],

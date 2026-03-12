@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import torchmetrics
 from lightning import Trainer, seed_everything
-from lightning.pytorch.callbacks import Callback, ModelCheckpoint, RichModelSummary
+from lightning.pytorch.callbacks import Callback, ModelCheckpoint
 from line_profiler import profile
 from ovito.data import DataCollection
 from ovito.io import export_file, import_file
@@ -140,7 +140,6 @@ def main() -> None:
 
     callbacks: list[Callback] = [
         ModelCheckpoint(monitor="val/loss", mode="min", every_n_epochs=1),
-        RichModelSummary(max_depth=2),
     ]
 
     trainer = Trainer(
