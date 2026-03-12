@@ -320,13 +320,14 @@ if __name__ == "__main__":
     )
 
     study = optuna.create_study(
-        directions=["maximize", "minimize", "minimize"],  # F1, loss, num. of parameters
+        directions=["maximize", "minimize", "minimize"],
         sampler=module.AutoSampler(),
         pruner=optuna.pruners.NopPruner(),
         study_name=STUDY_NAME,
         storage=storage,
         load_if_exists=True,
     )
+    study.set_metric_names(["val/f1", "val/loss", "flops"])
 
     study.optimize(
         objective,
