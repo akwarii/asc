@@ -2,7 +2,7 @@ import math
 from typing import Any
 
 import torch
-from scipy.special import sph_harm
+from scipy.special import sph_harm_y
 from torch import Tensor, nn
 
 from .radial import GaussianBasis, RadialBasisExpansion
@@ -33,8 +33,8 @@ class RealSphHarmBasis(torch.nn.Module):
         """
         # TODO retrieve PyG implementation of Dimenet embedding for faster computation
         l_values = torch.arange(self.num_spherical)
-        sph_harm_values = sph_harm(0, l_values[:, None], 0, phi).real
-        return sph_harm_values.T
+        sph_harm_values = sph_harm_y(0, l_values[:, None], 0, phi).real
+        return torch.as_tensor(sph_harm_values.T)
 
 
 class SineBasis(nn.Module):
