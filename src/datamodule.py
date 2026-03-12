@@ -85,7 +85,6 @@ class LightningDataset(LightningDataModule):
 
         super().__init__()
 
-        self.save_hyperparameters(logger=False)
         self.save_hyperparameters(
             logger=False,
             ignore=["transforms"],
