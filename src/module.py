@@ -1,10 +1,12 @@
 from collections.abc import Callable
 from typing import Any
 
+import matplotlib.pyplot as plt
 import torch
 import torch.nn.functional as F
 from lightning import LightningModule
 from lightning.pytorch.core.optimizer import LightningOptimizer
+from lightning.pytorch.loggers import TensorBoardLogger
 from lightning.pytorch.utilities.types import LRSchedulerPLType
 from packaging.version import Version
 from torch import Tensor
@@ -71,7 +73,7 @@ class Module(LightningModule):
             )
             self.can_compile = False
 
-        self.save_hyperparameters(logger=False, ignore=["metrics", "compile"])
+        self.save_hyperparameters(ignore=["metrics", "compile"])
         self.model = self._create_model()
 
         self.criterion = F.cross_entropy
@@ -105,6 +107,25 @@ class Module(LightningModule):
             model.compile(fullgraph=True, dynamic=True)
 
         return model
+
+    def _plot_tensor_metrics(self, metrics: MetricCollection, batch_value: dict[str, Any]) -> None:
+        tensor_metrics = {
+            k: v for k, v in batch_value.items() if torch.is_tensor(v) and v.numel() > 1
+        }
+        for name in tensor_metrics.keys():
+            metric = metrics[name]
+
+            if not hasattr(metric, "plot"):
+                continue
+
+            fig, _ = metric.plot()
+            # plt.show()
+
+            for logger in self.loggers:
+                if isinstance(logger, TensorBoardLogger):
+                    logger.experiment.add_figure(name, fig, self.current_epoch)
+
+            plt.close(fig)
 
     def _prepare_forward_kwargs(self, data: Data) -> dict[str, Any]:
         """Extracts optional graph sampling/batching arguments from the data object."""
@@ -165,8 +186,15 @@ class Module(LightningModule):
 
         if hasattr(self, "train_metrics"):
             batch_value = self.train_metrics(preds.softmax(dim=-1), data.y)
+
+            scalar_metrics = {
+                k: v.item()
+                for k, v in batch_value.items()
+                if torch.is_tensor(v) and v.numel() == 1
+            }
+
             self.log_dict(
-                batch_value,
+                scalar_metrics,
                 prog_bar=True,
                 batch_size=data.num_nodes,
             )
@@ -193,9 +221,19 @@ class Module(LightningModule):
         self.log("val/loss", loss, on_epoch=True, batch_size=data.num_nodes)
 
     def on_validation_epoch_end(self) -> None:
-        if hasattr(self, "val_metrics"):
-            self.log_dict(self.val_metrics.compute())
-            self.val_metrics.reset()
+        if not hasattr(self, "val_metrics"):
+            return
+
+        batch_value = self.val_metrics.compute()
+
+        scalar_metrics = {
+            k: v.item() for k, v in batch_value.items() if torch.is_tensor(v) and v.numel() == 1
+        }
+        self.log_dict(scalar_metrics)
+
+        self._plot_tensor_metrics(self.val_metrics, batch_value)
+
+        self.val_metrics.reset()
 
     def test_step(self, data: Data) -> None:
         kwargs = self._prepare_forward_kwargs(data)
@@ -204,16 +242,26 @@ class Module(LightningModule):
             self.test_metrics.update(preds.softmax(dim=-1), data.y)
 
     def on_test_epoch_end(self) -> None:
-        if hasattr(self, "test_metrics"):
-            self.log_dict(self.test_metrics.compute())
-            self.test_metrics.reset()
+        if not hasattr(self, "test_metrics"):
+            return
+
+        batch_value = self.test_metrics.compute()
+
+        scalar_metrics = {
+            k: v.item() for k, v in batch_value.items() if torch.is_tensor(v) and v.numel() == 1
+        }
+        self.log_dict(scalar_metrics)
+
+        self._plot_tensor_metrics(self.test_metrics, batch_value)
+
+        self.test_metrics.reset()
 
     def predict_step(self, data: Data) -> Tensor:
         # if hasattr(self.model, "inference"):
         #     preds: Tensor = self.model.inference(data)[:data.batch_size]
         # else:
         kwargs = self._prepare_forward_kwargs(data)
-        preds: Tensor = self(data.x, data.edge_index, data.edge_attr, **kwargs)[:data.batch_size]
+        preds: Tensor = self(data.x, data.edge_index, data.edge_attr, **kwargs)[: data.batch_size]
         return torch.argmax(preds, dim=-1)
 
     def configure_optimizers(self) -> tuple[list[Optimizer], list[LambdaLR]]:
