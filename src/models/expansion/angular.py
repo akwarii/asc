@@ -39,10 +39,8 @@ class RealSphHarmBasis(torch.nn.Module):
             p_l.append(cos_theta)  # P_1 = x
 
         for i in range(1, self.num_spherical - 1):
-        # and P_{l+1}(x) = [(2l+1) x P_l(x) - l P_{l-1}(x)] / (l+1)
-            p_next = ((2 * i + 1) * cos_theta * p_l[-1] - i * p_l[-2]) / (
-                i + 1
-            )
+            # and P_{l+1}(x) = [(2l+1) x P_l(x) - l P_{l-1}(x)] / (l+1)
+            p_next = ((2 * i + 1) * cos_theta * p_l[-1] - i * p_l[-2]) / (i + 1)
             p_l.append(p_next)
 
         res = []
