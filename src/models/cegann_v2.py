@@ -14,8 +14,6 @@ from src.models.layers.geo_conv import GeometricConv
 from src.models.layers.readout import BondToAtomReadout
 
 
-# TODO we can probably trim down some arguments
-# such as hidden channels in conv and embedding output channels
 class CEGANNv2(nn.Module):
     """CEGANNv2 model for node classification on crystal graphs.
 
