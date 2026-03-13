@@ -15,7 +15,7 @@
     <li>
       <a href="#about-the-project">About The Project</a>
       <ul>
-        <li><a href="#built-with">Built With</a></li>
+        <li><a href="#main-technologies">Main Technologies</a></li>
       </ul>
     </li>
     <li>
@@ -28,9 +28,9 @@
     <li><a href="#usage">Usage</a></li>
     <li><a href="#roadmap">Roadmap</a></li>
     <li><a href="#contributing">Contributing</a></li>
+    <li><a href="#how-to-cite">How to cite</a></li>
     <li><a href="#license">License</a></li>
     <li><a href="#contact">Contact</a></li>
-    <li><a href="#acknowledgments">Acknowledgments</a></li>
   </ol>
 </details>
 
@@ -38,27 +38,7 @@
 
 ## About The Project
 
-This work introduces Lightning-CEGANNv2, a novel implementation of a modified Crystal Edge Graph Attention Neural Network (CEGANN) leveraging the modularity and efficiency of the Lightning framework. This research aims to enhance the original CEGANN architecture and data handling pipeline for improved performance and flexibility. The original CEGANN architecture can be found here: <a href="https://www.nature.com/articles/s41524-023-00975-z">CEGANN: Crystal Edge Graph Attention Neural Network for multiscale classification of materials environment</a>
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- EXPERIMENTS -->
-
-<!-- TODO This should be removed in the future -->
-
-## Experiments
-
-- Local classification of individual space groups within the material.
-- Simultaneous classification of both space groups and grain boundaries within the material.
-
-### Experimental Guidelines
-
-1. Begin with space groups relevant to the target material (e.g., zirconia).
-2. Introduce grain boundaries into the data repository for the combined experiment.
-3. Aim to classify all 230 space groups, prioritizing well-converged structures from the Material Project.
-4. Extend to grain boundary classification if initial space group classification proves successful.
-
-This research presents Lightning-CEGANN2 as a modular and optimized implementation with novel enhancements to the architecture and data handling pipeline. Future work will focus on completing planned developments, conducting comprehensive experiments, and evaluating the effectiveness of the proposed improvements.
+This work introduces Lightning-CEGANNv2 (packaged as `asc`), a novel implementation of a modified Crystal Edge Graph Attention Neural Network (CEGANN) leveraging the modularity and efficiency of the Lightning framework. This research aims to enhance the original CEGANN architecture and data handling pipeline for improved performance and flexibility. The original CEGANN architecture can be found here: <a href="https://www.nature.com/articles/s41524-023-00975-z">CEGANN: Crystal Edge Graph Attention Neural Network for multiscale classification of materials environment</a>
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -66,7 +46,7 @@ This research presents Lightning-CEGANN2 as a modular and optimized implementati
 
 ## Main Technologies
 
-[PyTorch Lightning](https://github.com/Lightning-AI/pytorch-lightning) - a lightweight PyTorch wrapper made to avoid boilerplate code and improve reproductibility.
+[PyTorch Lightning](https://github.com/Lightning-AI/pytorch-lightning) - a PyTorch wrapper made to avoid boilerplate code and improve reproductibility, allowing fast iterations.
 
 [PyTorch Geometric](https://github.com/pyg-team/pytorch_geometric) - a flexible library build upon PyTorch to easily handle Graph Neural Networks.
 
@@ -78,15 +58,17 @@ This research presents Lightning-CEGANN2 as a modular and optimized implementati
 
 ### Prerequisites
 
-- [Python](https://www.python.org/) 3.11 and newer
+- [Python](https://www.python.org/) 3.11 or newer
 
-### uv (recommended)
+### Installation
+
+We recommend using `uv` to install the library dependencies:
 
 ```bash
 # If uv is not installed on your machine
 pip install uv
 
-# Install the virtual environment
+# Install the virtual environment and dependencies
 uv sync
 
 # Add extra options if you want to download datasets and/or use hyperparameter optimization
@@ -96,7 +78,7 @@ uv sync --group api --group hpo
 source .venv/bin/activate
 ```
 
-### Pip
+Alternatively, you can use pip directly:
 
 ```bash
 # Clone the repo
@@ -104,7 +86,7 @@ git clone https://github.com/akwarii/Lightning-CEGANN2.git
 cd Lightning-CEGANN2
 
 # (OPTIONAL) Create a conda environment
-conda create -n cegann
+conda create -n cegann python=3.11
 conda activate cegann
 
 # Install the requirements
@@ -115,7 +97,7 @@ pip install -r requirements.txt
 
 **Materials Project**: If you intend to use the Materials Project dataset, get your API key [here](https://next-gen.materialsproject.org/api#api-key)
 
-**Crystal Space Group**: To use our preprocessed dataset build upon Materials Project, AFLOW and GNoME databases, you need Kaggle account
+**Crystal Space Group**: To use our preprocessed dataset build upon Materials Project, AFLOW and GNoME databases, you need a Kaggle account.
 
 1. Create an account on the [Kaggle website](https://www.kaggle.com/)
 2. Go to your [User profile](https://www.kaggle.com/settings/account) and click on `Create New Token`
@@ -127,13 +109,19 @@ Once you got your credentials, create a `.env` file (using `cp .env.example .env
 
 ## Usage
 
-To train the PaiNN model on the Si dataset, you can run:
+To train the PaiNN model on the Si (silicon) dataset, you can run:
 
 ```bash
-python fit --config configs/painn.yaml
+python main.py fit --config configs/painn.yaml
 ```
 
-The provided configuration file will train a model in the exact same way as what is presented in `examples/silicon/silicon.ipynb`
+The provided configuration file will train a model in the same way as what is presented in `examples/silicon/silicon.ipynb`.
+
+`main.py` script can also be used to run validation/test steps as well as inference. The available subcommands are `fit`, `validate`, `test`, and `predict`. More details can be obtained by running
+
+```bash
+python main.py --help
+```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -143,18 +131,18 @@ The provided configuration file will train a model in the exact same way as what
 
 **Code and Framework:**
 
-- [ ] Packaging
+- [x] Packaging (`pyproject.toml`)
 - [x] Production ready training script + notebook
-- [x] Production ready inference script + notebook
+- [ ] Production ready inference script + notebook (via `main.py` CLI)
+- [ ] Ideally, replace the inference function by LightningModule.predict + LightningDataModule
 - [ ] OVITO interface
 - [x] The DataModule class must be able to accept a path as input (in addition to the dataset name) in case the user uses a custom path (for example, data/to_predict instead of data/custom)
 - [ ] Update documentation
-- [x] Add Silicium example
+- [x] Add Silicon example
 - [x] Update Node dropout
 - [x] Update Edge dropout
-- [ ] Ideally, replace the inference function by LightningModule.predict + LightningDataModule
 - [ ] Complete all TODOs
-- [ ] Find fancy name
+- [ ] Find fancy name (tentative: `asc`)
 - [ ] Choose final version of CSG dataset
 
 **Optional:**
