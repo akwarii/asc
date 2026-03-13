@@ -22,7 +22,8 @@ class ExponentialEnvelope(nn.Module):
         Args:
             d_scaled (Tensor): The scaled distance tensor.
         """
-        env = torch.exp(-(d_scaled**2) / ((1 - d_scaled) * (1 + d_scaled)))
+        d_clamped = torch.clamp(d_scaled, 0.0, 1.0 - 1e-7)
+        env = torch.exp(-(d_clamped**2) / ((1 - d_clamped) * (1 + d_clamped)))
         return torch.where(d_scaled < 1, env, torch.zeros_like(d_scaled))
 
 
