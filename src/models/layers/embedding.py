@@ -34,7 +34,7 @@ class GeometricEmbedding(nn.Module):
         super().__init__()
 
         self.rbf = RadialBesselBasis(num_radial=num_radial)
-        self.sbf = SineBasis(num_basis=num_angular)
+        self.sbf = SineBasis(num_spherical=num_angular)
         self.node_embedding = MLP(
             in_channels=num_radial,
             hidden_channels=num_channels,
