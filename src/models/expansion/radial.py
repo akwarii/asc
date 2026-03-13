@@ -13,10 +13,9 @@ class GaussianBasis(nn.Module):
     """Reimplementation of the gaussian smearing of `torch_geometric.nn.schnet.GaussianSmearing`.
 
     Args:
+        num_radial: The number of Gaussian functions to use for smearing.
         start: The starting value of the smearing offset.
         stop: The stopping value of the smearing offset.
-        num_radial: The number of Gaussian functions to use for smearing.
-        bond: Whether the input is a bond distance or an angle.
     """
 
     def __init__(
@@ -28,6 +27,8 @@ class GaussianBasis(nn.Module):
         super().__init__()
 
         self.num_radial = num_radial
+        self.cutoff = stop
+
         offset = torch.linspace(start, stop, num_radial)
         self.coeff = -0.5 / (offset[1] - offset[0]).item() ** 2
         self.register_buffer("offset", offset)
@@ -36,7 +37,7 @@ class GaussianBasis(nn.Module):
         """Forward pass of the Gaussian smearing module.
 
         Args:
-            dist: The input scaled distance tensor.
+            dist: The input distance tensor.
 
         Returns:
             Tensor: The smearing output tensor.
@@ -66,7 +67,7 @@ class RadialBesselBasis(nn.Module):
 
         self.num_radial = num_radial
         self.trainable = trainable
-        self.r_max = stop
+        self.cutoff = stop
 
         self.freq = torch.nn.Parameter(torch.empty(num_radial))
 
@@ -87,14 +88,14 @@ class RadialBesselBasis(nn.Module):
         Returns:
             Tensor: Radial Bessel basis (shape [num_edges, 1, num_radial]).
         """
-        inv_r_max = 1.0 / self.r_max
+        inv_r_max = 1.0 / self.cutoff
         prefactor = 2.0 * inv_r_max
         x_expanded = x.unsqueeze(-1)
         sin_arg = self.freq * x_expanded * inv_r_max
         return torch.sin(sin_arg).mul_(prefactor).div_(x_expanded)
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(num_radial={self.num_radial}, stop={self.r_max})"
+        return f"{self.__class__.__name__}(num_radial={self.num_radial}, stop={self.cutoff})"
 
 
 RADIAL_FUNCTIONS: dict[str, Callable] = {
@@ -162,7 +163,7 @@ class RadialBasisExpansion(nn.Module):
         )
 
         if hasattr(self.expansion, "cutoff"):
-            self.expansion.cutoff = stop
+            self.expansion.cutoff = 1.0
 
     def forward(self, dist: Tensor) -> Tensor:
         """Forward pass of the radial basis expansion module.
@@ -179,5 +180,4 @@ class RadialBasisExpansion(nn.Module):
         if self.envelope is None:
             return self.expansion(d_scaled)
 
-        env = self.envelope(d_scaled)
-        return self.expansion(d_scaled) * env[:, None]
+        return self.expansion(d_scaled) * self.envelope(d_scaled)[:, None]
