@@ -14,8 +14,7 @@ def compute_bonds_angles(x: Tensor, lg_edge_index: Tensor, eps: float = 1e-8) ->
         eps (float): A small value to avoid division by zero.
 
     Returns:
-        Tensor: Angle cosines for all *directed* neighbor pairs of bonds
-            shape (num_lg_edges, 1).
+        Tensor: Angle of all *directed* neighbor pairs of bonds, shape (num_lg_edges, 1).
     """
     v1 = x[lg_edge_index[0]]
     v2 = x[lg_edge_index[1]]
@@ -27,7 +26,7 @@ def compute_bonds_angles(x: Tensor, lg_edge_index: Tensor, eps: float = 1e-8) ->
     cos_theta = dot_product / (norm_v1 * norm_v2 + eps)
     cos_theta = torch.clamp(cos_theta, -1.0 + eps, 1.0 - eps)
 
-    return cos_theta.unsqueeze(-1)
+    return cos_theta.acos_().unsqueeze(-1)
 
 
 class LineGraphData(Data):
