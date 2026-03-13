@@ -1,16 +1,11 @@
 # Lightning-CEGANNv2: A Modular CEGANN Implementation with Optimized Architecture and Data Handling
 
-[![python](https://img.shields.io/badge/-Python_3.10_%7C_3.11-blue?logo=python&logoColor=white)](https://github.com/pre-commit/pre-commit)
-[![pytorch](https://img.shields.io/badge/PyTorch_2.0+-ee4c2c?logo=pytorch&logoColor=white)](https://pytorch.org/get-started/locally/)
-[![lightning](https://img.shields.io/badge/-Lightning_2.0+-792ee5?logo=pytorchlightning&logoColor=white)](https://pytorchlightning.ai/)
-[![black](https://img.shields.io/badge/Code%20Style-Black-black.svg?labelColor=gray)](https://black.readthedocs.io/en/stable/)
-[![isort](https://img.shields.io/badge/%20imports-isort-%231674b1?style=flat&labelColor=ef8336)](https://pycqa.github.io/isort/) <br>
-[![tests](https://github.com/akwarii/Lightning-CEGANN2/actions/workflows/test.yaml/badge.svg)](https://github.com/akwarii/Lightning-CEGANN2/actions/workflows/test.yaml)
-[![code-quality](https://github.com/akwarii/Lightning-CEGANN2/actions/workflows/code-quality-main.yaml/badge.svg)](https://github.com/akwarii/Lightning-CEGANN2/actions/workflows/code-quality-main.yaml)
-[![codecov](https://codecov.io/gh/akwarii/Lightning-CEGANN2/branch/main/graph/badge.svg)](https://codecov.io/gh/akwarii/Lightning-CEGANN2) <br>
+[![python](https://img.shields.io/badge/Python_3.11+-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![lightning](https://img.shields.io/badge/-Lightning_2.0+-792ee5?logo=pytorchlightning&logoColor=white)](https://lightning.ai/docs/pytorch/stable/)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![license](https://img.shields.io/badge/License-GNU_GPLv3-green.svg?labelColor=gray)](https://github.com/akwarii/Lightning-CEGANN2#license)
 [![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/akwarii/Lightning-CEGANN2/pulls)
-[![contributors](https://img.shields.io/github/contributors/akwarii/Lightning-CEGANN2.svg)](https://github.com/akwarii/Lightning-CEGANN2/contributors)
 
 <!-- TABLE OF CONTENTS -->
 
@@ -79,16 +74,29 @@ This research presents Lightning-CEGANN2 as a modular and optimized implementati
 
 <!-- GETTING STARTED -->
 
-## Getting Started
+## Installation
 
 ### Prerequisites
 
-- [Python](https://www.python.org/) 3.8 and newer
-- (OPTIONAL) [Ovito](https://www.ovito.org/) (to visualize the classification results)
+- [Python](https://www.python.org/) 3.11 and newer
 
-### Installation
+### uv (recommended)
 
-#### Pip
+```bash
+# If uv is not installed on your machine
+pip install uv
+
+# Install the virtual environment
+uv sync
+
+# Add extra options if you want to download datasets and/or use hyperparameter optimization
+uv sync --group api --group hpo
+
+# Activate the virtual environment
+source .venv/bin/activate
+```
+
+### Pip
 
 ```bash
 # Clone the repo
@@ -101,36 +109,6 @@ conda activate cegann
 
 # Install the requirements
 pip install -r requirements.txt
-```
-
-### Conda
-
-*The environment.yaml file is not ready to use, please use pip*
-
-```bash
-# Clone the repo
-git clone https://github.com/akwarii/Lightning-CEGANN2.git
-cd Lightning-CEGANN2
-
-# (OPTIONAL) Create a conda environment
-conda create -f environment.yaml -n cegann
-conda activate cegann
-```
-
-### uv
-
-```bash
-# If uv is not installed on your machine
-pip install uv
-
-# Install the virtual environment
-uv sync
-
-# Add extra options if you want to download datasets and/or use hyperparameter optimization
-uv sync --all-groups
-
-# Activate the virtual environment
-source .venv/bin/activate
 ```
 
 ### Get your free API keys (optional)
@@ -147,11 +125,15 @@ Once you got your credentials, create a `.env` file (using `cp .env.example .env
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-<!-- USAGE EXAMPLES -->
-
 ## Usage
 
-<!-- TODO Write Examples -->
+To train the PaiNN model on the Si dataset, you can run:
+
+```bash
+python fit --config configs/painn.yaml
+```
+
+The provided configuration file will train a model in the exact same way as what is presented in `examples/silicon/silicon.ipynb`
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -162,8 +144,8 @@ Once you got your credentials, create a `.env` file (using `cp .env.example .env
 **Code and Framework:**
 
 - [ ] Packaging
-- [ ] Production ready training script + notebook
-- [ ] Production ready inference script + notebook
+- [x] Production ready training script + notebook
+- [x] Production ready inference script + notebook
 - [ ] OVITO interface
 - [x] The DataModule class must be able to accept a path as input (in addition to the dataset name) in case the user uses a custom path (for example, data/to_predict instead of data/custom)
 - [ ] Update documentation

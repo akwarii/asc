@@ -8,7 +8,6 @@ from lightning import LightningModule
 from lightning.pytorch.core.optimizer import LightningOptimizer
 from lightning.pytorch.loggers import TensorBoardLogger
 from lightning.pytorch.utilities.types import LRSchedulerPLType
-from packaging.version import Version
 from torch import Tensor
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
@@ -17,6 +16,7 @@ from torchmetrics import MetricCollection
 
 from src import models
 from src.optim import get_cosine_schedule_with_warmup
+from src.utils.builder import class_instantiator
 
 MODEL_FACTORY: dict[str, Callable[..., torch.nn.Module]] = {
     "cegann": models.CEGANN,
@@ -33,8 +33,9 @@ class Module(LightningModule):
     Args:
         model_name (str): The name of the model.
         num_classes (int): The number of classes in the dataset.
-        metrics (torchmetrics.MetricCollection): Collection of metrics to evaluate the model
-            performance.
+        metrics (list[Any] | MetricCollection | None, optional): Collection of metrics to
+            evaluate the model performance. It can be a list of metric classes or a list of
+            configurations (dicts or Namespaces) when using the CLI. Defaults to None.
         compile (bool, optional): Whether to compile the model. Defaults to True.
         lr (float, optional): The learning rate for the optimizer. Defaults to 1e-3.
         warmup (int, optional): The number of warmup steps for the learning rate scheduler.
@@ -50,7 +51,7 @@ class Module(LightningModule):
         model_name: str,
         num_classes: int,
         *,
-        metrics: MetricCollection | None = None,
+        metrics: object = None,
         compile: bool = True,
         lr: float = 1e-3,
         warmup: int = 100,
@@ -62,15 +63,8 @@ class Module(LightningModule):
         self.automatic_optimization = False
 
         self.can_compile = compile
-        if (
-            not torch.cuda.is_available()
-            or torch.cuda.get_device_capability() < (7, 0)
-            or Version(torch.__version__) < Version("2.0")
-        ):
-            print(
-                "Warning: torch.compile is not supported on this device or PyTorch version. "
-                "Proceeding without compilation."
-            )
+        if not torch.cuda.is_available() or torch.cuda.get_device_capability() < (7, 0):
+            print("Warning: torch.compile is not supported. Proceeding without compilation.")
             self.can_compile = False
 
         self.save_hyperparameters(ignore=["metrics", "compile"])
@@ -79,9 +73,27 @@ class Module(LightningModule):
         self.criterion = F.cross_entropy
 
         if metrics is not None:
-            self.train_metrics = metrics.clone(prefix="train/")
-            self.val_metrics = metrics.clone(prefix="val/")
-            self.test_metrics = metrics.clone(prefix="test/")
+            self._configure_metrics(metrics)
+
+    def _configure_metrics(self, metrics: list[Any] | MetricCollection) -> None:
+        if isinstance(metrics, MetricCollection):
+            return
+
+        metric_instances = []
+        for metric in metrics:
+            instance = class_instantiator(
+                metric,
+                task="multiclass",
+                num_classes=self.hparams["num_classes"],
+            )
+
+            metric_instances.append(instance)
+
+        metric_collection = MetricCollection(metric_instances)
+
+        self.train_metrics = metric_collection.clone(prefix="train/")
+        self.val_metrics = metric_collection.clone(prefix="val/")
+        self.test_metrics = metric_collection.clone(prefix="test/")
 
     def _create_model(self) -> torch.nn.Module:
         model_name = self.hparams["model_name"].lower()

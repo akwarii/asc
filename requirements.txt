@@ -9,6 +9,7 @@ charset-normalizer==3.4.0
 comm==0.2.3
 debugpy==1.8.20
 decorator==5.2.1
+docstring-parser==0.17.0
 executing==2.2.1
 filelock==3.16.1
 freud-analysis==3.4.0
@@ -16,12 +17,14 @@ frozenlist==1.5.0
 fsspec==2024.10.0
 grpcio==1.70.0
 idna==3.10
+importlib-resources==6.5.2
 ipykernel==7.2.0
 ipython==9.10.0
 ipython-pygments-lexers==1.1.1
 ipywidgets==8.1.8
 jedi==0.19.2
 jinja2==3.1.4
+jsonargparse==4.47.0
 jupyter-client==8.8.0
 jupyter-core==5.9.1
 jupyterlab-widgets==3.0.16
@@ -92,6 +95,7 @@ tqdm==4.67.1
 traitlets==5.14.3
 traits==7.1.0
 triton==3.1.0
+typeshed-client==2.9.0
 typing-extensions==4.12.2
 urllib3==2.2.3
 wcwidth==0.6.0

@@ -10,6 +10,7 @@ from torch_geometric.loader import DataLoader, ImbalancedSampler
 from src import datasets
 from src.typing import Stage
 from src.utils import random_split
+from src.utils.builder import class_instantiator
 
 DATASET_FACTORY: dict[str, Callable] = {
     "aflow": datasets.Aflow,
@@ -60,9 +61,9 @@ class LightningDataset(LightningDataModule):
         dataset_name: str | None = None,
         lengths: Sequence[int | float] | None = None,
         pred_dataset: Dataset | None = None,
-        pre_filters: Callable | list[Callable] | None = None,
-        pre_transforms: Callable | list[Callable] | None = None,
-        transforms: Callable | list[Callable] | None = None,
+        pre_filters: object = None,
+        pre_transforms: object = None,
+        transforms: object = None,
         use_imbalance_sampler: bool = False,
         force_reload: bool = False,
         **kwargs,
@@ -91,10 +92,9 @@ class LightningDataset(LightningDataModule):
         )  # see for pre_filters and pre_transforms
 
         kwargs.pop("shuffle", None)
-        kwargs.setdefault("batch_size", 1)
-        kwargs.setdefault("num_workers", 0)
-        kwargs.setdefault("pin_memory", True)
-        kwargs.setdefault("persistent_workers", kwargs["num_workers"] > 0)
+        kwargs["num_workers"] = kwargs.get("num_workers", 0)
+        kwargs["pin_memory"] = kwargs.get("pin_memory", True)
+        kwargs["persistent_workers"] = kwargs.get("persistent_workers", kwargs["num_workers"] > 0)
 
         self.kwargs = kwargs
 
@@ -102,10 +102,14 @@ class LightningDataset(LightningDataModule):
         self.dataset: Dataset | None = dataset
         self.lengths = lengths
 
-        self._batch_size = kwargs["batch_size"]
+        self._batch_size = kwargs.get("batch_size", 1)
         self.kwargs["batch_size"] = self._batch_size
 
         self.use_imbalance_sampler = use_imbalance_sampler
+
+        pre_filters = class_instantiator(pre_filters)
+        pre_transforms = class_instantiator(pre_transforms)
+        transforms = class_instantiator(transforms)
 
         if isinstance(pre_filters, list):
             pre_filters = T.ComposeFilters(pre_filters)
@@ -114,17 +118,21 @@ class LightningDataset(LightningDataModule):
         if isinstance(transforms, list):
             transforms = T.Compose(transforms)
 
+        log = kwargs.pop("log", False)
+        download_only = kwargs.pop("download_only", False)
+        k = kwargs.pop("k", 12)
         self.dataset_kwargs = {
             "transform": transforms,
             "pre_transform": pre_transforms,
             "pre_filter": pre_filters,
-            "log": kwargs.pop("log", False),
+            "log": log,
             "force_reload": force_reload,
-            "download_only": kwargs.pop("download_only", False),
-            "k": kwargs.pop("k", 12),
+            "download_only": download_only,
+            "k": k,
         }
-        if "root" in kwargs:
-            self.dataset_kwargs["root"] = kwargs.pop("root")
+        root = kwargs.pop("root", None)
+        if root is not None:
+            self.dataset_kwargs["root"] = root
 
         self.train_dataset: Dataset | None = None
         self.val_dataset: Dataset | None = None
