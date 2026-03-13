@@ -2,7 +2,6 @@ import math
 from typing import Any
 
 import torch
-from scipy.special import sph_harm_y
 from torch import Tensor, nn
 
 from .radial import GaussianBasis, RadialBasisExpansion
@@ -10,8 +9,7 @@ from .radial import GaussianBasis, RadialBasisExpansion
 
 class RealSphHarmBasis(torch.nn.Module):
     """Real spherical harmonics basis expansion module. We only use one angle in the spherical
-    coordinates, so we can set m=0 for all the spherical harmonics. This implementation is based on
-    the `scipy.special.sph_harm` function.
+    coordinates, so we can set m=0 for all the spherical harmonics.
 
     Args:
         num_spherical: The number of spherical harmonics to use.
@@ -21,47 +19,63 @@ class RealSphHarmBasis(torch.nn.Module):
         super().__init__()
         self.num_spherical = num_spherical
 
-    def forward(self, phi: Tensor) -> Tensor:
+    def forward(self, theta: Tensor) -> Tensor:
         """Forward pass of the real spherical harmonics basis expansion module.
 
         Args:
-            phi: The angle tensor in radians. The values should be in the range [0, pi].
+            theta: Angle tensor in radians.
 
         Returns:
-            Tensor: The spherical harmonics basis expansion.
-                The output tensor is of shape `(len(phi), num_spherical)`.
+            Tensor: The spherical harmonics basis expansion Y_l^0.
+                The output tensor is of shape `(len(theta), num_spherical)`.
         """
-        # TODO retrieve PyG implementation of Dimenet embedding for faster computation
-        l_values = torch.arange(self.num_spherical)
-        sph_harm_values = sph_harm_y(0, l_values[:, None], 0, phi).real
-        return torch.as_tensor(sph_harm_values.T)
+        # For m=0, Y_l^0(theta, phi) = sqrt((2l+1)/(4pi)) * P_l(cos(theta))
+        # where P_l are Legendre polynomials.
+        cos_theta = theta.cos()
+
+        p_l = [torch.ones_like(cos_theta)]  # P_0 = 1
+
+        if self.num_spherical > 1:
+            p_l.append(cos_theta)  # P_1 = x
+
+        for i in range(1, self.num_spherical - 1):
+        # and P_{l+1}(x) = [(2l+1) x P_l(x) - l P_{l-1}(x)] / (l+1)
+            p_next = ((2 * i + 1) * cos_theta * p_l[-1] - i * p_l[-2]) / (
+                i + 1
+            )
+            p_l.append(p_next)
+
+        res = []
+        for i in range(self.num_spherical):
+            prefactor = math.sqrt((2 * i + 1) / (4 * math.pi))
+            res.append(prefactor * p_l[i])
+
+        return torch.stack(res, dim=-1)
 
 
 class SineBasis(nn.Module):
     """Angular basis using simple sinusoidal functions.
 
     Args:
-        num_basis: The number of sine basis functions to use.
+        num_spherical: The number of sine basis functions to use.
     """
 
     def __init__(
         self,
-        num_basis: int = 32,
+        num_spherical: int = 32,
     ) -> None:
         super().__init__()
 
-        self.num_basis = num_basis
-        self.r_min = 0.0
-        self.r_max = math.pi
+        self.num_spherical = num_spherical
 
-        freqs = torch.arange(1.0, self.num_basis + 1.0).float()
+        freqs = torch.arange(1.0, self.num_spherical + 1.0).float()
         self.register_buffer("freqs", freqs)
 
     def forward(self, theta: Tensor) -> Tensor:
         """Evaluate the sine basis for angles theta.
 
         Args:
-            theta: Input tensor in radian.
+            theta: Angle tensor in radians.
 
         Returns:
             Tensor: Sine basis.
@@ -107,24 +121,28 @@ class AngularBasisExpansion(torch.nn.Module):
             num_spherical=num_spherical, **expansion_kwargs
         )
 
-    # TODO handle the case where len(dist) != len(phi)
-    def forward(self, dist: Tensor, phi: Tensor) -> Tensor:
+    def forward(self, dist: Tensor, phi: Tensor, dist_index: Tensor | None = None) -> Tensor:
         """Forward pass of the angular basis expansion module.
 
         Args:
             dist: The input distance tensor.
             phi: The input angle tensor in radians. The values should be in the range [0, pi].
+            dist_index: Optional index tensor to map distances to angles (e.g. for triplets).
 
         Returns:
             The output tensor after applying the angular basis expansion. its shape is
-            `(len(dist), num_spherical, num_radial)`.
+            `(num_triplets, num_spherical, num_radial)`.
         """
+        if dist_index is not None:
+            dist = dist[dist_index]
+
         if dist.shape[0] != phi.shape[0]:
             raise ValueError(
-                f"dist and phi must have the same length. Got {dist.shape[0]} and {phi.shape[0]}."
+                "dist and phi must have the same length after indexing. "
+                f"Got {dist.shape[0]} and {phi.shape[0]}."
             )
 
-        rbf = self.radial_basis(dist)  # (num_edges, num_radial)
+        rbf = self.radial_basis(dist)  # (num_triplets, num_radial)
         abf = self.angular_basis(phi)  # (num_triplets, num_spherical)
 
         return rbf[:, None, :] * abf[:, :, None]  # (num_triplets, num_spherical, num_radial)
