@@ -52,6 +52,10 @@ def class_instantiator(obj: Any, **kwargs) -> Any:  # noqa: ANN401
     if isinstance(obj, list):
         return [class_instantiator(item, **kwargs) for item in obj]
 
+    # Handle class types (passed from python directly)
+    if isinstance(obj, type):
+        return obj(**kwargs)
+
     # Handle Namespace or dict (passed from CLI)
     class_path = None
     init_args: dict[str, Any] = {}
