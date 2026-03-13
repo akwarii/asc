@@ -10,8 +10,10 @@ torch.serialization.add_safe_globals([LineGraphData])
 
 
 class CustomLightningCLI(LightningCLI):
+    """Custom LightningCLI to handle dynamic max_iters calculation and argument linking."""
+
     def add_arguments_to_parser(self, parser: LightningArgumentParser) -> None:
-        # Link num_classes from DataModule to Module automatically
+        """Link num_classes from DataModule to Module automatically."""
         parser.link_arguments("data.num_classes", "model.num_classes", apply_on="instantiate")
 
     def before_fit(self) -> None:
@@ -36,12 +38,13 @@ class CustomLightningCLI(LightningCLI):
             # Update the model hyper-parameters
             self.model.hparams.max_iters = max_iters
             print(
-                f"INFO: Calculated max_iters: {max_iters} ({num_batches} batches * {max_epochs} epochs)"
+                f"INFO: Calculated max_iters: {max_iters} "
+                f"({num_batches} batches * {max_epochs} epochs)"
             )
 
 
 def main() -> None:
-    # Performance optimizations
+    """Main entrypoint."""
     torch.set_float32_matmul_precision("high")
     if torch.cuda.is_available():
         torch.backends.cudnn.benchmark = True
