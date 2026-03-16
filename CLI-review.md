@@ -12,12 +12,16 @@ python main.py fit --help
 
 - I don't understand what `--trainer.overfit_batches` does. The description repeats the argument name but doesn't explain what it does. Also, I wonder whether the practice of voluntarily overfitting a model is common enough to deserve a dedicated argument.
 
+Answer: this parameter is only useful for quickly debugging or trying to overfit on purpose. It appears because it's part of the trainer parameters and I didn't remove any of them yet. We have to list the ones we want to exclude.
+
 ```text
 --trainer.overfit_batches OVERFIT_BATCHES
                         Overfit a fraction of training/validation data (float) or a set number of batches (int). Default: ``0.0``. (type: Union[int, float], default: 0.0)
 ```
 
 - Would it make sense to allow a much finer control over the model summary? We allow passing `RichModelSummary` as a callback, but we only have a boolean argument to enable/disable the model summary. Maybe the depth of the model summary could be controlled by an integer argument, to see where exactly the model is getting too big ?
+
+Answer: directly from the CLI I don't know, probably it's possible but it's definitely not a priority since we can pass the argument from a config file (see configs/painn.yaml).
 
 ```text
   --trainer.enable_model_summary {true,false,null}
@@ -26,12 +30,16 @@ python main.py fit --help
 
 - I think `--trainer.accumulate_grad_batches` could be a bit more explained. It is a key feature, allowing to mimic larger batch sizes, and we saw during our tests that it of course has a noticeable impact on the training quality. For now, the description is a bit too straightforward and doesn't really explain the concept of gradient accumulation: i.e., it's easy to miss for someone who is not familiar with it.
 
+Answer: the descriptions provided by the cli help message are extracted from the docstrings so I didn't modify anything. Probably we can tune the displayed text but, as above, it's not a priority right now.
+
 ```text
   --trainer.accumulate_grad_batches ACCUMULATE_GRAD_BATCHES
                         Accumulates gradients over k batches before stepping the optimizer. Default: 1. (type: int, default: 1)
 ```
 
 - The list of accepted model names should be documented.
+
+Answer: I will do it
 
 ```text
     --model.model_name MODEL_NAME
@@ -40,12 +48,16 @@ python main.py fit --help
 
 - I find the description of `--model.model_kwargs` a bit too vague. I understand this behaviour is inherited from the default `LightningCLI`, but in our case a lot of features are only accessible through this argument, and it would be nice to have a more detailed description of how to use it.
 
+Answer: while I agree I can't think of a good solution since the kwargs will depend on the model and we can't know in advance which model the user will select.
+
 ```text
     --model.model_kwargs MODEL_KWARGS
                         Additional keyword arguments for the model. Defaults to None. (type: Optional[dict[str, Any]], default: null)
 ```
 
 - The `--data.dataset` argument description should be pruned, as many of the given dataset examples are not actually what the code is meant for. Furthermore, the `--data.dataset_name` argument already does what we want to do here.
+
+Answer: I totaly agree. This behavior is due to the type hints so the easiest solution might be for us to create a base class that inherit from InMemoryDataset and use it for type hints.
 
 ```text
       --data.dataset DATASET
@@ -92,7 +104,11 @@ python main.py fit --help
 
 - The same goes for `--data.pred_dataset`, where only a few of the datasets quoted in the description can be used in practice by the code.
 
+Answer: same answer as above
+
 - The description for `--data.pre_transforms` and `--data.transforms` could be more detailed, and in particular present the transforms implemented in the code with examples of how to use them. For now, the description is a bit too vague and doesn't present these arguments, nor does it explain how to use them. It is also not ideal that `--data.pre_transforms.help` and `--data.transforms.help` already require knowing the transforms beforehand, as many users may just not know and skip these (important) features altogether.
+
+Answer: I agree. The easy solution is to update the docstring but we can't detail every transform in the docstring nor in the help message as it will be too much.
 
 ```text
   --data.pre_transforms.help
@@ -109,6 +125,8 @@ python main.py fit --help
 
 > **General remark**
 > I think the documentation of the CLI arguments is a bit too heavy overall, with many extremely specific (yet sometimes useful) arguments overshadowing the most important ones. Maybe we could have a "basic" CLI with only the most important arguments, and an "advanced" CLI with all the possible arguments for users who want to have more control over the training process? This would make the documentation easier to read and understand for new users, while still allowing advanced users to have access to all the features of the code.
+
+Answer: It will be a pain to keep 2 different CLIs. I think the best is to trim the arguments we don't want / feel are not important.
 
 ## `validate`, `test` and `predict` subprograms
 
@@ -180,3 +198,5 @@ Runs the full optimization routine:
 This looks like a bug, probably in the `LightningCLI` class we inherit from.
 
 ***IF*** we decide to have a "basic" and an "advanced" CLI, it would be nice for it to be documented in the main `help` command.
+
+Answer: That's definitely a bug with the LightningCLI so I don't know if we can do much.
