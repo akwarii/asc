@@ -2,6 +2,11 @@
 /predictions/
 /data/
 
+# Pytorch objects
+*.pt
+*.pth
+*.ckpt
+
 # Ruff
 .ruff_cache/
 
