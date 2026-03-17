@@ -62,9 +62,9 @@ class LightningDataset(LightningDataModule):
         dataset_name: str | None = None,
         lengths: Sequence[int | float] | None = None,
         pred_dataset: Dataset | None = None,
-        pre_filters: Any = None,
-        pre_transforms: Any = None,
-        transforms: Any = None,
+        pre_filters: Any = None,  # noqa: ANN401
+        pre_transforms: Any = None,  # noqa: ANN401
+        transforms: Any = None,  # noqa: ANN401
         use_imbalance_sampler: bool = False,
         force_reload: bool = False,
         **kwargs,
