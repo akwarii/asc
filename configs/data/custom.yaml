@@ -1,0 +1,14 @@
+dataset_name: custom
+root: examples/silicon/data
+lengths: [0.7, 0.2, 0.1]
+batch_size: 128
+num_workers: 8
+use_imbalance_sampler: true
+transforms:
+  - class_path: src.transforms.RandomPerturbation
+    init_args:
+      std_range: [0.0, 0.05]
+  - class_path: src.transforms.BoxStrain
+    init_args:
+      std_range: [0.0, 0.05]
+      directions: all

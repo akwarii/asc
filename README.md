@@ -112,7 +112,7 @@ Once you got your credentials, create a `.env` file (using `cp .env.example .env
 To train the PaiNN model on the Si (silicon) dataset, you can run:
 
 ```bash
-python main.py fit --config configs/painn.yaml
+python main.py fit --config configs/main.yaml --trainer configs/trainer/default.yaml --model configs/model/painn.yaml --data configs/data/custom.yaml
 ```
 
 The provided configuration file will train a model in the same way as what is presented in `examples/silicon/silicon.ipynb`.

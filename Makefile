@@ -26,4 +26,4 @@ test: ## Run tests
 	pytest
 
 train: ## Train the model
-	python scripts/train.py
+	python main.py fit
