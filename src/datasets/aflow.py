@@ -2,11 +2,12 @@ import json
 import os.path as osp
 from collections.abc import Callable
 
-from torch_geometric.data import InMemoryDataset
 from tqdm.auto import tqdm
 
+from src.datasets.base import Dataset
 
-class Aflow(InMemoryDataset):
+
+class Aflow(Dataset):
     """A dataset class for the Aflow dataset.
 
     Args:
@@ -17,7 +18,7 @@ class Aflow(InMemoryDataset):
             whether the graph should be included in the dataset.
         force_reload: Whether to reload the dataset even if it already exists.
         download_only: Whether to download the dataset only without processing and loading it.
-        kwargs: Additional keyword arguments to be passed to PeriodicKNN or InMemoryDataset class.
+        kwargs: Additional keyword arguments to be passed to PeriodicKNN or Dataset class.
     """
 
     def __init__(
@@ -31,16 +32,15 @@ class Aflow(InMemoryDataset):
         download_only: bool = False,
         **kwargs,
     ) -> None:
-        self.download_only = download_only
-        self.kwargs = kwargs.copy()
-
-        kwargs.pop("k", None)
         super().__init__(
-            root, transform, pre_transform, pre_filter, force_reload=force_reload, **kwargs
+            root,
+            transform,
+            pre_transform,
+            pre_filter,
+            force_reload=force_reload,
+            download_only=download_only,
+            **kwargs,
         )
-
-        if not self.download_only:
-            self.load(self.processed_paths[0])
 
     @property
     def processed_dir(self) -> str:

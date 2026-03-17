@@ -4,10 +4,10 @@ from collections.abc import Callable, Sequence
 import torch
 from lightning import LightningDataModule
 from torch_geometric import transforms as T
-from torch_geometric.data import Dataset
 from torch_geometric.loader import DataLoader, ImbalancedSampler
 
 from src import datasets
+from src.datasets.base import Dataset
 from src.typing import Stage
 from src.utils import random_split
 from src.utils.builder import class_instantiator

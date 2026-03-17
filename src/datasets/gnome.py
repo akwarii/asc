@@ -16,8 +16,8 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pandas as pd
-from torch_geometric.data import InMemoryDataset
 
+from src.datasets.base import Dataset
 from src.typing import PathLike
 
 
@@ -34,7 +34,7 @@ def download_from_link(link: str, output_dir: PathLike) -> None:
         print(f"Failed to download {link}")
 
 
-class Gnome(InMemoryDataset):
+class Gnome(Dataset):
     """GNoME is a dataset of crystal structures predicted to be stable by the GNoME model
     created by the DeepMind team. The dataset contains ~380,000 crystal structures with space
     group numbers ranging from 1 to 230. The dataset is formatted as a CSV file with two
@@ -50,7 +50,7 @@ class Gnome(InMemoryDataset):
             whether the graph should be included in the dataset.
         force_reload: Whether to reload the dataset even if it already exists.
         download_only: Whether to download the dataset only without processing and loading it.
-        kwargs: Additional keyword arguments to be passed to PeriodicKNN or InMemoryDataset class.
+        kwargs: Additional keyword arguments to be passed to PeriodicKNN or Dataset class.
 
     """
 
@@ -69,16 +69,15 @@ class Gnome(InMemoryDataset):
         download_only: bool = False,
         **kwargs,
     ) -> None:
-        self.download_only = download_only
-        self.kwargs = kwargs.copy()
-
-        kwargs.pop("k", None)
         super().__init__(
-            root, transform, pre_transform, pre_filter, force_reload=force_reload, **kwargs
+            root,
+            transform,
+            pre_transform,
+            pre_filter,
+            force_reload=force_reload,
+            download_only=download_only,
+            **kwargs,
         )
-
-        if not self.download_only:
-            self.load(self.processed_paths[0])
 
     @property
     def processed_dir(self) -> str:

@@ -1,10 +1,10 @@
 import os.path as osp
 from collections.abc import Callable
 
-from torch_geometric.data import InMemoryDataset
+from src.datasets.base import Dataset
 
 
-class CSG(InMemoryDataset):
+class CSG(Dataset):
     """The Crystal Space Group (CSG) dataset is a preprocessed version of the AFLOW, GNoME, and
     Material Project datasets. The dataset contains ~200,000 crystal structures with space group
     numbers ranging from 1 to 230. The dataset is formatted as a CSV file with two columns:
@@ -31,7 +31,7 @@ class CSG(InMemoryDataset):
             whether the graph should be included in the dataset.
         force_reload: Whether to reload the dataset even if it already exists.
         download_only: Whether to download the dataset only without processing and loading it.
-        kwargs: Additional keyword arguments to be passed to PeriodicKNN or InMemoryDataset class.
+        kwargs: Additional keyword arguments to be passed to PeriodicKNN or Dataset class.
 
     Attributes:
         KAGGLE_DATASET (str): The name of the Kaggle dataset.
@@ -50,16 +50,15 @@ class CSG(InMemoryDataset):
         download_only: bool = False,
         **kwargs,
     ) -> None:
-        self.download_only = download_only
-        self.kwargs = kwargs.copy()
-
-        kwargs.pop("k", None)
         super().__init__(
-            root, transform, pre_transform, pre_filter, force_reload=force_reload, **kwargs
+            root,
+            transform,
+            pre_transform,
+            pre_filter,
+            force_reload=force_reload,
+            download_only=download_only,
+            **kwargs,
         )
-
-        if not self.download_only:
-            self.load(self.processed_paths[0])
 
     @property
     def processed_dir(self) -> str:
