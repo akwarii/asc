@@ -56,9 +56,6 @@ def main() -> None:
         seed_everything_default=42,
         parser_kwargs={"parser_mode": "yaml"},
         auto_configure_optimizers=False,
-        trainer_defaults={
-            "model_registry": None,
-        }
     )
 
 
