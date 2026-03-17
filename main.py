@@ -28,7 +28,7 @@ class CustomLightningCLI(LightningCLI):
             max_epochs = self.trainer.max_epochs
             if max_epochs is None or max_epochs == -1:
                 # Default to a large number if not specified, though usually it is
-                max_epochs = 100
+                max_epochs = 1000
 
             num_batches = len(train_loader)
             accumulate_grad_batches = getattr(self.trainer, "accumulate_grad_batches", 1)
@@ -55,6 +55,10 @@ def main() -> None:
         datamodule_class=LightningDataset,
         seed_everything_default=42,
         parser_kwargs={"parser_mode": "yaml"},
+        auto_configure_optimizers=False,
+        trainer_defaults={
+            "model_registry": None,
+        }
     )
 
 
