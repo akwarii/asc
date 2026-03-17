@@ -14,7 +14,9 @@ class CustomLightningCLI(LightningCLI):
 
     def add_arguments_to_parser(self, parser: LightningArgumentParser) -> None:
         """Link num_classes from DataModule to Module automatically."""
-        parser.link_arguments("data.num_classes", "model.num_classes", apply_on="instantiate")
+        parser.link_arguments(
+            "data.num_classes", "model.model.init_args.out_channels", apply_on="instantiate"
+        )
 
     def before_fit(self) -> None:
         """Calculate max_iters for the optimizer/scheduler before training starts."""

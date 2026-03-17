@@ -1,4 +1,3 @@
-from collections.abc import Callable
 from typing import Any
 
 import matplotlib.pyplot as plt
@@ -14,17 +13,8 @@ from torch.optim.lr_scheduler import LambdaLR
 from torch_geometric.data import Data
 from torchmetrics import MetricCollection
 
-from src import models
 from src.optim import get_cosine_schedule_with_warmup
 from src.utils.builder import class_instantiator
-
-MODEL_FACTORY: dict[str, Callable[..., torch.nn.Module]] = {
-    "cegann": models.CEGANN,
-    "mlp": models.MLPClassifier,
-    "gat": models.GATClassifier,
-    "cegannv2": models.CEGANNv2,
-    "painn": models.PaiNN,
-}  # type: ignore
 
 
 class Module(LightningModule):
@@ -48,15 +38,13 @@ class Module(LightningModule):
 
     def __init__(
         self,
-        model_name: str,
-        num_classes: int,
+        model: torch.nn.Module,
         *,
         metrics: list[Any] | None = None,
         compile: bool = True,
         lr: float = 1e-3,
         warmup: int = 100,
         max_iters: int = 1_000,
-        model_kwargs: dict[str, Any] | None = None,
     ) -> None:
         super().__init__()
 
@@ -67,8 +55,11 @@ class Module(LightningModule):
             print("Warning: torch.compile is not supported. Proceeding without compilation.")
             self.can_compile = False
 
+        self.model = model
+        if self.can_compile:
+            self.model = torch.compile(self.model, fullgraph=True, dynamic=True)
+
         self.save_hyperparameters(ignore=["metrics", "compile"])
-        self.model = self._create_model()
 
         self.criterion = F.cross_entropy
 
@@ -84,7 +75,7 @@ class Module(LightningModule):
             instance = class_instantiator(
                 metric,
                 task="multiclass",
-                num_classes=self.hparams["num_classes"],
+                num_classes=getattr(self.model, "out_channels"),
             )
 
             metric_instances.append(instance)
@@ -94,31 +85,6 @@ class Module(LightningModule):
         self.train_metrics = metric_collection.clone(prefix="train/")
         self.val_metrics = metric_collection.clone(prefix="val/")
         self.test_metrics = metric_collection.clone(prefix="test/")
-
-    def _create_model(self) -> torch.nn.Module:
-        model_name = self.hparams["model_name"].lower()
-        model_kwargs = self.hparams["model_kwargs"]
-        out_channels = self.hparams["num_classes"]
-
-        if model_kwargs is None:
-            model_kwargs = dict()
-
-        if model_name == "mlp":
-            model_kwargs["in_channels"] = model_kwargs["k"] ** 2 * model_kwargs["num_radial"]
-
-        model_kwargs.pop("k", None)
-
-        model = MODEL_FACTORY.get(model_name, None)
-        if model is None:
-            raise NotImplementedError(
-                f"Model {model_name} is not implemented. Available models: {MODEL_FACTORY.keys()}"
-            )
-
-        model = model(out_channels=out_channels, **model_kwargs)
-        if self.can_compile:
-            model.compile(fullgraph=True, dynamic=True)
-
-        return model
 
     def _plot_tensor_metrics(self, metrics: MetricCollection, batch_value: dict[str, Any]) -> None:
         tensor_metrics = {

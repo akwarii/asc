@@ -1,13 +1,13 @@
-model_name: painn
-# num_classes: will be linked from data.num_classes
 lr: 0.006
 warmup: 700
 max_iters: -1  # Will be calculated automatically in main.py
 compile: true
-model_kwargs:
-  hidden_channels: 32
-  num_layers: 2
-  num_radial: 4
+model:
+  class_path: src.models.PaiNN
+  init_args:
+    hidden_channels: 32
+    num_layers: 2
+    num_radial: 4
 metrics:
   - class_path: torchmetrics.F1Score
   - class_path: torchmetrics.AUROC
