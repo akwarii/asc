@@ -1,5 +1,6 @@
 import copy
 from collections.abc import Callable, Sequence
+from typing import Any
 
 import torch
 from lightning import LightningDataModule
@@ -61,9 +62,9 @@ class LightningDataset(LightningDataModule):
         dataset_name: str | None = None,
         lengths: Sequence[int | float] | None = None,
         pred_dataset: Dataset | None = None,
-        pre_filters: object = None,
-        pre_transforms: object = None,
-        transforms: object = None,
+        pre_filters: Any = None,
+        pre_transforms: Any = None,
+        transforms: Any = None,
         use_imbalance_sampler: bool = False,
         force_reload: bool = False,
         **kwargs,
@@ -111,7 +112,7 @@ class LightningDataset(LightningDataModule):
         pre_transforms = class_instantiator(pre_transforms)
         transforms = class_instantiator(transforms)
 
-        if isinstance(pre_filters, list):
+        if pre_filters is not None and isinstance(pre_filters, list):
             pre_filters = T.ComposeFilters(pre_filters)
         if isinstance(pre_transforms, list):
             pre_transforms = T.Compose(pre_transforms)

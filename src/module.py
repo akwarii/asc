@@ -51,7 +51,7 @@ class Module(LightningModule):
         model_name: str,
         num_classes: int,
         *,
-        metrics: object = None,
+        metrics: list[Any] | None = None,
         compile: bool = True,
         lr: float = 1e-3,
         warmup: int = 100,
@@ -131,7 +131,6 @@ class Module(LightningModule):
                 continue
 
             fig, _ = metric.plot()
-            # plt.show()
 
             for logger in self.loggers:
                 if isinstance(logger, TensorBoardLogger):
