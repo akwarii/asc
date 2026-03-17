@@ -6,10 +6,11 @@ from torch import Tensor
 from torch_geometric.data import Data
 from torch_geometric.nn import GAT, MLP
 
+from src.models.base import BaseModel
 from src.models.expansion.radial import GaussianBasis
 
 
-class GATClassifier(GAT):  # noqa
+class GATClassifier(BaseModel, GAT):  # noqa
     def __init__(
         self,
         hidden_channels: int,
@@ -35,7 +36,7 @@ class GATClassifier(GAT):  # noqa
         edge_dim = num_radial
         in_channels = num_radial
 
-        super().__init__(
+        super(GAT).__init__(
             in_channels=in_channels,
             hidden_channels=hidden_channels,
             num_layers=num_layers,

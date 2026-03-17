@@ -13,6 +13,7 @@ from torch.optim.lr_scheduler import LambdaLR
 from torch_geometric.data import Data
 from torchmetrics import MetricCollection
 
+from src.models.base import BaseModel
 from src.optim import get_cosine_schedule_with_warmup
 from src.utils.builder import class_instantiator
 
@@ -38,7 +39,7 @@ class Module(LightningModule):
 
     def __init__(
         self,
-        model: torch.nn.Module,
+        model: BaseModel,
         *,
         metrics: list[Any] | None = None,
         compile: bool = True,

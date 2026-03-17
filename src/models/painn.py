@@ -4,6 +4,7 @@ from torch import Tensor
 from torch_geometric.nn import Linear
 from torch_geometric.utils import scatter
 
+from src.models.base import BaseModel
 from src.models.expansion.radial import RadialBesselBasis
 
 
@@ -195,7 +196,7 @@ class PaiNNHead(nn.Module):
         return self.mlp(s)
 
 
-class PaiNN(nn.Module):
+class PaiNN(BaseModel):
     """PaiNN model adapted for classification tasks. It simply removes the final reduce to keep the
     atomic representation.
 

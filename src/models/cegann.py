@@ -3,11 +3,12 @@ import torch.nn as nn
 from torch import Tensor
 from torch_geometric.nn import MLP
 
+from src.models.base import BaseModel
 from src.models.expansion import GaussianBasis
 from src.models.layers import AngleConvLayer, BondConvLayer
 
 
-class CEGANN(nn.Module):
+class CEGANN(BaseModel):
     """Crystal Edge Graph Attention Neural Network (CEGANN) model.
 
     Implementation based on the paper:

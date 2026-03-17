@@ -2,12 +2,13 @@ import torch
 from torch import Tensor
 from torch_geometric.nn import MLP
 
+from src.models.base import BaseModel
 from src.models.expansion import GaussianBasis
 
 
-class MLPClassifier(MLP):  # noqa
+class MLPClassifier(BaseModel, MLP):  # noqa
     def __init__(self, num_radial: int, *args, **kwargs) -> None:  # noqa
-        super().__init__(*args, **kwargs)
+        super(MLP).__init__(*args, **kwargs)
 
         self.rbf = GaussianBasis(num_radial=num_radial)
         self.sbf = GaussianBasis(num_radial=num_radial)

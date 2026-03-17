@@ -9,12 +9,13 @@ from torch_geometric.nn import Linear
 from torch_geometric.utils import trim_to_layer
 from tqdm import tqdm
 
+from src.models.base import BaseModel
 from src.models.layers.embedding import GeometricEmbedding
 from src.models.layers.geo_conv import GeometricConv
 from src.models.layers.readout import BondToAtomReadout
 
 
-class CEGANNv2(nn.Module):
+class CEGANNv2(BaseModel):
     """CEGANNv2 model for node classification on crystal graphs.
 
     Args:
