@@ -36,7 +36,8 @@ class GATClassifier(BaseModel, GAT):  # noqa
         edge_dim = num_radial
         in_channels = num_radial
 
-        super(GAT).__init__(
+        GAT.__init__(
+            self,
             in_channels=in_channels,
             hidden_channels=hidden_channels,
             num_layers=num_layers,

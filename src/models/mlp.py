@@ -8,7 +8,7 @@ from src.models.expansion import GaussianBasis
 
 class MLPClassifier(BaseModel, MLP):  # noqa
     def __init__(self, num_radial: int, *args, **kwargs) -> None:  # noqa
-        super(MLP).__init__(*args, **kwargs)
+        MLP.__init__(self, *args, **kwargs)
 
         self.rbf = GaussianBasis(num_radial=num_radial)
         self.sbf = GaussianBasis(num_radial=num_radial)
