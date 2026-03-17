@@ -221,6 +221,7 @@ class PaiNN(nn.Module):
         scale_factor: float = 1.0,
     ) -> None:
         super().__init__()
+        self.out_channels = out_channels
         self.hidden_channels = hidden_channels
         self.num_layers = num_layers
         self.dropout = dropout

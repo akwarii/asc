@@ -91,6 +91,7 @@ class CEGANNv2(nn.Module):
 
         self.readout = BondToAtomReadout(reduce="mean", incidence="out")
         self.out_head = Linear(node_in, out_channels, bias=False)
+        self.out_channels = out_channels
 
         self.reset_parameters()
 

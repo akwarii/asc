@@ -89,6 +89,7 @@ class CEGANN(nn.Module):
             dropout=dropout,
             plain_last=True,
         )
+        self.out_channels = out_channels
 
     def _message_passing(
         self,
