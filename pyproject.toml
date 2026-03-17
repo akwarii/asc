@@ -13,6 +13,7 @@ dependencies = [
     "ovito>=3.15.0",
     "pandas>=3.0.1",
     "rich>=14.3.3",
+    "setuptools==81.0", # newer versions are not compatible with tensorboard
     "tensorboard>=2.20.0",
     "torch-geometric>=2.7.0",
 ]
