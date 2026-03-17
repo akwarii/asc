@@ -56,11 +56,11 @@ class Module(LightningModule):
             print("Warning: torch.compile is not supported. Proceeding without compilation.")
             self.can_compile = False
 
+        self.save_hyperparameters(ignore=["metrics", "compile"])
+
         self.model = model
         if self.can_compile:
             self.model = torch.compile(self.model, fullgraph=True, dynamic=True)
-
-        self.save_hyperparameters(ignore=["metrics", "compile"])
 
         self.criterion = F.cross_entropy
 
