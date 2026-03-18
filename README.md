@@ -123,6 +123,15 @@ The provided configuration file will train a model in the same way as what is pr
 python main.py --help
 ```
 
+The CLI can give you more information about a specific argument by running:
+
+```bash
+python main.py fit --model.model.help src.models.PaiNN
+python main.py fit --data.dataset.help
+```
+
+The first will print the help message related to our implementation of the PaiNN model, while the other will display the arguments that can be passed to all our datasets.
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- ROADMAP -->
@@ -138,7 +147,7 @@ python main.py --help
 - [ ] OVITO interface
 - [x] The DataModule class must be able to accept a path as input (in addition to the dataset name) in case the user uses a custom path (for example, data/to_predict instead of data/custom)
 - [ ] Update documentation
-- [x] Add Silicon example
+- [ ] Fix Silicon example
 - [x] Update Node dropout
 - [x] Update Edge dropout
 - [ ] Complete all TODOs
