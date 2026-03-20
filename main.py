@@ -1,5 +1,8 @@
 #!/usr/bin/env python
+from pathlib import Path
+
 import torch
+from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.cli import LightningArgumentParser, LightningCLI
 from src.datamodule import LightningDataset
 from src.module import Module
@@ -43,6 +46,63 @@ class CustomLightningCLI(LightningCLI):
                 f"INFO: Calculated max_iters: {max_iters} "
                 f"({num_batches} batches * {max_epochs} epochs)"
             )
+
+    def _make_export_example(self) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Return one representative (x, edge_index, edge_attr) tuple for export."""
+        self.datamodule.setup("fit")
+        batch = next(iter(self.datamodule.val_dataloader()))
+        return (
+            batch.x.detach().cpu().long(),
+            batch.edge_index.detach().cpu(),
+            batch.edge_attr.detach().cpu(),
+        )  # ? Should we handle more complex data structures here?
+
+    def after_fit(self) -> None:
+        """Export the best checkpoint with torch.export using an uncompiled model."""
+        # Find the best checkpoint path from the trainer callbacks
+        ckpt_path = None
+        for callback in self.trainer.callbacks:
+            if isinstance(callback, ModelCheckpoint) and callback.best_model_path:
+                ckpt_path = Path(callback.best_model_path)
+        if ckpt_path is None or not ckpt_path.exists():
+            raise RuntimeError("No valid checkpoint found for export.")
+
+        # Load the best checkpoint for export: {ckpt_path}
+        export_module = Module.load_from_checkpoint(
+            str(ckpt_path),
+            map_location="cpu",
+            compile=False,
+        )
+        raw_model = export_module.model.eval().cpu()
+
+        # Ensure the model is not compiled before exporting as torch.export does not support it
+        if hasattr(raw_model, "_orig_mod"):
+            raise RuntimeError("Refusing to export a compiled model. Load with compile=False.")
+
+        # Handling dynamic shapes for graph data
+        num_nodes = torch.export.Dim("num_nodes", min=2)  # I think we never have just 1 node?
+        num_edges = torch.export.Dim("num_edges", min=2)  # Graphs are directed, so >= 2 edges?
+        dynamic_shapes = {
+            "x": {0: num_nodes},
+            "edge_index": {1: num_edges},
+            "edge_attr": {0: num_edges},
+        }  # ? Should we handle more complex data structures here?
+
+        # Construct one representative input example for export
+        example = self._make_export_example()
+
+        print("Exporting best checkpoint with torch.export...")
+        exported = torch.export.export(
+            raw_model,
+            example,
+            dynamic_shapes=dynamic_shapes,
+        )
+
+        out_dir = Path("exports")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        export_path = out_dir / f"{ckpt_path.stem}.pt2"
+        torch.export.save(exported, str(export_path))
+        print(f"torch.export artifact written to: {export_path}")
 
 
 def main() -> None:
