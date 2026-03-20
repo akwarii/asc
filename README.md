@@ -73,10 +73,16 @@ uv sync
 
 # Add extra options if you want to download datasets and/or use hyperparameter optimization
 uv sync --group api --group hpo
+pip install pyg-lib -f https://data.pyg.org/whl/nightly/torch-${TORCH}+${CUDA}.html
 
 # Activate the virtual environment
 source .venv/bin/activate
 ```
+
+where
+
+- ${TORCH} should be replaced by either 2.8.0, 2.9.0, or 2.10.0
+- ${CUDA} should be replaced by either cpu, cu126, cu128, cu129, or cu130
 
 Alternatively, you can use pip directly:
 
@@ -91,6 +97,7 @@ conda activate cegann
 
 # Install the requirements
 pip install -r requirements.txt
+pip install pyg-lib -f https://data.pyg.org/whl/nightly/torch-${TORCH}+${CUDA}.html
 ```
 
 ### Get your free API keys (optional)
@@ -140,19 +147,13 @@ The first will print the help message related to our implementation of the PaiNN
 
 **Code and Framework:**
 
-- [x] Packaging (`pyproject.toml`)
-- [x] Production ready training script + notebook
 - [ ] Production ready inference script + notebook (via `main.py` CLI)
 - [ ] Ideally, replace the inference function by LightningModule.predict + LightningDataModule
 - [ ] OVITO interface
-- [x] The DataModule class must be able to accept a path as input (in addition to the dataset name) in case the user uses a custom path (for example, data/to_predict instead of data/custom)
 - [ ] Update documentation
 - [ ] Fix Silicon example
-- [x] Update Node dropout
-- [x] Update Edge dropout
-- [ ] Complete all TODOs
 - [ ] Find fancy name (tentative: `asc`)
-- [ ] Choose final version of CSG dataset
+- [ ] @DB Choose final version of CSG dataset
 
 **Optional:**
 
