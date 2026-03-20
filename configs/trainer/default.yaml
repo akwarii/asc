@@ -1,14 +1,16 @@
 accelerator: auto
 devices: auto
-max_epochs: 30
+max_epochs: 50
 precision: bf16-mixed
-enable_model_summary: false
+enable_model_summary: false # we replace the default model summary with a custom one in the callbacks
+
 logger:
   class_path: lightning.pytorch.loggers.TensorBoardLogger
   init_args:
     save_dir: logs
     name: painn_experiment
     default_hp_metric: false
+
 callbacks:
   - class_path: lightning.pytorch.callbacks.ModelCheckpoint
     init_args:
@@ -21,7 +23,6 @@ callbacks:
       monitor: val/loss
       patience: 20
       mode: min
-  - class_path: lightning.pytorch.callbacks.BatchSizeFinder
   - class_path: lightning.pytorch.callbacks.RichModelSummary
     init_args:
       max_depth: 2
