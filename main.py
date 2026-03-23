@@ -83,27 +83,18 @@ class CustomLightningCLI(LightningCLI):
 
     def after_fit(self) -> None:
         """Export the best checkpoint with torch.export using an uncompiled model."""
-        # Find the best checkpoint path from the trainer callbacks
         ckpt_path = None
-        for callback in self.trainer.checkpoint_callbacks:
-            if callback.best_model_path:  # type: ignore
-                ckpt_path = Path(callback.best_model_path)  # type: ignore
+        if self.trainer.checkpoint_callback:
+            ckpt_path = self.trainer.checkpoint_callback.best_model_path # type: ignore
 
         if ckpt_path is None or not ckpt_path.exists():
             raise RuntimeError("No valid checkpoint found for export.")
 
-        raw_model = self._load_model_for_export(ckpt_path)
-
-        # Extract metadata: num_layers and num_neighbors
-        # num_layers is an attribute on model itself
-        num_layers = getattr(raw_model, "num_layers", None)
-
-        # num_neighbors (k) comes from the datamodule dataset_kwargs
-        num_neighbors = self.datamodule.dataset_kwargs.get("k")
+        model = self._load_model_for_export(ckpt_path)
 
         # Handling dynamic shapes for graph data
-        num_nodes = torch.export.Dim("num_nodes", min=2)  # I think we never have just 1 node?
-        num_edges = torch.export.Dim("num_edges", min=2)  # Graphs are directed, so >= 2 edges?
+        num_nodes = torch.export.Dim("num_nodes", min=2)
+        num_edges = torch.export.Dim("num_edges", min=2)
         dynamic_shapes = {
             "x": {0: num_nodes},
             "edge_index": {1: num_edges},
@@ -114,25 +105,28 @@ class CustomLightningCLI(LightningCLI):
         example = self._make_export_example()
 
         print("Exporting best checkpoint with torch.export...")
-        exported = torch.export.export(
-            raw_model,
+        exported_program = torch.export.export(
+            model,
             example,
             dynamic_shapes=dynamic_shapes,
         )
 
-        out_dir = Path("exports")
+        if self.trainer.log_dir is None:
+            raise RuntimeError("Trainer log_dir is not set. Cannot determine export path.")
+
+        out_dir = Path(self.trainer.log_dir) / "exports"
         out_dir.mkdir(parents=True, exist_ok=True)
         export_path = out_dir / f"{ckpt_path.stem}.pt2"
 
-        # Prepare metadata as extra_files for torch.export.save
+        # Embed metadata for future use in, e.g., OVITO
         metadata = {
-            "num_layers": num_layers,
-            "num_neighbors": num_neighbors,
+            "num_layers": getattr(model, "num_layers", None),
+            "num_neighbors": self.datamodule.dataset_kwargs.get("k"),
         }
-        metadata = {k: v for k, v in metadata.items() if v is not None}
-        extra_files = {"metadata.json": json.dumps(metadata, indent=2)} if metadata else {}
 
-        torch.export.save(exported, str(export_path), extra_files=extra_files)
+        extra_files = {"metadata.json": json.dumps(metadata, indent=2)}
+        torch.export.save(exported_program, str(export_path), extra_files=extra_files)
+
         print(f"torch.export artifact written to: {export_path}")
         if metadata:
             print(f"  Embedded metadata: {metadata}")
