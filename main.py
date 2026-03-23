@@ -79,13 +79,13 @@ class CustomLightningCLI(LightningCLI):
         if hasattr(raw_model, "_orig_mod"):
             raw_model = raw_model._orig_mod  # type: ignore
 
-        return raw_model.eval().cpu()
+        return raw_model.cpu()
 
     def after_fit(self) -> None:
         """Export the best checkpoint with torch.export using an uncompiled model."""
         ckpt_path = None
         if self.trainer.checkpoint_callback:
-            ckpt_path = self.trainer.checkpoint_callback.best_model_path # type: ignore
+            ckpt_path = Path(self.trainer.checkpoint_callback.best_model_path) # type: ignore
 
         if ckpt_path is None or not ckpt_path.exists():
             raise RuntimeError("No valid checkpoint found for export.")
@@ -120,8 +120,8 @@ class CustomLightningCLI(LightningCLI):
 
         # Embed metadata for future use in, e.g., OVITO
         metadata = {
-            "num_layers": getattr(model, "num_layers", None),
-            "num_neighbors": self.datamodule.dataset_kwargs.get("k"),
+            "num_layers": getattr(model, "num_layers", -1),
+            "num_neighbors": self.datamodule.dataset_kwargs.get("k", -1),
         }
 
         extra_files = {"metadata.json": json.dumps(metadata, indent=2)}
