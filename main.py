@@ -85,7 +85,7 @@ class CustomLightningCLI(LightningCLI):
         """Export the best checkpoint with torch.export using an uncompiled model."""
         ckpt_path = None
         if self.trainer.checkpoint_callback:
-            ckpt_path = Path(self.trainer.checkpoint_callback.best_model_path) # type: ignore
+            ckpt_path = Path(self.trainer.checkpoint_callback.best_model_path)  # type: ignore
 
         if ckpt_path is None or not ckpt_path.exists():
             raise RuntimeError("No valid checkpoint found for export.")
