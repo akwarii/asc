@@ -1,8 +1,8 @@
 #!/usr/bin/env python
+import json
 from pathlib import Path
 
 import torch
-from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.cli import LightningArgumentParser, LightningCLI
 from src.datamodule import LightningDataset
 from src.module import Module
@@ -65,7 +65,6 @@ class CustomLightningCLI(LightningCLI):
                 map_location="cpu",
                 compile=False,
             )
-            raw_model = module.model
         except RuntimeError as exc:
             # Checkpoints produced with compile=True may store wrapped key names.
             if "_orig_mod" not in str(exc):
@@ -75,12 +74,10 @@ class CustomLightningCLI(LightningCLI):
                 map_location="cpu",
                 compile=True,
             )
-            raw_model = module.model
-            if hasattr(raw_model, "_orig_mod"):
-                raw_model = raw_model._orig_mod
 
+        raw_model = module.model
         if hasattr(raw_model, "_orig_mod"):
-            raw_model = raw_model._orig_mod
+            raw_model = raw_model._orig_mod  # type: ignore
 
         return raw_model.eval().cpu()
 
@@ -88,13 +85,21 @@ class CustomLightningCLI(LightningCLI):
         """Export the best checkpoint with torch.export using an uncompiled model."""
         # Find the best checkpoint path from the trainer callbacks
         ckpt_path = None
-        for callback in self.trainer.callbacks:
-            if isinstance(callback, ModelCheckpoint) and callback.best_model_path:
-                ckpt_path = Path(callback.best_model_path)
+        for callback in self.trainer.checkpoint_callbacks:
+            if callback.best_model_path:  # type: ignore
+                ckpt_path = Path(callback.best_model_path)  # type: ignore
+
         if ckpt_path is None or not ckpt_path.exists():
             raise RuntimeError("No valid checkpoint found for export.")
 
         raw_model = self._load_model_for_export(ckpt_path)
+
+        # Extract metadata: num_layers and num_neighbors
+        # num_layers is an attribute on model itself
+        num_layers = getattr(raw_model, "num_layers", None)
+
+        # num_neighbors (k) comes from the datamodule dataset_kwargs
+        num_neighbors = self.datamodule.dataset_kwargs.get("k")
 
         # Handling dynamic shapes for graph data
         num_nodes = torch.export.Dim("num_nodes", min=2)  # I think we never have just 1 node?
@@ -118,8 +123,19 @@ class CustomLightningCLI(LightningCLI):
         out_dir = Path("exports")
         out_dir.mkdir(parents=True, exist_ok=True)
         export_path = out_dir / f"{ckpt_path.stem}.pt2"
-        torch.export.save(exported, str(export_path))
+
+        # Prepare metadata as extra_files for torch.export.save
+        metadata = {
+            "num_layers": num_layers,
+            "num_neighbors": num_neighbors,
+        }
+        metadata = {k: v for k, v in metadata.items() if v is not None}
+        extra_files = {"metadata.json": json.dumps(metadata, indent=2)} if metadata else {}
+
+        torch.export.save(exported, str(export_path), extra_files=extra_files)
         print(f"torch.export artifact written to: {export_path}")
+        if metadata:
+            print(f"  Embedded metadata: {metadata}")
 
 
 def main() -> None:
