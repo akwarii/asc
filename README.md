@@ -149,11 +149,10 @@ The first will print the help message related to our implementation of the PaiNN
 
 - [ ] Production ready inference script + notebook (via `main.py` CLI)
 - [ ] Ideally, replace the inference function by LightningModule.predict + LightningDataModule
-- [ ] OVITO interface
 - [ ] Update documentation
-- [ ] Fix Silicon example
 - [ ] Find fancy name (tentative: `asc`)
-- [ ] @DB Choose final version of CSG dataset
+- [ ] Add more config files
+- [ ] Document how to extend the code
 
 **Optional:**
 
@@ -199,7 +198,10 @@ If you have any questions, please contact one of the contributors below:
 
 <ul>
   <li>
-    <a href="mailto:gael.huynh@univ-lyon1.fr?"> Gaël Huynh</a>
+    <a href="mailto:gael.huynh@gmail.com?"> Gaël Huynh</a>
+  </li>
+  <li>
+    <a href="mailto:dylan.bissuel@univ-lyon1.fr?"> Dylan Bissuel</a>
   </li>
   <li>
     <a href="mailto:david.rodney@univ-lyon1.fr?"> David Rodney</a>
