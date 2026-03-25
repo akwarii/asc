@@ -20,6 +20,8 @@ class MaterialProject(Dataset):
             whether the graph should be included in the dataset.
         force_reload: Whether to reload the dataset even if it already exists.
         download_only: Whether to download the dataset only without processing and loading it.
+        elements: Optional list of element symbols or exact chemical systems to filter by.
+        exact_composition: Whether `elements` should be treated as exact chemical systems.
         kwargs: Additional keyword arguments to be passed to PeriodicKNN or Dataset class.
     """
 
@@ -35,8 +37,20 @@ class MaterialProject(Dataset):
         pre_filter: Callable | None = None,
         force_reload: bool = False,
         download_only: bool = False,
+        elements: list[str] | None = None,
+        exact_composition: bool = True,
         **kwargs,
     ) -> None:
+        self.elements = elements
+        self.exact_composition = exact_composition
+
+        # Dashed format is only valid for exact composition searches
+        for element in elements or []:
+            if "-" in element and not exact_composition:
+                raise ValueError(
+                    f"Dashed format '{element}' is only valid when exact_composition=True."
+                )
+
         super().__init__(
             root,
             transform,
@@ -68,6 +82,7 @@ class MaterialProject(Dataset):
 
         try:
             from mp_api.client import MPRester
+            from pymatgen.core.structure import Structure
         except ImportError:
             raise ImportError(
                 "The Materials Project API client is not installed. "
@@ -76,6 +91,15 @@ class MaterialProject(Dataset):
 
         api_key = get_key(self.DOTENV_PATH, self.DOTENV_KEY)
         api = MPRester(api_key, mute_progress_bars=True, use_document_model=False)
+
+        if self.elements is not None:
+            extra_args = (
+                {"chemsys": self.elements}
+                if self.exact_composition
+                else {"elements": self.elements}
+            )
+        else:
+            extra_args = {}
 
         for idx in tqdm(range(1, 231)):
             with api as mpr:
@@ -87,6 +111,7 @@ class MaterialProject(Dataset):
                         "deprecated",
                         "warnings",
                     ],
+                    **extra_args,
                 )
 
             # Filter out deprecated and warning entries and convert to POSCAR format
@@ -95,7 +120,7 @@ class MaterialProject(Dataset):
                 warnings.simplefilter("ignore", UserWarning)
                 filtered_data = [
                     {
-                        "structure": entry["structure"].to(fmt="poscar"),  # type: ignore
+                        "structure": Structure.from_dict(entry["structure"]).to(fmt="poscar"),
                         "spacegroup": entry["symmetry"]["number"],  # type: ignore
                     }
                     for entry in docs

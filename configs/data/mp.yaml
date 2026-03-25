@@ -1,0 +1,16 @@
+dataset_name: mp
+root: ./data/material_project/Zr
+lengths: [0.7, 0.2, 0.1]
+batch_size: 128
+num_workers: 8
+use_imbalance_sampler: true
+elements: ["Zr"]  # ignored unless dataset_name is "mp"
+exact_composition: false  # ignored unless dataset_name is "mp"
+transforms:
+  - class_path: src.transforms.RandomPerturbation
+    init_args:
+      std_range: [0.0, 0.05]
+  # - class_path: src.transforms.BoxStrain
+  #   init_args:
+  #    std_range: [0.0, 0.05]
+  #    directions: all

@@ -51,6 +51,8 @@ class LightningDataset(LightningDataModule):
             object and returns a transformed version. The data object will be transformed before
             every access (default: `None`).
         force_reload: Whether to re-process the dataset (default: `False`).
+        elements: Optional list of Material Project element symbols or chemical systems.
+        exact_composition: Whether Material Project element filters should match exact systems.
         **kwargs: Additional keyword arguments to be passed to the dataset (if `dataset` is not
             used) or to the `torch_geometric.loader.DataLoader` object.
     """
@@ -67,6 +69,8 @@ class LightningDataset(LightningDataModule):
         transforms: Any = None,  # noqa: ANN401
         use_imbalance_sampler: bool = False,
         force_reload: bool = False,
+        elements: Sequence[str] | None = None,
+        exact_composition: bool = True,
         **kwargs,
     ) -> None:
         if dataset is None and dataset_name is None and pred_dataset is None:
@@ -131,6 +135,12 @@ class LightningDataset(LightningDataModule):
             "download_only": download_only,
             "k": k,
         }
+
+        # FIXME: elements and exact_composition are only implemented for Material Project dataset
+        if dataset_name == "mp" and elements is not None:
+            self.dataset_kwargs["elements"] = list(elements)
+            self.dataset_kwargs["exact_composition"] = exact_composition
+
         root = kwargs.pop("root", None)
         if root is not None:
             self.dataset_kwargs["root"] = root
