@@ -14,6 +14,7 @@
 import os.path as osp
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -67,8 +68,12 @@ class Gnome(Dataset):
         pre_filter: Callable | None = None,
         force_reload: bool = False,
         download_only: bool = False,
+        search_kwargs: dict[str, Any] | None = None,
         **kwargs,
     ) -> None:
+        # TODO: Implement search_kwargs support for GNoME dataset queries.
+        self.search_kwargs = search_kwargs
+
         super().__init__(
             root,
             transform,
