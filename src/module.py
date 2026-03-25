@@ -235,9 +235,6 @@ class Module(LightningModule):
         self.test_metrics.reset()
 
     def predict_step(self, data: Data) -> Tensor:
-        # if hasattr(self.model, "inference"):
-        #     preds: Tensor = self.model.inference(data)[:data.batch_size]
-        # else:
         kwargs = self._prepare_forward_kwargs(data)
         preds: Tensor = self(data.x, data.edge_index, data.edge_attr, **kwargs)[: data.batch_size]
         return torch.argmax(preds, dim=-1)

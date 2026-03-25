@@ -74,7 +74,7 @@ def main() -> None:
         output: Any = exported_module(x, edge_index, edge_attr)
 
     # Basic sanity checks on the output
-    if isinstance(output, (tuple, list)):
+    if isinstance(output, tuple | list):
         if not output or not torch.is_tensor(output[0]):
             raise TypeError("Expected first output item to be a tensor.")
         output = output[0]

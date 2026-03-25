@@ -72,8 +72,9 @@ def class_instantiator(obj: Any, **kwargs) -> Any:  # noqa: ANN401
 
     # If we have a class_path, we try to import and instantiate it
     if class_path:
-        module_name, class_name = class_path.rsplit(".", 1)
         import importlib
+
+        module_name, class_name = class_path.rsplit(".", 1)
 
         module = importlib.import_module(module_name)
         cls = getattr(module, class_name)

@@ -3,11 +3,7 @@ from collections.abc import Callable
 import torch
 import torch.nn as nn
 from torch import Tensor
-from torch_geometric.data import Data
-from torch_geometric.loader import CachedLoader, NeighborLoader
 from torch_geometric.nn import Linear
-from torch_geometric.utils import trim_to_layer
-from tqdm import tqdm
 
 from src.models.base import BaseModel
 from src.models.layers.embedding import GeometricEmbedding
@@ -128,22 +124,13 @@ class CEGANNv2(BaseModel):
         assert bond_source is not None, "bond_source cannot be None for CEGANNv2"
         assert num_atoms is not None, "num_atoms cannot be None for CEGANNv2"
 
+        if num_sampled_nodes_per_hop is not None:
+            raise NotImplementedError("Neighbor sampling is not implemented yet for CEGANNv2.")
+
         # Encode distances and angles
         x, edge_attr = self.embedding(x, edge_attr)
 
-        # Convolution blocks on the line graph
-        for i, conv in enumerate(self.convs):
-            # Trim to sampled nodes/edges if neighbor sampling is used
-            if num_sampled_nodes_per_hop is not None and num_sampled_edges_per_hop is not None:
-                x, edge_index, edge_attr = trim_to_layer(
-                    i,
-                    num_sampled_nodes_per_hop,
-                    num_sampled_edges_per_hop,
-                    x,
-                    edge_index,
-                    edge_attr,
-                )
-
+        for conv in self.convs:
             x, edge_attr = conv(x=x, edge_index=edge_index, edge_attr=edge_attr)
 
         # During batching, num_atoms can be a tensor
@@ -151,140 +138,7 @@ class CEGANNv2(BaseModel):
         if isinstance(num_atoms, Tensor):
             num_atoms = num_atoms.sum()
 
-        # Pooling from bonds to atoms
-        # FIXME will break when using neighbor sampling on the line graph because
-        # we can't ensure we have the full bond-to-atom incidence info
         h_atom = self.readout(x, num_atoms, bond_source=bond_source)
-
-        # Final MLP for node classification
         out = self.out_head(h_atom)
 
         return out
-
-    @torch.no_grad()
-    def inference_per_layer(
-        self,
-        layer: int,
-        x: Tensor,
-        edge_index: Tensor,
-        edge_attr: Tensor,
-        batch_size: int,
-    ) -> Tensor:
-        """Performs inference for a single layer."""
-        if layer == 0:
-            x, edge_attr = self.embedding(x, edge_attr)
-        else:
-            # Re-embed edges as we don't propagate edge updates in inference
-            edge_attr_sbf = self.embedding.sbf(edge_attr)
-            edge_attr = self.embedding.edge_embedding(edge_attr_sbf)
-
-        # TODO update signature of conv layers
-        x, _ = self.convs[layer](x, edge_index, edge_attr)
-        x = x[:batch_size]
-
-        if layer == self.num_layers - 1:
-            return x
-
-        return x
-
-    @torch.no_grad()
-    def inference(
-        self,
-        loader: NeighborLoader,
-        embedding_device: str | torch.device | None = "cpu",
-        *,
-        cache: bool = False,
-        progress_bar: bool = True,
-    ) -> Tensor:
-        r"""Performs layer-wise inference on large-graphs using a
-        :class:`~torch_geometric.loader.NeighborLoader`, where
-        :class:`~torch_geometric.loader.NeighborLoader` should sample the
-        full neighborhood for only one layer.
-        This method, described in e.g., `DGI: An Easy and Efficient Framework
-        for GNN Model Evaluation`, P. Yin et al., (2023), is an efficient way
-        to compute the output embeddings for all nodes in the graph.
-
-        Args:
-            loader (torch_geometric.loader.NeighborLoader): A neighbor loader
-                object that generates full 1-hop subgraphs, *i.e.*,
-                :obj:`loader.num_neighbors = [-1]`.
-            embedding_device (torch.device, optional): The device to store
-                intermediate embeddings on. If intermediate embeddings fit on
-                GPU, this option helps to avoid unnecessary device transfers.
-                (default: :obj:`"cpu"`)
-            cache (bool, optional): If set to :obj:`True`, caches intermediate
-                sampler outputs for usage in later epochs.
-                This will avoid repeated sampling to accelerate inference.
-                (default: :obj:`False`)
-            progress_bar (bool, optional): If set to :obj:`True`, displays a
-                progress bar during inference. (default: :obj:`True`)
-        """
-        assert isinstance(loader, NeighborLoader)
-        assert len(loader.dataset) == loader.data.num_nodes
-        assert len(loader.node_sampler.num_neighbors) == 1
-        assert not self.training
-
-        if progress_bar:
-            pbar = tqdm(total=len(loader.dataset) * len(self.convs))
-            pbar.set_description("Evaluating")
-
-        x_all = loader.data.x.to(self.device)
-        if cache:
-
-            def transform(data: Data) -> Data:
-                kwargs = dict(n_id=data.n_id, batch_size=data.batch_size)
-                if hasattr(data, "adj_t"):
-                    kwargs["adj_t"] = data.adj_t
-                else:
-                    kwargs["edge_index"] = data.edge_index
-                return Data.from_dict(kwargs).to(self.device)
-
-            loader = CachedLoader(loader, device=self.device, transform=transform)  # type: ignore[assignment]
-
-        for i in range(self.num_layers):
-            xs = torch.empty(
-                x_all.size(0),
-                self.convs[i].node_out_channels,  # type: ignore[attr-defined]
-                device=embedding_device,
-                pin_memory=(embedding_device == "cpu"),
-            )
-
-            for batch in loader:
-                batch_size = batch.batch_size
-
-                n_id = batch.n_id.to(self.device)
-                edge_index = batch.edge_index.to(self.device)
-                edge_attr = batch.edge_attr.to(self.device)
-
-                x = x_all[n_id]
-                # TODO consider that both node and edge features can be updated
-                x = self.inference_per_layer(i, x, edge_index, edge_attr, batch_size)
-
-                global_id = batch.n_id.narrow(0, 0, batch_size)
-                xs[global_id] = x.to(embedding_device, non_blocking=True)
-
-                if progress_bar:
-                    pbar.update(batch_size)  # type: ignore[call-arg]
-
-            if embedding_device == "cpu":
-                torch.cuda.synchronize()
-            x_all = xs.to(self.device)
-
-        # Readout from bonds to atoms
-        # We assume the loader.dataset or the full graph has the necessary info
-        # to map the final bond embeddings x_all back to atoms.
-        # This requires bond_source corresponding to x_all.
-        if hasattr(loader.data, "bond_source"):
-            bond_source = loader.data.bond_source.to(self.device)
-            num_atoms = loader.data.num_atoms
-            x_all = self.readout.forward(x_all, num_atoms, bond_source=bond_source)
-        else:
-            # Fallback or error if bond_source is missing, strictly needed for CEGANN
-            raise RuntimeError("bond_source missing in loader.data during inference")
-
-        x_all = self.out_head(x_all)
-
-        if progress_bar:
-            pbar.close()  # type: ignore[call-arg]
-
-        return x_all
