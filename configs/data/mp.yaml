@@ -1,12 +1,13 @@
 dataset_name: mp
-root: ./data/material_project/Zr_t
+root: ./data/material_project/
 lengths: [0.7, 0.2, 0.1]
 batch_size: 128
 num_workers: 8
 use_imbalance_sampler: true
+multiprocessing_context: spawn
 search_kwargs:
   elements: ["Zr"]  # uses all compositions containing Zr
-  # chemsys: ["Zr-O", "Zr-Ce-O"]  # For exact composition matches
+#   chemsys: ["Zr-O", "Zr-Ce-O"]  # For exact composition matches
 transforms:
   - class_path: src.transforms.RandomPerturbation
     init_args:

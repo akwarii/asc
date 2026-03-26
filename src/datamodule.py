@@ -99,6 +99,10 @@ class LightningDataset(LightningDataModule):
         kwargs["pin_memory"] = kwargs.get("pin_memory", True)
         kwargs["persistent_workers"] = kwargs.get("persistent_workers", kwargs["num_workers"] > 0)
 
+        # ?  We need to handle it explicitely for the CLI to accept it as a valid argument.
+        # ? `None` is arguably (?) the best default as it lets the runtime/platform decide.
+        kwargs["multiprocessing_context"] = kwargs.get("multiprocessing_context", None)
+
         self.kwargs = kwargs
 
         self.dataset_name = dataset_name if dataset is None else None
