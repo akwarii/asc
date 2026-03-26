@@ -76,7 +76,7 @@ class MaterialProject(Dataset):
         """Validate kwargs against the MP summary search signature."""
         reserved = {"spacegroup_number", "fields"}
         conflict = sorted(reserved.intersection(candidate_kwargs))
-        #! Note: Maybe we can think of allowing users to specify spacegroups ?
+        # ! Note: Maybe we can think of allowing users to specify spacegroups ?
         if conflict:
             raise ValueError(
                 "`spacegroup_number` and `fields` are managed internally and should not be set "
@@ -125,25 +125,25 @@ class MaterialProject(Dataset):
                     **search_kwargs,
                 )
 
-            # Filter out deprecated and warning entries and convert to POSCAR format
-            # Pymatgen throws UserWarning when electronegativity is not found, we can ignore it
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", UserWarning)
-                filtered_data = [
-                    {
-                        "structure": Structure.from_dict(entry["structure"]).to(fmt="poscar"),
-                        "spacegroup": entry["symmetry"]["number"],  # type: ignore
-                    }
-                    for entry in docs
-                    if not entry["deprecated"] and not entry["warnings"]  # type: ignore
-                ]
+                # Filter out deprecated and warning entries and convert to POSCAR format
+                # Pymatgen throws UserWarning when electronegativity is not found, we can ignore it
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", UserWarning)
+                    filtered_data = [
+                        {
+                            "structure": Structure.from_dict(entry["structure"]).to(fmt="poscar"),
+                            "spacegroup": entry["symmetry"]["number"],  # type: ignore
+                        }
+                        for entry in docs
+                        if not entry["deprecated"] and not entry["warnings"]  # type: ignore
+                    ]
 
-            file = f"{self.raw_dir}/data_{idx}.json"
-            try:
-                with open(file, "w") as f:
-                    json.dump(filtered_data, f, sort_keys=True, indent=4)
-            except OSError as e:
-                print(f"Error writing data to file {file}: {e}")
+                file = f"{self.raw_dir}/data_{idx}.json"
+                try:
+                    with open(file, "w") as f:
+                        json.dump(filtered_data, f, sort_keys=True, indent=4)
+                except OSError as e:
+                    print(f"Error writing data to file {file}: {e}")
 
     def process(self) -> None:
         """Process the dataset by converting the structures to graphs, applying both pre-filter and
