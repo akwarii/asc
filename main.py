@@ -79,7 +79,7 @@ class CustomLightningCLI(LightningCLI):
         if hasattr(raw_model, "_orig_mod"):
             raw_model = raw_model._orig_mod  # type: ignore
 
-        return raw_model.cpu().eval()
+        return raw_model.cpu().eval()  # type: ignore
 
     def after_fit(self) -> None:
         """Export the best checkpoint with torch.export using an uncompiled model."""
