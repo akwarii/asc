@@ -1,6 +1,7 @@
 import os.path as osp
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -83,8 +84,13 @@ class CustomDataset(Dataset):
         pre_filter: Callable | None = None,
         force_reload: bool = False,
         download_only: bool = False,
+        search_kwargs: dict[str, Any] | None = None,
         **kwargs,
     ) -> None:
+        # ! Note: search_kwargs are here for signature consistency, but they are not used in the
+        # !       CustomDataset as no online querying is implemented.
+        self.search_kwargs = search_kwargs
+
         super().__init__(
             root,
             transform,

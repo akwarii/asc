@@ -1,6 +1,7 @@
 import json
 import os.path as osp
 from collections.abc import Callable
+from typing import Any
 
 from tqdm.auto import tqdm
 
@@ -30,8 +31,12 @@ class Aflow(Dataset):
         pre_filter: Callable | None = None,
         force_reload: bool = False,
         download_only: bool = False,
+        search_kwargs: dict[str, Any] | None = None,
         **kwargs,
     ) -> None:
+        # TODO: Implement search_kwargs support for AFLOW dataset queries.
+        self.search_kwargs = search_kwargs
+
         super().__init__(
             root,
             transform,

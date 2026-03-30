@@ -1,5 +1,6 @@
 import os.path as osp
 from collections.abc import Callable
+from typing import Any
 
 from src.datasets.base import Dataset
 
@@ -48,8 +49,13 @@ class CSG(Dataset):
         pre_filter: Callable | None = None,
         force_reload: bool = False,
         download_only: bool = False,
+        search_kwargs: dict[str, Any] | None = None,
         **kwargs,
     ) -> None:
+        # TODO: Implement search_kwargs support for CSG dataset queries.
+        # ? eg. this could be an easy way to swith between "CSG.csv" and "CSG_tiny.csv"
+        self.search_kwargs = search_kwargs
+
         super().__init__(
             root,
             transform,

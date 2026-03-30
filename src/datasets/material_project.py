@@ -1,8 +1,10 @@
+import inspect
 import json
 import os.path as osp
 import warnings
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from tqdm.auto import tqdm
 
@@ -20,8 +22,7 @@ class MaterialProject(Dataset):
             whether the graph should be included in the dataset.
         force_reload: Whether to reload the dataset even if it already exists.
         download_only: Whether to download the dataset only without processing and loading it.
-        elements: Optional list of element symbols or exact chemical systems to filter by.
-        exact_composition: Whether `elements` should be treated as exact chemical systems.
+        search_kwargs: Keyword arguments forwarded to `mpr.materials.summary.search`.
         kwargs: Additional keyword arguments to be passed to PeriodicKNN or Dataset class.
     """
 
@@ -37,19 +38,10 @@ class MaterialProject(Dataset):
         pre_filter: Callable | None = None,
         force_reload: bool = False,
         download_only: bool = False,
-        elements: list[str] | None = None,
-        exact_composition: bool = True,
+        search_kwargs: dict[str, Any] | None = None,
         **kwargs,
     ) -> None:
-        self.elements = elements
-        self.exact_composition = exact_composition
-
-        # Dashed format is only valid for exact composition searches
-        for element in elements or []:
-            if "-" in element and not exact_composition:
-                raise ValueError(
-                    f"Dashed format '{element}' is only valid when exact_composition=True."
-                )
+        self.search_kwargs = dict(search_kwargs or {})
 
         super().__init__(
             root,
@@ -76,6 +68,29 @@ class MaterialProject(Dataset):
         """Return the name of the processed files ie the transformed data saved to the disk."""
         return ["data.pt"]
 
+    @staticmethod
+    def _validate_search_kwargs(
+        search_callable: Callable,
+        candidate_kwargs: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Validate kwargs against the MP summary search signature."""
+        reserved = {"spacegroup_number", "fields"}
+        conflict = sorted(reserved.intersection(candidate_kwargs))
+        # ! Note: Maybe we can think of allowing users to specify spacegroups ?
+        if conflict:
+            raise ValueError(
+                "`spacegroup_number` and `fields` are managed internally and should not be set "
+                f"in search kwargs: {conflict}."
+            )
+
+        signature = inspect.signature(search_callable)
+        accepted = set(signature.parameters)
+        unsupported = sorted(set(candidate_kwargs) - accepted)
+        if unsupported:
+            raise ValueError(f"Unsupported Material Project search kwargs: {unsupported}.")
+
+        return {key: candidate_kwargs[key] for key in candidate_kwargs if key in accepted}
+
     def download(self) -> None:
         """Download the dataset from Material Project and store it in the raw directory."""
         from dotenv import get_key
@@ -92,17 +107,13 @@ class MaterialProject(Dataset):
         api_key = get_key(self.DOTENV_PATH, self.DOTENV_KEY)
         api = MPRester(api_key, mute_progress_bars=True, use_document_model=False)
 
-        if self.elements is not None:
-            extra_args = (
-                {"chemsys": self.elements}
-                if self.exact_composition
-                else {"elements": self.elements}
+        with api as mpr:
+            search_kwargs = self._validate_search_kwargs(
+                mpr.materials.summary.search,
+                self.search_kwargs,
             )
-        else:
-            extra_args = {}
 
-        for idx in tqdm(range(1, 231)):
-            with api as mpr:
+            for idx in tqdm(range(1, 231)):
                 docs = mpr.materials.summary.search(
                     spacegroup_number=idx,
                     fields=[
@@ -111,28 +122,28 @@ class MaterialProject(Dataset):
                         "deprecated",
                         "warnings",
                     ],
-                    **extra_args,
+                    **search_kwargs,
                 )
 
-            # Filter out deprecated and warning entries and convert to POSCAR format
-            # Pymatgen throws UserWarning when electronegativity is not found, we can ignore it
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", UserWarning)
-                filtered_data = [
-                    {
-                        "structure": Structure.from_dict(entry["structure"]).to(fmt="poscar"),
-                        "spacegroup": entry["symmetry"]["number"],  # type: ignore
-                    }
-                    for entry in docs
-                    if not entry["deprecated"] and not entry["warnings"]  # type: ignore
-                ]
+                # Filter out deprecated and warning entries and convert to POSCAR format
+                # Pymatgen throws UserWarning when electronegativity is not found, we can ignore it
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", UserWarning)
+                    filtered_data = [
+                        {
+                            "structure": Structure.from_dict(entry["structure"]).to(fmt="poscar"),
+                            "spacegroup": entry["symmetry"]["number"],  # type: ignore
+                        }
+                        for entry in docs
+                        if not entry["deprecated"] and not entry["warnings"]  # type: ignore
+                    ]
 
-            file = f"{self.raw_dir}/data_{idx}.json"
-            try:
-                with open(file, "w") as f:
-                    json.dump(filtered_data, f, sort_keys=True, indent=4)
-            except OSError as e:
-                print(f"Error writing data to file {file}: {e}")
+                file = f"{self.raw_dir}/data_{idx}.json"
+                try:
+                    with open(file, "w") as f:
+                        json.dump(filtered_data, f, sort_keys=True, indent=4)
+                except OSError as e:
+                    print(f"Error writing data to file {file}: {e}")
 
     def process(self) -> None:
         """Process the dataset by converting the structures to graphs, applying both pre-filter and
