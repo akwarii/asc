@@ -5,11 +5,9 @@ description = "A suite for classifying atomic structures using graph neural netw
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "freud-analysis>=3.4.0",
-    "ipykernel>=7.2.0",
-    "ipywidgets>=8.1.8",
     "jsonargparse[signatures]>=4.46.0",
     "lightning>=2.6.1",
+    "matplotlib>=3.10.8",
     "ovito>=3.15.0",
     "pandas>=3.0.1",
     "rich>=14.3.3",

@@ -3,9 +3,7 @@ import tempfile
 from pathlib import Path
 
 import torch
-from freud.box import Box
-from freud.locality import AABBQuery
-from ovito.data import DataCollection
+from ovito.data import DataCollection, NearestNeighborFinder
 from ovito.io import import_file
 from torch import Tensor
 from torch_geometric.data import Data
@@ -14,24 +12,26 @@ from src.typing import PathLike
 from src.utils import atomic_numbers
 
 
-def type_id_to_atomic_number(type_id: Tensor, type_mapping: dict[int, int]) -> Tensor:
+def get_atomic_numbers(data: DataCollection) -> Tensor:
     """Convert a tensor of type ids to atomic numbers using a mapping.
 
     Args:
-        type_id: A tensor of shape (num_atoms,) containing the type ids of the atoms.
-        type_mapping: A dictionary mapping type ids to atomic numbers.
+        data: The OVITO DataCollection object.
 
     Returns:
         A tensor of shape (num_atoms,) containing the atomic numbers of the atoms.
     """
+    ptypes = data.particles_.particle_types_
+    type_mapper = {t.id: atomic_numbers.get(t.name, 0) for t in ptypes.types}
+    type_id = torch.from_numpy(ptypes[...]).long()
+
     max_type_id = int(type_id.max().item())
     mapping_tensor = torch.zeros(max_type_id + 1, dtype=torch.long)
-    for t_id, z in type_mapping.items():
-        mapping_tensor[t_id - 1] = z
 
-    atomic_numbers = mapping_tensor[type_id]
+    for t_id, z in type_mapper.items():
+        mapping_tensor[t_id] = z
 
-    return atomic_numbers
+    return mapping_tensor[type_id]
 
 
 def read_structure(representation: PathLike | DataCollection) -> DataCollection:
@@ -77,34 +77,20 @@ class PeriodicKNN:
         self.k = k
 
     def _get_graph_data(self, atoms: DataCollection) -> tuple[Tensor, Tensor, Tensor]:
-        # Map OVITO particle types to atomic numbers
-        type_mapper = {t.id: atomic_numbers[t.name] for t in atoms.particles.particle_types.types}
-        type_id = torch.from_numpy(atoms.particles.particle_types[...]).long()
+        x = get_atomic_numbers(atoms)
 
-        x = type_id_to_atomic_number(type_id, type_mapper)
+        finder = NearestNeighborFinder(self.k, atoms)
+        indices, deltas = finder.find_all()
 
-        # Extract data from OVITO DataCollection object
-        pos = atoms.particles.positions[...]
-        cell_matrix = atoms.cell[...][:3, :3].T
-
-        # Create Freud Box for PBC handling
-        box = Box.from_matrix(cell_matrix)
-        box.periodic = atoms.cell.pbc
-
-        # Perform knn query
-        nq = AABBQuery(box, pos)
-        nlist = nq.query(pos, dict(num_neighbors=self.k, exclude_ii=True)).toNeighborList()
-
-        # Build edge index and attributes
-        q_idx = torch.from_numpy(nlist.query_point_indices.copy()).long()
-        p_idx = torch.from_numpy(nlist.point_indices.copy()).long()
+        # q_idx represents the central atoms (query points)
+        # p_idx represents the neighbor atoms
+        q_idx = torch.arange(atoms.particles.count).long().view(-1, 1).expand(-1, self.k).flatten()
+        p_idx = torch.from_numpy(indices).flatten().long()
 
         edge_index = torch.stack([q_idx, p_idx])
 
-        pos_t = torch.from_numpy(pos).float()
-        diff_t = pos_t[p_idx] - pos_t[q_idx]
-        wrapped_diff = box.wrap(diff_t.numpy())
-        edge_attr = torch.from_numpy(wrapped_diff).float()
+        # edge attributes are the wrapped displacement vectors
+        edge_attr = torch.from_numpy(deltas).flatten(0, 1).float()
 
         return x, edge_index, edge_attr
 

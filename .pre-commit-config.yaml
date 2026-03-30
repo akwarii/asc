@@ -82,4 +82,4 @@ repos:
       - id: nbqa-ruff
         args: ["--line-length=99", "--ignore=I001"]
       - id: nbqa-isort
-        args: ["--profile=ruff"]
+        args: ["--profile=black"]
