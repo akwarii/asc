@@ -53,7 +53,7 @@ class CSG(Dataset):
         **kwargs,
     ) -> None:
         # TODO: Implement search_kwargs support for CSG dataset queries.
-        # ? eg. this could be an easy way to swith between "CSG.csv" and "CSG_tiny.csv"
+        # this could be an easy way to switch between eg "CSG.csv" and "CSG_tiny.csv"
         self.search_kwargs = search_kwargs
 
         super().__init__(
