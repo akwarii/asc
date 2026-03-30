@@ -9,21 +9,23 @@ ci:
   autofix_commit_msg: autofix pre-commit hooks
 
 repos:
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v6.0.0
+  - repo: builtin
     hooks:
       - id: check-added-large-files
       - id: check-case-conflict
-      - id: check-docstring-first
       - id: check-toml
       - id: check-yaml
-      - id: debug-statements
       - id: detect-private-key
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: debug-statements
       - id: name-tests-test
         args: ["--pytest-test-first"]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.4
+    rev: v0.15.8
     hooks:
       - id: ruff
         args: [--fix]
@@ -31,7 +33,7 @@ repos:
       - id: ruff-format
 
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.10.8
+    rev: 0.11.2
     hooks:
       - id: uv-export
         args: [--quiet]
@@ -52,18 +54,17 @@ repos:
         exclude: ^src/models/layers/geo_conv\.py$
 
   - repo: https://github.com/executablebooks/mdformat
-    rev: 0.7.21
+    rev: 1.0.0
     hooks:
       - id: mdformat
         args: ["--number"]
         additional_dependencies:
           - mdformat-gfm
-          - mdformat-tables
           - mdformat_frontmatter
           - mdformat-ruff
 
   - repo: https://github.com/codespell-project/codespell
-    rev: v2.4.1
+    rev: v2.4.2
     hooks:
       - id: codespell
         args:
@@ -81,4 +82,4 @@ repos:
       - id: nbqa-ruff
         args: ["--line-length=99", "--ignore=I001"]
       - id: nbqa-isort
-        args: ["--profile=black"]
+        args: ["--profile=ruff"]
