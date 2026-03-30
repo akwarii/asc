@@ -102,7 +102,7 @@ def plot_confusion_matrix(
     )
 
     # Rotate the tick labels for better readability
-    plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+    plt.step(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
 
     # Add text annotations
     thresh = cm.max() / 2.0

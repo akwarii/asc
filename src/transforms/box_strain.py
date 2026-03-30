@@ -129,7 +129,7 @@ class BoxStrain(BaseTransform):
 
         # Optionally apply shear to edge attributes if they are 3D vectors (e.g. edge vectors)
         if self.transform_edge_attr and hasattr(data, "edge_attr") and data.edge_attr is not None:
-            # Vectors in 3D space should be transformed by the shear amtrix as well
+            # Vectors in 3D space should be transformed by the shear matrix as well
             if data.edge_attr.ndim == 2 and data.edge_attr.shape[-1] == 3:
                 data.edge_attr = torch.matmul(data.edge_attr, deformation_matrix.T)
 
