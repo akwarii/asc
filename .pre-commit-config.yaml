@@ -63,13 +63,11 @@ repos:
           - mdformat_frontmatter
           - mdformat-ruff
 
-  - repo: https://github.com/codespell-project/codespell
-    rev: v2.4.2
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.44.0
     hooks:
-      - id: codespell
-        args:
-          - --skip=*.ipynb,src/utils/data.py
-          - --write-changes
+      - id: typos
+        exclude: (^src/utils/data\.py$|\.ipynb$)
 
   - repo: https://github.com/kynan/nbstripout
     rev: 0.9.1
