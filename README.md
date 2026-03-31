@@ -1,3 +1,5 @@
+<!-- TODO Update project name everywhere -->
+
 # Lightning-CEGANNv2: A Modular CEGANN Implementation with Optimized Architecture and Data Handling
 
 [![python](https://img.shields.io/badge/Python_3.11+-blue?logo=python&logoColor=white)](https://www.python.org/)
@@ -35,6 +37,8 @@
 </details>
 
 <!-- ABOUT THE PROJECT -->
+
+<!-- TODO Update project description -->
 
 ## About The Project
 
@@ -86,6 +90,8 @@ where
 
 Alternatively, you can use pip directly:
 
+<!-- TODO Update venv name -->
+
 ```bash
 # Clone the repo
 git clone https://github.com/akwarii/Lightning-CEGANN2.git
@@ -115,6 +121,8 @@ Once you got your credentials, create a `.env` file (using `cp .env.example .env
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Usage
+
+<!-- TODO add more details? -->
 
 To train the PaiNN model on the Si (silicon) dataset, you can run:
 
@@ -151,7 +159,7 @@ The first will print the help message related to our implementation of the PaiNN
 - [ ] Ideally, replace the inference function by LightningModule.predict + LightningDataModule
 - [ ] Update documentation
 - [ ] Find fancy name (tentative: `asc`)
-- [ ] Add more config files
+- [ ] Add config file for each dataset and model
 - [ ] Document how to extend the code
 
 **Optional:**
@@ -163,9 +171,9 @@ The first will print the help message related to our implementation of the PaiNN
 
 <!-- CONTRIBUTING -->
 
-<!-- TODO Add more details to the contribution guideline -->
-
 ## Contributing
+
+<!-- TODO Add more details to the contribution guideline -->
 
 Follow the generic coding conventions defined in [PEP8](https://peps.python.org/pep-0008/).
 Run pre-commit before submitting a PR by running `make format`.
@@ -174,7 +182,7 @@ Run pre-commit before submitting a PR by running `make format`.
 
 <!-- HOW TO CITE -->
 
-<!-- TODO Add reference -->
+<!-- TODO Add article ref once published -->
 
 ## How to cite
 
