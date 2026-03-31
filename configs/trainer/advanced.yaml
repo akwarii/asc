@@ -1,0 +1,56 @@
+# General
+accelerator: auto # accelerator to use for training, e.g. cpu, gpu, tpu, hpu, auto
+strategy: auto # parallel strategy, e.g. ddp, fsdp, deepspeed, etc.
+devices: auto # number of devices to train on
+num_nodes: 1 # number of GPU nodes for distributed training
+precision: null # precision to use, e.g. 16, 32, bf16, etc. Half precision is preferred on modern hardware
+logger: null # logger(s) to use, e.g. TensorBoardLogger, WandbLogger, etc.
+callbacks: null # callback(s) to use, e.g. ModelCheckpoint, EarlyStopping, etc.
+plugins: null # plugin(s) to use, e.g. DeepSpeedPlugin, FSDPPlugin, SLURMPlugin, etc.
+default_root_dir: null # default root directory for logs and checkpoints. If not specified, defaults to the current working directory.
+
+# Training step limits
+max_epochs: 1000 # maximum number of epochs to train for. Ignored if max_steps is set. Set to -1 to enable infinite training.
+min_epochs: 1 # minimum number of epochs to train for. Ignored if max_steps is set.
+max_steps: -1 # maximum number of steps to train for. -1 to disable. If set, overrides max_epochs.
+min_steps: null # minimum number of steps to train for. If set, overrides max_epochs.
+max_time: null # maximum time to train for. Can be a string like '01:02:00:00' for 1 day and 2 hours.
+
+# Validation
+val_check_interval: null # how often to check the validation set. Can be a fraction of the training epochs, an int for number of training steps, or a time interval.
+check_val_every_n_epoch: 1 # how often to check the validation set in terms of epochs.
+
+# Logging and checkpointing
+log_every_n_steps: 50 # how often to log training metrics.
+enable_checkpointing: true # whether to enable checkpointing. Can be overridden by setting a ModelCheckpoint callback.
+enable_progress_bar: true # whether to enable the progress bar.
+enable_model_summary: true # whether to print a model summary.
+
+# Gradient accumulation and clipping
+accumulate_grad_batches: 1 # how many batches to accumulate gradients for before performing an optimizer step. Can be a number of batches or a fraction of the training epoch.
+gradient_clip_algorithm: null # algorithm to use for gradient clipping, e.g. 'norm', 'value', etc. If null, defaults to 'norm'.
+gradient_clip_val: null # gradient clipping value. If null, no gradient clipping is performed.
+
+# Distributed training
+use_distributed_sampler: true # Whether to use a distributed sampler for the training dataloader. Only necessary for multi-GPU training.
+sync_batchnorm: false # Synchronize batch normalization layers across devices. Only necessary for multi-GPU training.
+
+# Debugging
+profiler: null # profiler to use to identify bottlenecks
+benchmark: null # set torch.backends.cudnn.benchmark = True for optimal performance on fixed input sizes. Set to False to use deterministic algorithms.
+barebones: false # disables all logging and callbacks for maximum training speed. Useful for debugging or benchmarking.
+fast_dev_run: false # runs 1 batch of train, val, test to find any bugs in the code
+deterministic: null # if true enables cudnn.deterministic. Set to true for reproducibility, false for maximum speed.
+detect_anomaly: false # whether to enable torch.autograd.detect_anomaly() to find NaNs and Infs in the backward pass. Can be slow, so only use for debugging.
+overfit_batches: 0.0 # If > 0, will overfit on a fraction of the training data (float) or a number of batches (int). Useful for debugging.
+num_sanity_val_steps: 2 # number of validation steps to run before starting training. Used to catch bugs. Set to 0 to disable.
+limit_train_batches: null # how many batches to train on per epoch. Can be a fraction of the training dataset, or a number of batches.
+limit_val_batches: null # how many batches to validate on per epoch. Can be a fraction of the validation dataset, or a number of batches.
+limit_test_batches: null # how many batches to test on per epoch. Can be a fraction of the test dataset, or a number of batches.
+limit_predict_batches: null # how many batches to predict on per epoch. Can be a fraction of the predict dataset, or a number of batches.
+
+# Other
+inference_mode: true # whether to use torch.inference_mode() or torch.no_grad() during inference.
+model_registry: null # model registry to use for saving and loading models, e.g. HuggingFaceHub, MLflow, etc.
+enable_autolog_hparams: true # whether to automatically log hyperparameters to the logger. Only works if a logger is defined.
+reload_dataloaders_every_n_epochs: 0 # number of epochs to wait before reloading dataloaders. 0 means never reload.
