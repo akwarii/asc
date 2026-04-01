@@ -15,119 +15,7 @@ from src.constants import DEFAULT_SEED
 from tqdm.auto import tqdm
 
 
-@torch.inference_mode()
-def evaluate_model(
-    model: Module,
-    dataloader,
-    device: str = "cuda" if torch.cuda.is_available() else "cpu",
-) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Evaluate model on a dataloader and return predictions and ground truth labels.
-
-    Args:
-        model: The trained model
-        dataloader: DataLoader to evaluate on
-        device: Device to run evaluation on
-
-    Returns:
-        Tuple of (predictions, ground_truth) as numpy arrays
-    """
-    model.eval()
-    model = model.to(device)
-
-    all_preds = []
-    all_labels = []
-
-    for batch in tqdm(dataloader, desc="Evaluating", unit="batch"):
-        batch = batch.to(device)
-
-        # Forward pass
-        with torch.autocast(device_type=device.split(":")[0], dtype=torch.bfloat16):
-            logits = model(batch)
-
-        # Get predictions
-        preds = torch.argmax(logits, dim=1)
-
-        all_preds.append(preds.cpu().numpy())
-        all_labels.append(batch.y.cpu().numpy())
-
-    # Concatenate all batches
-    predictions = np.concatenate(all_preds)
-    ground_truth = np.concatenate(all_labels)
-
-    return predictions, ground_truth
-
-
-def plot_confusion_matrix(
-    cm: np.ndarray,
-    class_names: list[str] | None = None,
-    save_path: Path | None = None,
-    normalize: bool = True,
-) -> None:
-    """
-    Plot confusion matrix using seaborn.
-
-    Args:
-        cm: Confusion matrix
-        class_names: List of class names
-        save_path: Path to save the plot
-        normalize: Whether to normalize the confusion matrix
-    """
-    if normalize:
-        cm = cm.astype("float") / cm.sum(axis=1)[:, np.newaxis]
-        fmt = ".4f"
-        title = "Normalized Confusion Matrix"
-    else:
-        fmt = "d"
-        title = "Confusion Matrix"
-
-    fig, ax = plt.subplots(figsize=(12, 10))
-
-    if class_names is None:
-        class_names = [f"Class {i}" for i in range(cm.shape[0])]
-
-    # Plot confusion matrix
-    im = ax.imshow(cm, interpolation="nearest", cmap="Blues")
-    ax.figure.colorbar(im, ax=ax)
-
-    # Set ticks
-    ax.set(
-        xticks=np.arange(cm.shape[1]),
-        yticks=np.arange(cm.shape[0]),
-        xticklabels=class_names,
-        yticklabels=class_names,
-        ylabel="True Label",
-        xlabel="Predicted Label",
-        title=title,
-    )
-
-    # Rotate the tick labels for better readability
-    plt.step(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
-
-    # Add text annotations
-    thresh = cm.max() / 2.0
-    for i in range(cm.shape[0]):
-        for j in range(cm.shape[1]):
-            text = format(cm[i, j], fmt)
-            ax.text(
-                j,
-                i,
-                text,
-                ha="center",
-                va="center",
-                color="white" if cm[i, j] > thresh else "black",
-            )
-
-    plt.tight_layout()
-
-    if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches="tight")
-        print(f"Confusion matrix saved to {save_path}")
-
-    plt.show()
-
-
-def main() -> None:
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Load a checkpoint and compute confusion matrix")
     parser.add_argument(
         "--checkpoint",
@@ -184,7 +72,122 @@ def main() -> None:
         help="Save predictions and ground truth to file",
     )
 
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+@torch.inference_mode()
+def evaluate_model(model: Module, dataloader) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Evaluate model on a dataloader and return predictions and ground truth labels.
+
+    Args:
+        model: The trained model
+        dataloader: DataLoader to evaluate on
+
+    Returns:
+        Tuple of (predictions, ground_truth) as numpy arrays
+    """
+    device_type = model.device.type
+
+    all_preds = []
+    all_labels = []
+
+    model.eval()
+    for batch in tqdm(dataloader, desc="Evaluating", unit="batch"):
+        batch = batch.to(device_type)
+
+        with torch.autocast(device_type=device_type):
+            logits = model(batch)
+
+        preds = torch.argmax(logits, dim=1)
+
+        all_preds.append(preds.numpy())
+        all_labels.append(batch.y.numpy())
+
+    predictions = np.concatenate(all_preds)
+    ground_truth = np.concatenate(all_labels)
+
+    return predictions, ground_truth
+
+
+def plot_confusion_matrix(
+    cm: np.ndarray,
+    class_names: list[str] | None = None,
+    save_path: Path | None = None,
+    normalize: bool = True,
+) -> None:
+    """
+    Plot confusion matrix using seaborn.
+
+    Args:
+        cm: Confusion matrix
+        class_names: List of class names
+        save_path: Path to save the plot
+        normalize: Whether to normalize the confusion matrix
+    """
+    if normalize:
+        cm = cm.astype("float") / cm.sum(axis=1)[:, np.newaxis]
+        fmt = ".4f"
+        title = "Normalized Confusion Matrix"
+    else:
+        fmt = "d"
+        title = "Confusion Matrix"
+
+    _, ax = plt.subplots(figsize=(12, 10))
+
+    if class_names is None:
+        class_names = [f"Class {i}" for i in range(cm.shape[0])]
+
+    # Plot confusion matrix
+    im = ax.imshow(cm, interpolation="nearest", cmap="Blues")
+    ax.figure.colorbar(im, ax=ax)
+
+    # Set ticks
+    ax.set(
+        xticks=np.arange(cm.shape[1]),
+        yticks=np.arange(cm.shape[0]),
+        xticklabels=class_names,
+        yticklabels=class_names,
+        ylabel="True Label",
+        xlabel="Predicted Label",
+        title=title,
+    )
+
+    # Rotate the tick labels for better readability
+    plt.step(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+
+    # Add text annotations
+    thresh = cm.max() / 2.0
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            text = format(cm[i, j], fmt)
+            ax.text(
+                j,
+                i,
+                text,
+                ha="center",
+                va="center",
+                color="white" if cm[i, j] > thresh else "black",
+            )
+
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+        print(f"Confusion matrix saved to {save_path}")
+
+    plt.show()
+
+
+def main() -> None:
+    torch.set_float32_matmul_precision("high")
+    torch.backends.cudnn.benchmark = True
+    seed_everything(DEFAULT_SEED)
+
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    args = parse_args()
 
     # Setup
     checkpoint_path = Path(args.checkpoint)
@@ -194,33 +197,20 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    torch.set_float32_matmul_precision("high")
-    torch.backends.cudnn.benchmark = True
-    seed_everything(DEFAULT_SEED)
-
-    # Clear CUDA cache
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        print("Cleared CUDA cache.")
-
     print(f"Loading checkpoint from: {checkpoint_path}")
-
-    # Load model
     trainer = Trainer(
         precision="bf16-mixed" if torch.cuda.is_available() else 32,
         enable_progress_bar=False,
         enable_model_summary=False,
     )
 
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     with trainer.init_module(empty_init=True):
         model = Module.load_from_checkpoint(str(checkpoint_path))
-
+    model = model.to(device)
     print("Model loaded successfully.")
 
-    # Load dataset
     print(f"Loading dataset: {args.dataset}")
-
-    # Set lengths based on split choice
     if args.split == "all":
         lengths = (1.0, 0.0, 0.0)  # All data in train split
         print("Using entire dataset without splitting")
@@ -233,7 +223,7 @@ def main() -> None:
         num_workers=args.num_workers,
         batch_size=args.batch_size,
         k=args.num_neighbors,
-        use_imbalance_sampler=False,  # No sampling for evaluation
+        use_imbalance_sampler=False,
         force_reload=False,
     )
 
@@ -254,8 +244,7 @@ def main() -> None:
     print(f"Evaluating on {args.split} split...")
 
     # Evaluate
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    predictions, ground_truth = evaluate_model(model, dataloader, device)
+    predictions, ground_truth = evaluate_model(model, dataloader)
 
     print("\nEvaluation complete!")
     print(f"Total samples: {len(predictions)}")
@@ -287,7 +276,6 @@ def main() -> None:
     print(f"Classification report saved to {report_path}")
 
     # Plot and save confusion matrices
-    # 1. Raw counts
     cm_raw_path = output_dir / f"confusion_matrix_{args.split}_raw.png"
     plot_confusion_matrix(
         cm,
@@ -295,7 +283,6 @@ def main() -> None:
         normalize=False,
     )
 
-    # 2. Normalized
     if not args.no_normalize:
         cm_norm_path = output_dir / f"confusion_matrix_{args.split}_normalized.png"
         plot_confusion_matrix(
