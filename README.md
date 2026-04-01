@@ -1,13 +1,11 @@
-<!-- TODO Update project name everywhere -->
-
-# Lightning-CEGANNv2: A Modular CEGANN Implementation with Optimized Architecture and Data Handling
+# Atomic Structure Classification
 
 [![python](https://img.shields.io/badge/Python_3.11+-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![lightning](https://img.shields.io/badge/-Lightning_2.0+-792ee5?logo=pytorchlightning&logoColor=white)](https://lightning.ai/docs/pytorch/stable/)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![license](https://img.shields.io/badge/License-GNU_GPLv3-green.svg?labelColor=gray)](https://github.com/akwarii/Lightning-CEGANN2#license)
-[![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/akwarii/Lightning-CEGANN2/pulls)
+[![license](https://img.shields.io/badge/License-GNU_GPLv3-green.svg?labelColor=gray)](https://github.com/akwarii/asc#license)
+[![PRs](https://img.shields.io/badge/PRs-welcomed-brightgreen.svg)](https://github.com/akwarii/asc/pulls)
 
 <!-- TABLE OF CONTENTS -->
 
@@ -38,11 +36,12 @@
 
 <!-- ABOUT THE PROJECT -->
 
-<!-- TODO Update project description -->
-
 ## About The Project
 
-This work introduces Lightning-CEGANNv2 (packaged as `asc`), a novel implementation of a modified Crystal Edge Graph Attention Neural Network (CEGANN) leveraging the modularity and efficiency of the Lightning framework. This research aims to enhance the original CEGANN architecture and data handling pipeline for improved performance and flexibility. The original CEGANN architecture can be found here: <a href="https://www.nature.com/articles/s41524-023-00975-z">CEGANN: Crystal Edge Graph Attention Neural Network for multiscale classification of materials environment</a>
+ASC (Atomic Structure Classification, pronunced ask) is a high-performance framework designed to accelerate the development and benchmarking of Graph Neural Networks for atomistic simulations.
+
+By decoupling the data engineering from the model design, this library allows researchers to ignore the data pipeline barrier and focus entirely on model innovation. An [OVITO extension](https://github.com/akwarii/asc-extension) is also provided to allow researchers to quickly load trained models directly into OVITO to perform real-time inference and assess performances visually.
+</a>
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -69,6 +68,10 @@ This work introduces Lightning-CEGANNv2 (packaged as `asc`), a novel implementat
 We recommend using `uv` to install the library dependencies:
 
 ```bash
+# Clone the repo
+git clone https://github.com/akwarii/asc.git
+cd asc
+
 # If uv is not installed on your machine
 pip install uv
 
@@ -90,16 +93,14 @@ where
 
 Alternatively, you can use pip directly:
 
-<!-- TODO Update venv name -->
-
 ```bash
 # Clone the repo
-git clone https://github.com/akwarii/Lightning-CEGANN2.git
-cd Lightning-CEGANN2
+git clone https://github.com/akwarii/asc.git
+cd asc
 
 # (OPTIONAL) Create a conda environment
-conda create -n cegann python=3.11
-conda activate cegann
+conda create -n asc python=3.11
+conda activate asc
 
 # Install the requirements
 pip install -r requirements.txt
@@ -155,17 +156,12 @@ The first will print the help message related to our implementation of the PaiNN
 
 **Code and Framework:**
 
-- [ ] Production ready inference script + notebook (via `main.py` CLI)
-- [ ] Ideally, replace the inference function by LightningModule.predict + LightningDataModule
-- [ ] Update documentation
-- [ ] Find fancy name (tentative: `asc`)
-- [ ] Add config file for each dataset and model
+- [ ] Config file for each dataset and model
 - [ ] Document how to extend the code
-
-**Optional:**
-
-- [ ] Graph coarsening transformation
-- [ ] Allows to use graph embedding for clustering
+- [ ] Node-level datamodule
+- [ ] Improve documentation
+- [ ] Switch between different CSG dataset version
+- [ ] Make real tests
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -180,25 +176,13 @@ Run pre-commit before submitting a PR by running `make format`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-<!-- HOW TO CITE -->
-
 <!-- TODO Add article ref once published -->
 
 ## How to cite
 
-If you use `Lightning-CEGANNv2` in your research, please consider citing the following work:
+If you use `asc` in your research, please consider citing the following work:
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- LICENSE -->
-
-## License
-
-Distributed under the GNU GPLv3 License. See `LICENSE.txt` for more information.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- CONTACT -->
 
 ## Contact
 
@@ -217,8 +201,6 @@ If you have any questions, please contact one of the contributors below:
 </ul>
 
 If you found a bug or want to request a new feature, please create a new
-[GitHub Issues](https://github.com/akwarii/Lightning-CEGANN2/issues)
-
-Project Link: [https://github.com/akwarii/Lightning-CEGANN2](https://github.com/akwarii/Lightning-CEGANN2)
+[GitHub Issues](https://github.com/akwarii/asc/issues)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
