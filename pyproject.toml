@@ -29,6 +29,10 @@ hpo = [
     "scipy>=1.15.3",
 ]
 dev = ["pytest>=8.3.4", "line-profiler>=5.0.0"]
+notebook = [
+    "ipykernel>=7.2.0",
+    "jupyter>=1.1.1",
+]
 
 [tool.ruff]
 src = ["src"]
