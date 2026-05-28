@@ -1,4 +1,5 @@
 import lightning as L
+import torch
 from lightning.pytorch.callbacks import BatchSizeFinder
 from lightning.pytorch.tuner.batch_size_scaling import _scale_batch_size
 from lightning.pytorch.utilities.exceptions import _TunerExitException
@@ -28,14 +29,26 @@ class HalfBatchSizeFinder(BatchSizeFinder):
         """Scales the batch size using power of 2 scaling until the largest batch size that do not
         OOM is find.
         """
-        new_size = _scale_batch_size(
-            trainer,
-            self._mode,
-            self._steps_per_trial,
-            self._init_val,
-            self._max_trials,
-            self._batch_arg_name,
-        )
+        # Lightning's batch-size tuner restores trainer state via torch.load; force
+        # full checkpoint loading only for this scoped tuning operation.
+        original_torch_load = torch.load
+
+        def _torch_load_with_full_state(*args: object, **kwargs: object) -> object:
+            kwargs["weights_only"] = False
+            return original_torch_load(*args, **kwargs)
+
+        torch.load = _torch_load_with_full_state
+        try:
+            new_size = _scale_batch_size(
+                trainer,
+                self._mode,
+                self._steps_per_trial,
+                self._init_val,
+                self._max_trials,
+                self._batch_arg_name,
+            )
+        finally:
+            torch.load = original_torch_load
 
         if new_size is not None:
             new_size = max(1, new_size // 2)
