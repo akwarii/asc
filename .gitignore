@@ -168,3 +168,8 @@ configs/local/default.yaml
 
 # Lightning log
 /lightning_logs
+
+# ZrO2 data
+examples/zro2/data/raw/ZrO2.csv
+examples/zro2/config
+examples/zro2/construct_data.py
