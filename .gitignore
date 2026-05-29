@@ -173,3 +173,6 @@ configs/local/default.yaml
 examples/zro2/data/raw/ZrO2.csv
 examples/zro2/config
 examples/zro2/construct_data.py
+
+% HPC dedicated scripts
+scripts/hpc
