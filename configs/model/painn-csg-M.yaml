@@ -1,0 +1,18 @@
+lr: 0.004683710915062593
+warmup: 500
+max_iters: -1  # Will be calculated automatically in main.py
+compile: true
+
+model:
+  class_path: src.models.PaiNN
+  init_args:
+    hidden_channels: 128
+    num_layers: 3
+    num_radial: 16
+    dropout: 0.1
+
+metrics:
+  - class_path: torchmetrics.F1Score
+  - class_path: torchmetrics.AUROC
+  - class_path: torchmetrics.Accuracy
+  - class_path: torchmetrics.ConfusionMatrix
