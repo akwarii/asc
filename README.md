@@ -80,7 +80,7 @@ uv sync
 
 # Add extra options if you want to download datasets and/or use hyperparameter optimization
 uv sync --group api --group hpo
-pip install pyg-lib -f https://data.pyg.org/whl/nightly/torch-${TORCH}+${CUDA}.html
+uv pip install pyg-lib -f https://data.pyg.org/whl/nightly/torch-${TORCH}+${CUDA}.html
 
 # Activate the virtual environment
 source .venv/bin/activate
@@ -164,6 +164,22 @@ The first will print the help message related to our implementation of the PaiNN
 - [ ] Make real tests
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Documentation
+
+In order to install the dependencies required for building the documentation, run the following command:
+
+```bash
+uv sync --group doc
+```
+
+You can then build the documentation by running:
+
+```bash
+make docs
+```
+
+From there, you can open the `docs/_build/html/index.html` file in your browser to view the documentation.
 
 <!-- CONTRIBUTING -->
 
