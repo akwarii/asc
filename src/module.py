@@ -129,15 +129,18 @@ class Module(LightningModule):
             edge_attr (Tensor): The edge features.
             kwargs (dict[str, Any]): Additional keyword arguments for the forward pass, which may
                 include:
-                num_sampled_nodes_per_hop (list[int] | None, optional): The number of sampled
+            num_sampled_nodes_per_hop (list[int] | None, optional): The number of sampled
                 nodes per hop for neighbor sampling. Defaults to None.
-                num_sampled_edges_per_hop (list[int] | None, optional): The number of sampled
-                    edges per hop for neighbor sampling. Defaults to None.
-                num_atoms (int | None, optional): The number of atoms in the graph, used for
-                    batching in LineGraph. Defaults to None.
-                bond_source (str | None, optional): The rows of the original graph adjacency
-                    matrix. Used to reconstruct the original graph from a LineGraphData.
-                    Defaults to None.
+            num_sampled_edges_per_hop (list[int] | None, optional): The number of sampled
+                edges per hop for neighbor sampling. Defaults to None.
+            num_atoms (int | None, optional): The number of atoms in the graph, used for
+                batching in LineGraph. Defaults to None.
+            bond_source (str | None, optional): The rows of the original graph adjacency
+                matrix. Used to reconstruct the original graph from a LineGraphData.
+                Defaults to None.
+
+        Returns:
+            Tensor: The output predictions of the model.
         """
         clean_kwargs = {k: v for k, v in kwargs.items() if v is not None}
         return self.model(x, edge_index, edge_attr, **clean_kwargs)
@@ -240,6 +243,12 @@ class Module(LightningModule):
         return torch.argmax(preds, dim=-1)
 
     def configure_optimizers(self) -> tuple[list[Optimizer], list[LambdaLR]]:
+        """Configures the optimizers and learning rate schedulers for the model.
+
+        Returns:
+            tuple[list[Optimizer], list[LambdaLR]]: A tuple containing a list of optimizers and
+                a list of learning rate schedulers.
+        """
         muon_params = []
         adamw_params = []
 

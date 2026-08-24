@@ -36,6 +36,7 @@ class CSG(Dataset):
 
     Attributes:
         KAGGLE_DATASET (str): The name of the Kaggle dataset.
+            Default is `gaelhuynh/space-group-tiny`.
     """
 
     KAGGLE_DATASET = "gaelhuynh/space-group-tiny"
