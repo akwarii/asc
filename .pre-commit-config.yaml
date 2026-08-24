@@ -1,5 +1,5 @@
 default_language_version:
-  python: python3
+  python: python3.11
 
 exclude: ^(data|logs)
 
@@ -9,17 +9,14 @@ ci:
   autofix_commit_msg: autofix pre-commit hooks
 
 repos:
-  - repo: builtin
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
     hooks:
       - id: check-added-large-files
       - id: check-case-conflict
       - id: check-toml
       - id: check-yaml
       - id: detect-private-key
-
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v6.0.0
-    hooks:
       - id: debug-statements
       - id: name-tests-test
         args: ["--pytest-test-first"]
@@ -79,5 +76,3 @@ repos:
     hooks:
       - id: nbqa-ruff
         args: ["--line-length=99", "--ignore=I001"]
-      - id: nbqa-isort
-        args: ["--profile=black"]
