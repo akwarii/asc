@@ -34,6 +34,7 @@ notebook = [
     "jupyter>=1.1.1",
 ]
 doc = [
+    "furo>=2024.8.6",
     "myst-nb>=1.4.0",
     "sphinx>=9.0.4",
 ]

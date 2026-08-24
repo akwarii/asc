@@ -17,4 +17,4 @@ extensions = [
 templates_path = ["_templates"]
 exclude_patterns = ["_build"]
 nb_execution_mode = "off"
-html_theme = "alabaster"
+html_theme = "furo"
