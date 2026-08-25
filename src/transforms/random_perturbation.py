@@ -6,6 +6,43 @@ from torch_geometric.data import Data
 from torch_geometric.transforms import BaseTransform
 
 
+def _normalize_apply_to(apply_to: str | Iterable[str]) -> set[str]:
+    """Normalize ``apply_to`` into a set of attribute names.
+
+    A bare string is treated as a single attribute name instead of being split into chars.
+
+    For example, "pos" is returned as a single attribute name, but would be treated as
+    three attribute names {'p', 'o', 's'} without this normalization.
+
+    If an iterable of strings is provided, it is converted to a set of attribute names.
+
+    Args:
+        apply_to (str or Iterable[str]): A string or an iterable of strings specifying which
+            attributes to perturb.
+
+    Returns:
+        set[str]: A set of attribute names to perturb.
+    """
+    if isinstance(apply_to, str):
+        names = [apply_to]
+    else:
+        try:
+            names = list(apply_to)
+        except TypeError as exc:
+            raise TypeError(
+                "apply_to must be a string or an iterable of strings"
+                f", got {type(apply_to).__name__}"
+            ) from exc
+
+    for name in names:
+        if not isinstance(name, str):
+            raise TypeError(
+                f"apply_to entries must be strings, got {type(name).__name__}: {name!r}"
+            )
+
+    return set(names)
+
+
 class RandomPerturbation(BaseTransform):
     """Applies random Gaussian noise to both node and edge features of a graph if they exist.
 
@@ -29,7 +66,7 @@ class RandomPerturbation(BaseTransform):
     ) -> None:
         self.std = std
         self.std_range = std_range
-        self.apply_to = set(apply_to) if not isinstance(apply_to, str) else set(apply_to)
+        self.apply_to = _normalize_apply_to(apply_to)
         self.recompute_edge_attrs = recompute_edge_attrs
 
         self.validate()
@@ -40,8 +77,12 @@ class RandomPerturbation(BaseTransform):
             raise ValueError("Either std or std_range must be provided.")
         if self.std is not None and self.std < 0.0:
             raise ValueError("The standard deviation must be positive.")
-        if self.std_range is not None and (self.std_range[0] < 0.0 or self.std_range[1] < 0.0):
-            raise ValueError("The standard deviation range must be positive.")
+        if self.std_range is not None:
+            lo, hi = self.std_range
+            if lo < 0.0 or hi < 0.0:
+                raise ValueError("The standard deviation range must be positive.")
+            if lo > hi:
+                raise ValueError("The standard deviation range must satisfy lower <= upper.")
 
     def _get_std(self) -> Tensor:
         if self.std_range is not None:
@@ -74,7 +115,7 @@ class RandomPerturbation(BaseTransform):
 
     def forward(self, data: Data) -> Data:
         """Runs the transform."""
-        for attr in self.apply_to:
+        for attr in sorted(self.apply_to):
             if hasattr(data, attr):
                 attr_val = getattr(data, attr)
                 if attr_val is not None:
