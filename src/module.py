@@ -296,6 +296,16 @@ class Module(LightningModule):
     def _optimization_step(
         self, optimizers: list[LightningOptimizer], schedulers: list[LRSchedulerPLType] | None
     ) -> None:
+        # Manual optimization bypasses the Trainer's automatic gradient clipping, so it must be
+        # applied explicitly per optimizer here for `gradient_clip_val`/`_algorithm` to take
+        # effect.
+        for opt in optimizers:
+            self.clip_gradients(  # type: ignore[arg-type]
+                opt,
+                gradient_clip_val=self.trainer.gradient_clip_val,
+                gradient_clip_algorithm=self.trainer.gradient_clip_algorithm,
+            )
+
         # TODO torch.compile does not support Muon optimizer yet
         # if self.can_compile:
         #     if not hasattr(self, "_compiled_fn"):
