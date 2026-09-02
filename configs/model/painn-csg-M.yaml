@@ -2,6 +2,8 @@ lr: 0.004683710915062593
 warmup: 500
 max_iters: -1  # Will be calculated automatically in main.py
 compile: true
+gradient_clip_val: 1.0
+gradient_clip_algorithm: norm
 
 model:
   class_path: src.models.PaiNN
