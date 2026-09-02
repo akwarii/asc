@@ -33,6 +33,10 @@ class Module(LightningModule):
             Defaults to 100.
         max_iters (int, optional): The maximum number of iterations for the learning rate
             scheduler. Defaults to 1_000.
+        gradient_clip_val (float | None, optional): Gradient clipping value applied manually per
+            optimizer, since the Trainer's own clipping is unsupported under manual optimization.
+            Defaults to None (no clipping).
+        gradient_clip_algorithm (str, optional): Either "norm" or "value". Defaults to "norm".
         model_kwargs (dict[str, Any], optional): Additional keyword arguments for the model.
             Defaults to None.
     """
@@ -46,6 +50,8 @@ class Module(LightningModule):
         lr: float = 1e-3,
         warmup: int = 100,
         max_iters: int = 1_000,
+        gradient_clip_val: float | None = None,
+        gradient_clip_algorithm: str = "norm",
     ) -> None:
         super().__init__()
 
@@ -296,14 +302,13 @@ class Module(LightningModule):
     def _optimization_step(
         self, optimizers: list[LightningOptimizer], schedulers: list[LRSchedulerPLType] | None
     ) -> None:
-        # Manual optimization bypasses the Trainer's automatic gradient clipping, so it must be
-        # applied explicitly per optimizer here for `gradient_clip_val`/`_algorithm` to take
-        # effect.
+        # The Trainer's own gradient clipping is unsupported under manual optimization, so it is
+        # applied here instead, per optimizer, using the Module's own hyperparameters.
         for opt in optimizers:
-            self.clip_gradients(  # type: ignore[arg-type]
-                opt,
-                gradient_clip_val=self.trainer.gradient_clip_val,
-                gradient_clip_algorithm=self.trainer.gradient_clip_algorithm,
+            self.clip_gradients(
+                opt,  # type: ignore
+                gradient_clip_val=self.hparams["gradient_clip_val"],
+                gradient_clip_algorithm=self.hparams["gradient_clip_algorithm"],
             )
 
         # TODO torch.compile does not support Muon optimizer yet

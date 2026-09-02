@@ -1,4 +1,5 @@
 import copy
+import warnings
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
@@ -9,6 +10,7 @@ from torch_geometric.loader import DataLoader, ImbalancedSampler
 
 from src import datasets
 from src.datasets.base import Dataset
+from src.transforms import TRAIN_ONLY_TRANSFORMS
 from src.typing import Stage
 from src.utils import random_split
 from src.utils.builder import class_instantiator
@@ -46,10 +48,12 @@ class LightningDataset(LightningDataModule):
             included in the dataset (default: `None`).
         pre_transforms: A function or a list of functions that takes in a
             `~torch_geometric.data.Data` object and returns a transformed version. The data object
-            will be transformed before being saved to disk (default: `None`).
+            will be transformed once before being saved to disk. Pre-transforms apply to every
+            stage and should therefore be deterministic (default: `None`).
         transforms: A function or a list of functions that takes in a `torch_geometric.data.Data`
-            object and returns a transformed version. The data object will be transformed before
-            every access (default: `None`).
+            object and returns a transformed version. Runtime transforms apply before every
+            access. Registered train-only transforms are removed from validation, test, and
+            prediction datasets (default: `None`).
         force_reload: Whether to re-process the dataset (default: `False`).
         search_kwargs: Optional dataset-specific search kwargs (used by Material Project).
         **kwargs: Additional keyword arguments to be passed to the dataset (if `dataset` is not
@@ -146,6 +150,7 @@ class LightningDataset(LightningDataModule):
         self.val_dataset: Dataset | None = None
         self.test_dataset: Dataset | None = None
         self.pred_dataset: Dataset | None = pred_dataset
+        self._warned_train_only_transforms = False
 
     @property
     def num_classes(self) -> int:
@@ -185,16 +190,20 @@ class LightningDataset(LightningDataModule):
 
     def setup(self, stage: Stage) -> None:
         """Load the dataset and set the train, validation, and test datasets."""
+        if stage == "predict":
+            if self.pred_dataset is not None:
+                self._remove_train_only_transforms(self.pred_dataset)
+            return
+
         # Create a dataset instance only if it was not provided/created before.
         # It avoids reloading the dataset at each call to `setup`.
-        if self.dataset is None and self.dataset_name is not None and stage != "predict":
+        if self.dataset is None and self.dataset_name is not None:
             self.dataset = DATASET_FACTORY[self.dataset_name](
                 **self.dataset_kwargs,
             )
 
-        # Make sure the dataset is split only once and ensure the dataset is not
-        # made for prediction.
-        if self.train_dataset is None and stage != "predict":
+        # Make sure the dataset is split only once.
+        if self.train_dataset is None:
             assert self.dataset is not None
 
             if self.lengths is None:
@@ -210,11 +219,90 @@ class LightningDataset(LightningDataModule):
             for attr, dataset in zip(split_map[len(self.lengths)], datasets):
                 setattr(self, attr, dataset)
 
+            # Evaluation splits retain deterministic transforms but exclude training augmentation.
+            for dataset in (self.val_dataset, self.test_dataset):
+                if dataset is not None:
+                    self._remove_train_only_transforms(dataset)
+
     def dataloader(self, dataset: Dataset, **kwargs) -> DataLoader:
         """Return a DataLoader for the given dataset."""
         kwargs.pop("k", None)
 
         return DataLoader(dataset, **kwargs)
+
+    @staticmethod
+    def _split_runtime_transform(transform: object) -> tuple[object | None, list[str]]:
+        """Split a runtime pipeline into an evaluation-safe pipeline and removed augmentations.
+
+        Args:
+            transform: A runtime transform, a nested ``T.Compose`` pipeline, or ``None``.
+
+        Returns:
+            A tuple containing the pipeline with train-only transforms removed (or ``None``) and
+            the class names of the removed train-only transforms.
+        """
+        # Case 1: No transform or a single train-only transform
+        if transform is None or isinstance(transform, TRAIN_ONLY_TRANSFORMS):
+            # A train-only transform has no evaluation-stage replacement.
+            removed_transform_names = [type(transform).__name__] if transform is not None else []
+            # No transform left for evaluation, but return the names of the removed transforms.
+            return None, removed_transform_names
+
+        # Case 2: A nested pipeline of transforms
+        if isinstance(transform, T.Compose):
+            surviving_transforms, removed_transform_names = [], []
+
+            for transform_child in transform.transforms:
+                # Recurse : deterministic transforms survive for composed pipelines of transforms
+                transform_child, child_removed = LightningDataset._split_runtime_transform(
+                    transform_child
+                )
+
+                if transform_child is not None:
+                    surviving_transforms.append(transform_child)
+                removed_transform_names.extend(child_removed)
+
+            if not surviving_transforms:
+                return None, removed_transform_names
+
+            # Avoid wrapping a single surviving transform in an unnecessary Compose.
+            evaluation_transform = (
+                surviving_transforms[0]
+                if len(surviving_transforms) == 1
+                else T.Compose(surviving_transforms)
+            )
+            return evaluation_transform, removed_transform_names
+
+        # Case 3: A single deterministic transform
+        return transform, []
+
+    def _remove_train_only_transforms(self, dataset: Dataset) -> None:
+        """Remove train-only runtime transforms from an evaluation dataset.
+
+        Args:
+            dataset: Validation, test, or prediction dataset whose runtime pipeline is filtered.
+
+        Returns:
+            None. The dataset's ``transform`` is updated in place only when train-only transforms
+            are present.
+        """
+        transform: object = dataset.transform
+        evaluation_transform, removed = self._split_runtime_transform(transform)
+
+        # No train-only transforms were found, so no update is needed.
+        if not removed:
+            return
+
+        # Keep deterministic transforms while preventing stochastic augmentation at evaluation.
+        dataset.transform = evaluation_transform  # type: ignore[assignment]
+        if not self._warned_train_only_transforms:
+            # Emit one warning even when validation and test each require filtering.
+            warnings.warn(
+                "Train-only transform(s) will be ignored for validation, test, and prediction: "
+                f"{', '.join(removed)}",
+                stacklevel=2,
+            )
+            self._warned_train_only_transforms = True  # No need to warn again
 
     def train_dataloader(self) -> DataLoader:
         """Return a DataLoader for the training dataset. The dataset is shuffled if it is not an
@@ -270,6 +358,7 @@ class LightningDataset(LightningDataModule):
         sampling technique is used.
         """
         assert self.pred_dataset is not None
+        self._remove_train_only_transforms(self.pred_dataset)
 
         kwargs = copy.copy(self.kwargs)
         kwargs.pop("sampler", None)
