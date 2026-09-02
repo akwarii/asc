@@ -9,6 +9,11 @@ class DropoutEdge(BaseTransform):
 
     This is a transform version of `torch_geometric.utils.dropout_edge`.
 
+    Note:
+        This transform being non-deterministic, it is intended to be used only during training. It
+        is therefore automatically removed from the validation, testing and prediction dataloaders
+        when created by the `LightningDataset`.
+
     Args:
         p (float): Dropout probability (default: 0.1).
         force_undirected (bool): If set to True, will either drop or keep both

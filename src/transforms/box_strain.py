@@ -9,6 +9,11 @@ from torch_geometric.transforms import BaseTransform
 class BoxStrain(BaseTransform):
     """Applies random strain (scaling and/or shearing) to a graph structure.
 
+    Note:
+        This transform being non-deterministic, it is intended to be used only during training. It
+        is therefore automatically removed from the validation, testing and prediction dataloaders
+        when created by the `LightningDataset`.
+
     Args:
         std: Standard deviation for the strain components.
         std_range: Range to sample the standard deviation from for each graph.

@@ -49,6 +49,11 @@ class RandomPerturbation(BaseTransform):
     Note that the edge attributes are only recomputed if the node positions are perturbed and the
     `recompute_edge_attrs` flag is set to True.
 
+    Note:
+        This transform being non-deterministic, it is intended to be used only during training. It
+        is therefore automatically removed from the validation, testing and prediction dataloaders
+        when created by the `LightningDataset`.
+
     Args:
         std: Standard deviation of the applied noise.
         std_range: A tuple specifying the range from which to uniformly sample the standard
