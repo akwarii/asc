@@ -132,7 +132,7 @@ class RandomPerturbation(BaseTransform):
                 assert data.edge_index is not None
                 assert data.cell is not None
 
-                new_edge_attr = data.pos[data.edge_index[0]] - data.pos[data.edge_index[1]]
+                new_edge_attr = data.pos[data.edge_index[1]] - data.pos[data.edge_index[0]]
                 new_edge_attr = self._wrap(new_edge_attr, data.cell, data.pbc)
 
                 data.edge_attr = new_edge_attr
