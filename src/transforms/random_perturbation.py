@@ -47,7 +47,11 @@ class RandomPerturbation(BaseTransform):
     """Applies random Gaussian noise to both node and edge features of a graph if they exist.
 
     Note that the edge attributes are only recomputed if the node positions are perturbed and the
-    `recompute_edge_attrs` flag is set to True.
+    `recompute_edge_attrs` flag is set to True. `edge_attr` is updated by shifting the existing
+    (already correctly wrapped) edge vector by the endpoints' noise delta, rather than
+    re-deriving the periodic image from the noised absolute positions. The latter approach is
+    kept as `legacy_forward` for rollback, but it relies on a naive minimum-image convention that
+    is wrong for skewed/triclinic cells.
 
     Note:
         This transform being non-deterministic, it is intended to be used only during training. It
@@ -120,6 +124,35 @@ class RandomPerturbation(BaseTransform):
 
     def forward(self, data: Data) -> Data:
         """Runs the transform."""
+        noises: dict[str, Tensor] = {}
+        for attr in sorted(self.apply_to):
+            if hasattr(data, attr):
+                attr_val = getattr(data, attr)
+                if attr_val is not None:
+                    noise = torch.randn_like(attr_val) * self._get_std()
+                    noises[attr] = noise
+                    setattr(data, attr, attr_val + noise)
+
+        if self.recompute_edge_attrs and "pos" in noises:
+            if hasattr(data, "edge_attr") and data.edge_attr is not None:
+                assert data.edge_index is not None
+
+                # Shift the existing edge vector by the endpoints' noise delta instead of
+                # re-deriving the periodic image from absolute positions: the naive
+                # minimum-image wrap in `legacy_forward` is wrong for skewed/triclinic cells.
+                pos_noise = noises["pos"]
+                edge_noise = pos_noise[data.edge_index[1]] - pos_noise[data.edge_index[0]]
+                data.edge_attr = data.edge_attr + edge_noise
+
+        return data
+
+    def legacy_forward(self, data: Data) -> Data:
+        """Runs the transform using the previous, naive minimum-image recomputation.
+
+        Kept only for easy rollback. This re-derives `edge_attr` from the noised absolute
+        positions and re-wraps it with `_wrap`, which fails to find the true nearest periodic
+        image for skewed/triclinic cells. Prefer `forward`.
+        """
         for attr in sorted(self.apply_to):
             if hasattr(data, attr):
                 attr_val = getattr(data, attr)
