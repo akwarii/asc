@@ -150,6 +150,7 @@ class LightningDataset(LightningDataModule):
         self.val_dataset: Dataset | None = None
         self.test_dataset: Dataset | None = None
         self.pred_dataset: Dataset | None = pred_dataset
+        self._class_counts: torch.Tensor | None = None
         self._warned_train_only_transforms = False
 
     @property
@@ -160,6 +161,78 @@ class LightningDataset(LightningDataModule):
 
         assert self.dataset is not None
         return self.dataset.num_classes
+
+    def class_counts(self) -> torch.Tensor:
+        """Return cached per-atom class counts for the training split.
+
+        Counts are computed on the training split only and are weighted by the number of atoms in
+        each crystal. The classification loss is evaluated per atom, with each crystal label
+        broadcast to its atoms, so this gives the effective sample count used for class balancing.
+
+        Returns:
+            Tensor: An int64 tensor of shape ``[num_classes]`` with the per-atom count of each
+                class in the training set.
+        """
+        if self._class_counts is None:
+            if self.train_dataset is None:
+                self.setup("fit")
+            assert self.train_dataset is not None
+            self._class_counts = self._compute_class_counts()
+        return self._class_counts
+
+    def _compute_class_counts(self) -> torch.Tensor:
+        """Compute per-atom training class counts, vectorized when possible.
+
+        For in-memory datasets this is done directly on the concatenated node tensors in a
+        single vectorised pass (O(number of atoms)), avoiding the per-graph Python loop that
+        would stall training and spike memory. A slower per-graph fallback is kept for
+        datasets that expose no shared in-memory buffer.
+
+        Returns:
+            Tensor: An int64 tensor of shape ``[num_classes]``.
+        """
+        train = self.train_dataset
+        if train is None:
+            raise ValueError("Training dataset is not set. Call `setup('fit')` first.")
+        buffer = getattr(train, "_data", None)
+
+        # Fast path: in-memory datasets share a concatenated node buffer, so we can histogram
+        # the per-atom class counts in one vectorised call without materialising every graph.
+        if buffer is not None and hasattr(buffer, "_num_nodes") and hasattr(train, "indices"):
+            # Per-graph number of atoms; the cumulative sum gives the first-atom offset of each
+            # graph in the concatenated buffer.
+            nn = torch.as_tensor(buffer._num_nodes, dtype=torch.long)
+            bounds = torch.cumsum(nn, 0) - nn
+            # The class of a whole crystal is broadcast to all of its atoms (data.y[0]), so
+            # the graph's class equals the label of its first atom.
+            graph_class = buffer.y[bounds]
+
+            # Keep only the graphs that belong to the training split.
+            idx = train.indices()
+            if idx is None:  # an unsplit dataset is its own training set
+                idx = torch.arange(len(buffer._num_nodes))
+            idx = torch.as_tensor(idx, dtype=torch.long)
+
+            # Atom-weighted histogram: each training graph contributes its atom count to its class.
+            counts = torch.bincount(
+                graph_class[idx], weights=nn[idx].double(), minlength=self.num_classes
+            )
+            return counts.long()
+
+        # Slow fallback for non in-memory datasets: iterate the graphs once. This mirrors the
+        # pattern used for the ImbalancedSampler (see train_dataloader); the runtime transform
+        # perturbs positions only and never alters ``y`` or ``num_nodes``, so the counts hold
+        # regardless of the augmentation.
+        labels = [0] * len(train)
+        sizes = [0] * len(train)
+        for index, data in enumerate(train):
+            labels[index] = data.y[0].item()
+            sizes[index] = data.num_nodes
+        return torch.bincount(
+            torch.tensor(labels),
+            weights=torch.tensor(sizes, dtype=torch.float64),
+            minlength=self.num_classes,
+        ).long()
 
     @property
     def batch_size(self) -> int:
@@ -208,6 +281,10 @@ class LightningDataset(LightningDataModule):
 
             if self.lengths is None:
                 self.train_dataset = self.dataset
+                # Precompute the class counts at setup time (before dataloaders/workers spin
+                # up) so that class-balanced weighting never triggers a heavy computation in
+                # the middle of a training step.
+                self._class_counts = self._compute_class_counts()
                 return
 
             split_map = {
@@ -223,6 +300,10 @@ class LightningDataset(LightningDataModule):
             for dataset in (self.val_dataset, self.test_dataset):
                 if dataset is not None:
                     self._remove_train_only_transforms(dataset)
+
+            # Precompute class counts at setup time (before dataloaders/workers spin up) so that
+            # class-balanced weighting never triggers a heavy computation mid-training step.
+            self._class_counts = self._compute_class_counts()
 
     def dataloader(self, dataset: Dataset, **kwargs) -> DataLoader:
         """Return a DataLoader for the given dataset."""

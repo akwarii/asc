@@ -37,6 +37,18 @@ class Module(LightningModule):
             optimizer, since the Trainer's own clipping is unsupported under manual optimization.
             Defaults to None (no clipping).
         gradient_clip_algorithm (str, optional): Either "norm" or "value". Defaults to "norm".
+        class_balancing (bool, optional): Whether to reweight the cross-entropy loss per class
+            using class-balanced weights (Cui et al., "Class-Balanced Loss Based on Effective
+            Number of Samples"). When enabled, the class weight is computed from the training
+            set's per-atom class counts (see `_class_weights`). Defaults to False (standard CE).
+        class_balancing_beta (float, optional): The decay hyperparameter ``beta`` of the
+            class-balanced loss, in ``[0, 1)``. It controls how strongly frequent classes are
+            down-weighted: the closer ``beta`` is to 1, the more the weight of the most common
+            classes is damped (their weight tends to ``1 - beta``), while rare classes stay close
+            to 1. Defaults to 0.99.
+        label_smoothing (float, optional): Label smoothing factor in ``[0, 1)`` passed to the
+            cross-entropy loss. Softens the one-hot targets to curb over-confident logits,
+            generally helpful with many fine-grained classes. Defaults to 0.0 (no smoothing).
         model_kwargs (dict[str, Any], optional): Additional keyword arguments for the model.
             Defaults to None.
     """
@@ -52,6 +64,9 @@ class Module(LightningModule):
         max_iters: int = 1_000,
         gradient_clip_val: float | None = None,
         gradient_clip_algorithm: str = "norm",
+        class_balancing: bool = False,
+        class_balancing_beta: float = 0.99,
+        label_smoothing: float = 0.0,
     ) -> None:
         super().__init__()
 
@@ -68,7 +83,10 @@ class Module(LightningModule):
         if self.can_compile:
             self.model = torch.compile(self.model, fullgraph=True, dynamic=True)
 
-        self.criterion = F.cross_entropy
+        # The caching of class weights is deferred until the first forward pass, since computing
+        # them requires access to the (already split) training data via the datamodule, which is
+        # not guaranteed to be available at construction time (e.g. during checkpoint export).
+        self._cached_class_weights: torch.Tensor | None = None
 
         if metrics is not None:
             self._configure_metrics(metrics)
@@ -151,6 +169,74 @@ class Module(LightningModule):
         clean_kwargs = {k: v for k, v in kwargs.items() if v is not None}
         return self.model(x, edge_index, edge_attr, **clean_kwargs)
 
+    def _class_weights(self) -> torch.Tensor | None:
+        """Return the per-class loss weights, or ``None`` when class balancing is disabled.
+
+        Weights follow Cui et al., "Class-Balanced Loss Based on Effective Number of Samples":
+        ``w_c = (1 - beta) / (1 - beta ** n_c)`` where ``n_c`` is the number of (per-atom)
+        training samples of class ``c``. This gives rare classes a weight close to 1 while
+        damping frequent classes toward ``1 - beta``.
+
+        Returns:
+            torch.Tensor | None: A float32 vector of length ``num_classes``, or ``None`` when
+                ``class_balancing`` is disabled or the weights cannot be computed.
+        """
+        if not self.hparams.get("class_balancing", False):
+            return None
+
+        # The weights require the training split class counts, which live on the datamodule.
+        # Fall back to no weighting (None) when no datamodule is present, e.g. during the
+        # torch.export step that loads the module outside of a Trainer fit.
+        datamodule = (
+            getattr(self.trainer, "datamodule", None) if self.trainer is not None else None
+        )
+        if datamodule is None or not hasattr(datamodule, "class_counts"):
+            return None
+
+        # Reuse the cached weights across steps to avoid recomputing them on every batch.
+        if self._cached_class_weights is not None:
+            return self._cached_class_weights
+
+        beta = float(self.hparams.get("class_balancing_beta", 0.99))
+
+        # Compute the counts and the weights in float64 to keep the exponentiation stable for
+        # the very large per-atom counts of the most frequent classes.
+        counts = datamodule.class_counts().to(dtype=torch.float64)
+        weights = (1.0 - beta) / (1.0 - beta**counts)
+
+        # Normalize so that the mean weight is 1. This keeps the overall scale of the loss (and
+        # hence the effective learning-rate / gradient-clipping behaviour) comparable to plain,
+        # unweighted cross-entropy, which makes run-to-run comparisons more meaningful.
+        weights = weights / weights.mean()
+
+        self._cached_class_weights = weights.to(dtype=torch.float32)
+        return self._cached_class_weights
+
+    def _criterion(self, preds: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        """Compute the (optionally class-weighted and label-smoothed) cross-entropy loss.
+
+        Args:
+            preds (Tensor): Raw per-atom logits of shape ``[num_nodes, num_classes]``.
+            targets (Tensor): Per-atom class indices of shape ``[num_nodes]``.
+
+        Returns:
+            Tensor: The scalar loss.
+        """
+        weights = self._class_weights()
+
+        # The weight tensor is moved to the predictions device on every call, since the module
+        # may run on multiple devices/gpus under manual optimization.
+        if weights is not None:
+            weights = weights.to(device=preds.device)
+
+        # TODO: allow for CLI configurable loss
+        return F.cross_entropy(
+            preds,
+            targets,
+            weight=weights,
+            label_smoothing=float(self.hparams.get("label_smoothing", 0.0)),
+        )
+
     def training_step(self, data: Data) -> Tensor:
         opts = self.optimizers()
         schs = self.lr_schedulers()
@@ -162,7 +248,7 @@ class Module(LightningModule):
 
         kwargs = self._prepare_forward_kwargs(data)
         preds: Tensor = self(data.x, data.edge_index, data.edge_attr, **kwargs)
-        loss = self.criterion(preds, torch.as_tensor(data.y))
+        loss = self._criterion(preds, torch.as_tensor(data.y))
 
         for opt in opts:
             opt.zero_grad(set_to_none=True)
@@ -201,7 +287,10 @@ class Module(LightningModule):
     def validation_step(self, data: Data) -> None:
         kwargs = self._prepare_forward_kwargs(data)
         preds: Tensor = self(data.x, data.edge_index, data.edge_attr, **kwargs)
-        loss = self.criterion(preds, torch.as_tensor(data.y))
+        # Class weights are applied to the validation loss as well so that the monitored
+        # val/loss is consistent with the (class-balanced) training objective used for
+        # early stopping and checkpoint selection.
+        loss = self._criterion(preds, torch.as_tensor(data.y))
 
         if hasattr(self, "val_metrics"):
             self.val_metrics.update(preds.softmax(dim=-1), data.y)
