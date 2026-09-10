@@ -12,7 +12,7 @@ from src import datasets
 from src.datasets.base import Dataset
 from src.transforms import TRAIN_ONLY_TRANSFORMS
 from src.typing import Stage
-from src.utils import random_split
+from src.utils import random_split, stratified_split
 from src.utils.builder import class_instantiator
 
 DATASET_FACTORY: dict[str, Callable] = {
@@ -43,6 +43,10 @@ class LightningDataset(LightningDataModule):
         use_imbalance_sampler: Whether to use the ImbalancedSampler to balance the dataset. Note
             that other sampler can be used by providing it in the `sampler` argument but can't be
             used at the same time (default: `False`).
+        stratify: Whether to split the dataset by stratifying on the per-graph class label so that
+            every split preserves the class distribution of the whole dataset. Useful for obtaining
+            representative validation/test sets of rare classes. Defaults to `False`, which keeps
+            the historical random split.
         pre_filters: A function or a list of functions that takes in a `~torch_geometric.data.Data`
             object and returns a boolean value, indicating whether the data object should be
             included in the dataset (default: `None`).
@@ -71,6 +75,7 @@ class LightningDataset(LightningDataModule):
         pre_transforms: Any = None,  # noqa: ANN401
         transforms: Any = None,  # noqa: ANN401
         use_imbalance_sampler: bool = False,
+        stratify: bool = False,
         force_reload: bool = False,
         search_kwargs: Mapping[str, Any] | None = None,
         **kwargs,
@@ -114,6 +119,7 @@ class LightningDataset(LightningDataModule):
         self.kwargs["batch_size"] = self._batch_size
 
         self.use_imbalance_sampler = use_imbalance_sampler
+        self.stratify = stratify
 
         pre_filters = class_instantiator(pre_filters)
         pre_transforms = class_instantiator(pre_transforms)
@@ -150,7 +156,6 @@ class LightningDataset(LightningDataModule):
         self.val_dataset: Dataset | None = None
         self.test_dataset: Dataset | None = None
         self.pred_dataset: Dataset | None = pred_dataset
-        self._class_counts: torch.Tensor | None = None
         self._warned_train_only_transforms = False
 
     @property
@@ -161,78 +166,6 @@ class LightningDataset(LightningDataModule):
 
         assert self.dataset is not None
         return self.dataset.num_classes
-
-    def class_counts(self) -> torch.Tensor:
-        """Return cached per-atom class counts for the training split.
-
-        Counts are computed on the training split only and are weighted by the number of atoms in
-        each crystal. The classification loss is evaluated per atom, with each crystal label
-        broadcast to its atoms, so this gives the effective sample count used for class balancing.
-
-        Returns:
-            Tensor: An int64 tensor of shape ``[num_classes]`` with the per-atom count of each
-                class in the training set.
-        """
-        if self._class_counts is None:
-            if self.train_dataset is None:
-                self.setup("fit")
-            assert self.train_dataset is not None
-            self._class_counts = self._compute_class_counts()
-        return self._class_counts
-
-    def _compute_class_counts(self) -> torch.Tensor:
-        """Compute per-atom training class counts, vectorized when possible.
-
-        For in-memory datasets this is done directly on the concatenated node tensors in a
-        single vectorised pass (O(number of atoms)), avoiding the per-graph Python loop that
-        would stall training and spike memory. A slower per-graph fallback is kept for
-        datasets that expose no shared in-memory buffer.
-
-        Returns:
-            Tensor: An int64 tensor of shape ``[num_classes]``.
-        """
-        train = self.train_dataset
-        if train is None:
-            raise ValueError("Training dataset is not set. Call `setup('fit')` first.")
-        buffer = getattr(train, "_data", None)
-
-        # Fast path: in-memory datasets share a concatenated node buffer, so we can histogram
-        # the per-atom class counts in one vectorised call without materialising every graph.
-        if buffer is not None and hasattr(buffer, "_num_nodes") and hasattr(train, "indices"):
-            # Per-graph number of atoms; the cumulative sum gives the first-atom offset of each
-            # graph in the concatenated buffer.
-            nn = torch.as_tensor(buffer._num_nodes, dtype=torch.long)
-            bounds = torch.cumsum(nn, 0) - nn
-            # The class of a whole crystal is broadcast to all of its atoms (data.y[0]), so
-            # the graph's class equals the label of its first atom.
-            graph_class = buffer.y[bounds]
-
-            # Keep only the graphs that belong to the training split.
-            idx = train.indices()
-            if idx is None:  # an unsplit dataset is its own training set
-                idx = torch.arange(len(buffer._num_nodes))
-            idx = torch.as_tensor(idx, dtype=torch.long)
-
-            # Atom-weighted histogram: each training graph contributes its atom count to its class.
-            counts = torch.bincount(
-                graph_class[idx], weights=nn[idx].double(), minlength=self.num_classes
-            )
-            return counts.long()
-
-        # Slow fallback for non in-memory datasets: iterate the graphs once. This mirrors the
-        # pattern used for the ImbalancedSampler (see train_dataloader); the runtime transform
-        # perturbs positions only and never alters ``y`` or ``num_nodes``, so the counts hold
-        # regardless of the augmentation.
-        labels = [0] * len(train)
-        sizes = [0] * len(train)
-        for index, data in enumerate(train):
-            labels[index] = data.y[0].item()
-            sizes[index] = data.num_nodes
-        return torch.bincount(
-            torch.tensor(labels),
-            weights=torch.tensor(sizes, dtype=torch.float64),
-            minlength=self.num_classes,
-        ).long()
 
     @property
     def batch_size(self) -> int:
@@ -281,10 +214,6 @@ class LightningDataset(LightningDataModule):
 
             if self.lengths is None:
                 self.train_dataset = self.dataset
-                # Precompute the class counts at setup time (before dataloaders/workers spin
-                # up) so that class-balanced weighting never triggers a heavy computation in
-                # the middle of a training step.
-                self._class_counts = self._compute_class_counts()
                 return
 
             split_map = {
@@ -292,7 +221,10 @@ class LightningDataset(LightningDataModule):
                 2: ("train_dataset", "val_dataset"),
                 3: ("train_dataset", "val_dataset", "test_dataset"),
             }
-            datasets = random_split(dataset=self.dataset, lengths=self.lengths)
+            if self.stratify:
+                datasets = stratified_split(dataset=self.dataset, lengths=self.lengths)
+            else:
+                datasets = random_split(dataset=self.dataset, lengths=self.lengths)
             for attr, dataset in zip(split_map[len(self.lengths)], datasets):
                 setattr(self, attr, dataset)
 
@@ -300,10 +232,6 @@ class LightningDataset(LightningDataModule):
             for dataset in (self.val_dataset, self.test_dataset):
                 if dataset is not None:
                     self._remove_train_only_transforms(dataset)
-
-            # Precompute class counts at setup time (before dataloaders/workers spin up) so that
-            # class-balanced weighting never triggers a heavy computation mid-training step.
-            self._class_counts = self._compute_class_counts()
 
     def dataloader(self, dataset: Dataset, **kwargs) -> DataLoader:
         """Return a DataLoader for the given dataset."""
