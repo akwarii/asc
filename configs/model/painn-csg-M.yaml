@@ -4,6 +4,9 @@ max_iters: -1  # Will be calculated automatically in main.py
 compile: true
 gradient_clip_val: 1.0
 gradient_clip_algorithm: norm
+label_smoothing: 0.0
+muon_weight_decay: 0.1
+adamw_weight_decay: 0.01
 
 model:
   class_path: src.models.PaiNN
