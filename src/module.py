@@ -40,6 +40,12 @@ class Module(LightningModule):
         label_smoothing (float, optional): Label smoothing factor in ``[0, 1)`` passed to the
             cross-entropy loss. Softens the one-hot targets to curb over-confident logits,
             generally helpful with many fine-grained classes. Defaults to 0.0 (no smoothing).
+        muon_weight_decay (float, optional): Weight decay applied to the parameters optimized by
+            the Muon optimizer (2D+ weight matrices of Linear/Conv layers). Mirrors the default of
+            ``torch.optim.Muon`` and keeps the historical behaviour. Defaults to 0.1.
+        adamw_weight_decay (float, optional): Weight decay applied to the parameters optimized by
+            the AdamW optimizer (1D parameters: biases, norms, embeddings). Mirrors the default of
+            ``torch.optim.AdamW`` and keeps the historical behaviour. Defaults to 0.01.
         model_kwargs (dict[str, Any], optional): Additional keyword arguments for the model.
             Defaults to None.
     """
@@ -56,6 +62,8 @@ class Module(LightningModule):
         gradient_clip_val: float | None = None,
         gradient_clip_algorithm: str = "norm",
         label_smoothing: float = 0.0,
+        muon_weight_decay: float = 0.1,
+        adamw_weight_decay: float = 0.01,
     ) -> None:
         super().__init__()
 
@@ -292,8 +300,17 @@ class Module(LightningModule):
         # TODO torch.compile does not support Muon optimizer yet
         # we will set lr as a tensor once it is supported to avoid graph breaks
         lr = self.hparams["lr"]
-        opt_muon = torch.optim.Muon(muon_params, lr=lr, adjust_lr_fn="match_rms_adamw")
-        opt_adamw = torch.optim.AdamW(adamw_params, lr=lr)
+        opt_muon = torch.optim.Muon(
+            muon_params,
+            lr=lr,
+            weight_decay=self.hparams["muon_weight_decay"],
+            adjust_lr_fn="match_rms_adamw",
+        )
+        opt_adamw = torch.optim.AdamW(
+            adamw_params,
+            lr=lr,
+            weight_decay=self.hparams["adamw_weight_decay"],
+        )
 
         # Initialize Schedulers
         sched_muon = get_cosine_schedule_with_warmup(
