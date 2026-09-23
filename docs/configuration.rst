@@ -59,6 +59,25 @@ Key points:
 * ``model.init_args`` contains the constructor arguments for that model.
 * ``metrics`` is a list of metric classes that will be tracked during training.
 
+The following options are optional and only set in the presets for the CSG
+foundation models configs (``configs/model/painn-csg-{S,M,L}.yaml``). They
+are omitted from the default ``painn.yaml``:
+
+.. code-block:: yaml
+
+   gradient_clip_val: 1.0
+   gradient_clip_algorithm: norm
+   label_smoothing: 0.0
+   muon_weight_decay: 0.1
+   adamw_weight_decay: 0.01
+
+* ``gradient_clip_val`` sets the value used for gradient clipping (with
+  ``gradient_clip_algorithm`` selecting between ``norm`` and ``value``).
+* ``label_smoothing`` softens the cross-entropy targets, which generally helps with many
+  fine-grained classes.
+* ``muon_weight_decay`` and ``adamw_weight_decay`` set the weight decay used by the Muon
+  (2D+ weights) and AdamW (1D parameters) optimizers respectively.
+
 Data configuration
 ------------------
 
@@ -87,6 +106,8 @@ This file is responsible for:
 * selecting the dataset via ``dataset_name``;
 * pointing to the data directory through ``root``;
 * splitting the dataset into train/validation/test sets with ``lengths``;
+* optionally stratifying the splits by class label with ``stratify`` so that every split
+  preserves the class distribution of the whole dataset (useful for rare classes);
 * controlling batching and parallel data loading;
 * applying training-time augmentations via the ``transforms`` list.
 
@@ -116,7 +137,7 @@ The trainer configuration controls Lightning's runtime behavior, logger, and cal
          monitor: val/loss
          mode: min
          save_top_k: 3
-         filename: "{epoch}-{val_loss:.4f}"
+         filename: "{epoch}-{val/loss:.4f}"
      - class_path: lightning.pytorch.callbacks.EarlyStopping
        init_args:
          monitor: val/loss

@@ -25,9 +25,9 @@ DATASET_FACTORY: dict[str, Callable] = {
 
 
 class LightningDataset(LightningDataModule):
-    """A wrapper around LightningDataset that sets the batch size as an attribute after
-    initialization. It is only used to have a direct access to the batch size in the datamodule,
-    which is expected by the BatchSizeFinder callback of Lightning.
+    """LightningDataModule wrapper around a dataset, which sets the batch size as an attribute
+    after initialization. It is only used to have a direct access to the batch size in the
+    datamodule, which is expected by the BatchSizeFinder callback of Lightning.
 
     Args:
         dataset: The dataset to use for training. If lengths are provided, the dataset is split
@@ -363,7 +363,7 @@ class LightningDataset(LightningDataModule):
         return self.dataloader(self.test_dataset, shuffle=False, **kwargs)
 
     def predict_dataloader(self) -> DataLoader:
-        """Return a DataLoader for the test dataset. The dataset is not shuffled and no
+        """Return a DataLoader for the test/prediction dataset. The dataset is not shuffled and no
         sampling technique is used.
         """
         assert self.pred_dataset is not None
